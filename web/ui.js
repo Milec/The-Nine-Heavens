@@ -355,12 +355,17 @@ function renderBirth(c) {
   ], "✺ A NEW SOUL ENTERS THE WHEEL OF DESTINY ✺");
 }
 function birthVerdict(c) {
-  let score = c.root.multiplier * 18 + c.comprehension + c.luck + c.reputation + (c.soul + c.constitution) / 2;
-  if (c.physiqueKey !== "ordinary") score += 30;
-  if (score > 170) return "The heavens have lavished gifts upon you. A dragon among men.";
-  if (score > 120) return "A genuinely blessed birth. Sects would war over you.";
-  if (score > 85) return "A solid hand of cards. Your fate is yours to make.";
-  if (score > 55) return "An unremarkable start. The climb will be steep but not closed.";
+  // The spiritual root is the gate to cultivation, so it dominates the verdict;
+  // a special physique can partly redeem a poor root, and attributes only nudge.
+  const special = c.physiqueKey !== "ordinary";
+  const score = c.root.multiplier * 45
+    + (c.comprehension + c.luck + (c.soul + c.constitution) / 2) / 3 * 0.5
+    + c.reputation * 0.3
+    + (special ? 35 : 0);
+  if (score > 160) return "The heavens have lavished gifts upon you. A dragon among men.";
+  if (score > 108) return "A genuinely blessed birth. Sects would war over you.";
+  if (score > 68) return "A solid hand of cards. Your fate is yours to make.";
+  if (score > 40) return "An unremarkable start. The climb will be steep but not closed.";
   return "The dao has dealt you ashes. Only sheer will could forge a legend from this.";
 }
 
