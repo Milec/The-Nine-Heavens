@@ -243,6 +243,35 @@ export const EVENTS = [
       { label: "Hide until it passes", result: (c, rng, A) => { c.reputation -= 6; A.happy(-4); return "You cower in the herb-cellar while others bleed. The sect remembers cowards."; } },
     ],
   },
+  /* ------------------------------ nemesis ------------------------------- */
+  {
+    id: "destined_rival", weight: 8, minAge: 8, maxAge: 18, awakened: true, once: true,
+    cond: c => !c.relationships.some(n => n.role === "nemesis" && n.alive),
+    text: () => "A gifted, arrogant peer humiliates you before a watching crowd, sneering that you will never amount to anything. The shame burns.",
+    choices: [
+      { label: "Swear to surpass them", result: (c, rng, A) => { const n = A.makeNemesis("a public humiliation in your youth"); cap(c, "comprehension", 2); A.happy(-4); return `You meet ${n.name}'s eyes and silently vow to grind their pride to dust. A lifelong rivalry is born. (See them in Relationships.)`; } },
+      { label: "Swallow it calmly", result: (c, rng, A) => { const n = A.makeNemesis("a public humiliation in your youth"); cap(c, "soul", 2); return `You bow your head and walk away — but ${n.name} marks you as a rival, and will not let it rest. (+Soul)`; } },
+    ],
+  },
+  {
+    id: "nemesis_surge", weight: 4, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "nemesis" && n.alive),
+    auto: (c, rng, A) => { const n = A.nemesis(); if (n) n.power *= rng.uniform(1.12, 1.28); return `Word reaches you: your nemesis ${n ? n.name : ""} has stumbled into a fortuitous chance and surged in power. The gap yawns wider.`; },
+  },
+  {
+    id: "nemesis_taunt", weight: 5, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "nemesis" && n.alive),
+    text: c => { const n = c.relationships.find(x => x.role === "nemesis" && x.alive); return `${n ? n.name : "Your nemesis"} struts past with a retinue, loudly mocking your "pitiful" cultivation for all to hear.`; },
+    choices: [
+      { label: "Redouble your training", result: (c, rng, A) => { cap(c, "comprehension", 2); A.happy(-3); return "You answer with silence and sweat. Their scorn becomes fuel. (+Comprehension)"; } },
+      { label: "Answer their challenge now", result: (c, rng, A) => { const n = A.nemesis(); return ["Blood rushes to your head — you call them out on the spot!"].concat(A.fight([n.name, n.power, (c.realm + 1) * 6, "rogue"])); } },
+    ],
+  },
+  {
+    id: "nemesis_ambush", weight: 4, minRealm: 2, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "nemesis" && n.alive),
+    auto: (c, rng, A) => { const n = A.nemesis(); return ["Your nemesis " + n.name + " ambushes you on a lonely mountain road!"].concat(A.fight([n.name, n.power, (c.realm + 1) * 7, "rogue"])); },
+  },
   {
     id: "heart_demon_whisper", weight: 5, awakened: true,
     cond: c => typeof c.happiness === "number" && c.happiness < 30,

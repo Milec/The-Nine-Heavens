@@ -67,6 +67,13 @@ always drops a treasure. And from the Golden Core up, every **breakthrough
 summons an interactive Heavenly Tribulation**: a survival battle against
 escalating lightning you must endure with shields, heals and nerve.
 
+Your techniques have **mastery** that deepens every time you use them in battle
+(or drill them) — Untrained → Novice → … → Perfected — raising their power, so a
+favoured art grows with you. And early in life a **destined nemesis (宿敌)** is
+born: an arrogant rival who taunts, ambushes and **cultivates in lockstep with
+you** across the years, until you finally hunt them down for a climactic boss
+showdown — the classic xianxia grudge, paid in full.
+
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,
 karma, tribulations and reincarnation) and wraps it in a life-sim layer of

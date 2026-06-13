@@ -92,7 +92,8 @@ export function makeEnemy(c, rng, opts = {}) {
 const BOSS_NAMES = ["Blood-Robe Patriarch", "Iron Vajra Monk", "Sword Fiend of the Abyss", "Heartless Fox Empress", "Crippled-Hand Elder", "Ghost-King of the Wastes"];
 export function makeBoss(c, rng, opts = {}) {
   const name = opts.name || rng.choice(BOSS_NAMES);
-  const power = E.basePower(c) * (opts.factor || rng.uniform(1.2, 1.6)) * rng.uniform(0.95, 1.08);
+  const power = opts.power != null ? opts.power
+    : E.basePower(c) * (opts.factor || rng.uniform(1.2, 1.6)) * rng.uniform(0.95, 1.08);
   const element = opts.element || rng.choice([...D.ELEMENTS, "Dark", "Lightning"]);
   const e = makeEnemy(c, rng, { kind: "rogue", name, power, element, boss: true, hpMult: 2.8,
     reward: Math.floor((c.realm + 2) * rng.randint(20, 40)) });
@@ -182,12 +183,17 @@ function tickStart(B, u, lines) {
 }
 const icon = u => u.isPlayer ? "🧘" : (elementIcon(u.element));
 
+export function masteryMultiplier(c, skill) {
+  if (!skill || !skill.tech || !c || !c.mastery) return 1;
+  return 1 + D.masteryRank(c.mastery[skill.tech] || 0)[2];
+}
 function resolveSkill(B, att, def, skill, lines) {
   const rng = B.rng;
+  const mm = att.isPlayer ? masteryMultiplier(att.ref, skill) : 1;
   if (skill.qiRestore && att.isPlayer) att.qi = Math.min(att.maxQi, att.qi + att.maxQi * skill.qiRestore);
-  if (skill.type === "defend") { att.shield += att.maxHp * skill.shield; lines.push(`${icon(att)} ${att.name} raises a qi shield.`); return; }
+  if (skill.type === "defend") { att.shield += att.maxHp * skill.shield * mm; lines.push(`${icon(att)} ${att.name} raises a qi shield.`); return; }
   if (skill.type === "heal") {
-    const heal = att.maxHp * skill.heal + (att.ref ? att.ref.soul * 0.6 : 0);
+    const heal = (att.maxHp * skill.heal + (att.ref ? att.ref.soul * 0.6 : 0)) * mm;
     att.hp = Math.min(att.maxHp, att.hp + heal);
     if (skill.cleanse) att.statuses = att.statuses.filter(s => !["burn", "bleed", "weaken"].includes(s.type));
     lines.push(`${icon(att)} ${att.name} — ${skill.name || "heals"}: +${Math.round(heal)} HP${skill.cleanse ? ", cleansed" : ""}.`);
@@ -201,7 +207,7 @@ function resolveSkill(B, att, def, skill, lines) {
   if (skill.self) addStatus(att, skill.self.type, skill.self.turns + 1, skill.self.value);
   if (skill.karma && att.ref) att.ref.karma += skill.karma;
   // Damage.
-  let base = att.atk * skill.dmg * statusAtkMult(att);
+  let base = att.atk * skill.dmg * statusAtkMult(att) * mm;
   let mult = elementMult(skill.element || att.element, def.element);
   let crit = rng.random() < att.crit;
   if (crit) mult *= 2;
@@ -245,7 +251,16 @@ function takeRound(B, actionId) {
   } else {
     const skill = skillById(c, actionId) || SKILLS.strike;
     if (P.qi < skill.qi) { lines.push("Not enough qi — you fall back on a basic strike."); resolveSkill(B, P, En, SKILLS.strike, lines); }
-    else { P.qi -= skill.qi; resolveSkill(B, P, En, skill, lines); }
+    else {
+      P.qi -= skill.qi; resolveSkill(B, P, En, skill, lines);
+      if (skill.tech) {  // using a technique deepens your mastery of it
+        if (!c.mastery) c.mastery = {};
+        const before = D.masteryRank(c.mastery[skill.tech] || 0)[0];
+        c.mastery[skill.tech] = (c.mastery[skill.tech] || 0) + B.rng.randint(2, 4);
+        const after = D.masteryRank(c.mastery[skill.tech])[0];
+        if (after !== before) lines.push(`   ✦ Your ${skill.name} deepens to ${after}!`);
+      }
+    }
   }
 
   // Beast ally assists each round.

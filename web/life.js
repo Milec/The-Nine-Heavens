@@ -17,8 +17,22 @@ function augment(c, rng, sex) {
   c.health = clampN(60 + Math.floor(c.constitution / 4) + rng.randint(-5, 10), 0, 100);
   c.awakened = false;
   c.firedEvents = [];
+  c.mastery = c.mastery || {};
   generateFamily(c, rng);
   return c;
+}
+
+export const getNemesis = c => c.relationships.find(n => n.role === "nemesis" && n.alive) || null;
+function makeNemesis(c, rng, grudge) {
+  if (getNemesis(c)) return getNemesis(c);
+  const n = mkNpc("nemesis", E.npcName(rng), -45);
+  n.kin = "Nemesis"; n.grudge = grudge || "an old slight you barely remember";
+  n.power = E.basePower(c) * rng.uniform(1.05, 1.25) + 2;
+  n.element = rng.choice([...D.ELEMENTS, "Dark", "Lightning"]);
+  n.encounters = 0;
+  c.relationships.push(n);
+  note(c, `${n.name} becomes your sworn nemesis.`);
+  return n;
 }
 
 export function bornCharacter(rng, name, sex) {
@@ -117,6 +131,8 @@ function makeApi(c, rng) {
     meet: (role, opts) => meetPerson(c, rng, role, opts),
     kin: label => c.relationships.find(n => n.kin === label && n.alive) || null,
     kinAdjust: (label, d) => { const n = c.relationships.find(x => x.kin === label && x.alive); if (n) n.affinity = clampN(n.affinity + d, -100, 100); },
+    makeNemesis: grudge => makeNemesis(c, rng, grudge),
+    nemesis: () => getNemesis(c),
   };
 }
 
@@ -161,6 +177,10 @@ export function ageUp(c, rng) {
     if (c.sectKey) c.spiritStones += D.SECT_RANKS[c.sectRank][4];
     if (c.hp < c.maxHp) c.hp = Math.min(c.maxHp, c.hp + c.maxHp * 0.5);
   }
+
+  // Your nemesis cultivates too, always shadowing your strength.
+  const nem = getNemesis(c);
+  if (nem) nem.power = Math.max(nem.power * 1.03, E.basePower(c) * rng.uniform(1.0, 1.18));
 
   // Vitals drift gently; old age erodes health.
   c.happiness = clampN(c.happiness + rng.randint(-2, 2), 0, 100);
@@ -243,6 +263,21 @@ export function oddJobs(c, rng) {
   finishYear(c, rng, msgs);
   return msgs;
 }
+export function trainTechnique(c, rng, techKey) {
+  if (!c.alive) return ["You are dead."];
+  if (!c.mastery) c.mastery = {};
+  c.age += 1;
+  const gain = rng.randint(6, 12) + Math.floor(c.comprehension / 12);
+  const before = D.masteryRank(c.mastery[techKey] || 0)[0];
+  c.mastery[techKey] = (c.mastery[techKey] || 0) + gain;
+  c.happiness = clampN(c.happiness - 2, 0, 100);
+  const name = D.TECHNIQUES[techKey][0];
+  const rank = D.masteryRank(c.mastery[techKey]);
+  const msgs = [`You drill ${name} relentlessly for a year. (+${gain} mastery)`];
+  if (rank[0] !== before) msgs.push(`  ✦ ${name} advances to ${rank[0]} (+${Math.round(rank[2] * 100)}% effect)!`);
+  finishYear(c, rng, msgs);
+  return msgs;
+}
 
 function finishYear(c, rng, msgs) {
   if (c.health <= 0 && c.alive) { c.alive = false; c.causeOfDeath = "failing health"; msgs.push("☠ Your health gives out entirely. You die."); note(c, "Died of failing health."); return; }
@@ -253,6 +288,12 @@ function finishYear(c, rng, msgs) {
 // These do NOT cost a year (BitLife-style); they shift affinity and mood.
 
 export function relationActions(c, npc) {
+  if (npc.role === "nemesis") {
+    return [
+      { id: "taunt", label: "Trade barbs" },
+      { id: "duel", label: "Settle the rivalry (showdown)" },
+    ];
+  }
   const acts = [];
   acts.push({ id: "talk", label: npc.role === "family" ? "Spend time together" : "Converse" });
   if (npc.role !== "enemy") acts.push({ id: "gift", label: "Give a gift (5 stones)" });
@@ -268,6 +309,7 @@ export function doRelationAction(c, npc, action, rng) {
   const adj = d => { npc.affinity = clampN(npc.affinity + d, -100, 100); };
   const happy = n => { c.happiness = clampN(c.happiness + n, 0, 100); };
   switch (action) {
+    case "taunt": adj(-rng.randint(2, 6)); happy(rng.random() < 0.5 ? 2 : -2); return [`You and ${npc.name} trade venomous barbs over your old grudge (${npc.grudge}). The rivalry sharpens.`];
     case "talk": adj(rng.randint(3, 8)); happy(2); return [`You spend a warm while with ${npc.name}. (${E.npcStatus(npc)})`];
     case "gift":
       if (c.spiritStones < 5) return ["You cannot spare even 5 spirit stones."];

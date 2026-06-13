@@ -131,6 +131,7 @@ function newCharacter() {
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0,
     artifacts: [], equippedArtifact: null, beast: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
+    mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
   };
 }

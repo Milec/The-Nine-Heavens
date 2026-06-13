@@ -163,6 +163,7 @@ function openCultivate() {
     mk("Use a Qi Pill", `cultivate · ${c.pills} left`, () => runTimed(() => E.cultivate(c, state.rng, 1, true)), { disabled: c.pills <= 0 });
     mk("Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
     mk("Wander the World", "adventure & battle", doWander);
+    mk("Techniques & Mastery", "train your arts", openTechniques, { full: true });
     body.appendChild(grid);
   });
 }
@@ -196,7 +197,7 @@ function personEmoji(n) {
   if (n.kin === "Father") return "👨"; if (n.kin === "Mother") return "👩";
   if (n.kin === "Brother") return "👦"; if (n.kin === "Sister") return "👧";
   if (n.kin === "Son") return "🧒"; if (n.kin === "Daughter") return "🧒";
-  return ({ master: "🧓", rival: "😼", friend: "🙂", companion: "💞", enemy: "😠" })[n.role] || "🧑";
+  return ({ master: "🧓", rival: "😼", friend: "🙂", companion: "💞", enemy: "😠", nemesis: "👿" })[n.role] || "🧑";
 }
 function openPerson(n) {
   const c = state.c;
@@ -209,10 +210,24 @@ function openPerson(n) {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
       b.onclick = () => {
         if (act.id === "duel") {  // an interactive duel to the finish
-          const enemy = { name: n.name, kind: "rogue", power: n.power || E.power(c), element: null, reward: (c.realm + 1) * 6 };
-          logMessages([`You challenge ${n.name} to settle things with qi and steel!`]);
-          startBattle(enemy, { title: `Duel · ${n.name}` }, (outcome) => {
-            if (state.c.alive && outcome === "win") { n.alive = false; logMessages([`You defeat ${n.name} and end the feud for good.`]); }
+          const isNemesis = n.role === "nemesis";
+          const enemy = isNemesis
+            ? C.makeBoss(c, state.rng, { name: n.name, power: n.power, element: n.element })
+            : { name: n.name, kind: "rogue", power: n.power || E.power(c), element: null, reward: (c.realm + 1) * 6, kit: undefined };
+          logMessages([isNemesis
+            ? `At long last you stand against your nemesis ${n.name}. One of you will not walk away.`
+            : `You challenge ${n.name} to settle things with qi and steel!`]);
+          startBattle(enemy, { title: isNemesis ? `Showdown · ${n.name}` : `Duel · ${n.name}` }, (outcome) => {
+            if (state.c.alive && outcome === "win") {
+              n.alive = false;
+              if (isNemesis) {
+                c.happiness = Math.min(100, c.happiness + 18); c.reputation += 10;
+                const title = `Nemesis Slain (${n.name})`;
+                if (!c.titles.includes(title)) c.titles.push(title);
+                c.log.push([c.age, `Slew your nemesis ${n.name} in a final duel.`]);
+                logMessages([`✦ You strike ${n.name} down. The grudge of a lifetime is finally, utterly settled. (+Reputation, +Happiness)`]);
+              } else logMessages([`You defeat ${n.name} and end the feud for good.`]);
+            }
             renderProfile(); if (!state.c.alive) checkDeath(); else openPeople();
           });
           return;
@@ -229,6 +244,27 @@ function openPerson(n) {
   });
 }
 
+function openTechniques() {
+  const c = state.c;
+  openOverlay("Techniques & Mastery", body => {
+    const skills = c.techniques.map(t => ({ t, s: Object.values(C.SKILLS).find(x => x.tech === t) })).filter(o => o.s);
+    if (!skills.length) { body.appendChild(el("p", "note", "You have learned no combat techniques yet. Find manuals in ruins, from masters, or the sect store.")); return; }
+    body.appendChild(el("p", "note", "Using a technique in battle deepens its mastery, raising its power. Tap one to drill it for a year (+mastery)."));
+    for (const { t, s } of skills) {
+      const pts = (c.mastery && c.mastery[t]) || 0;
+      const rank = D.masteryRank(pts), next = D.masteryNext(pts);
+      const pctTo = next ? clampPct(pts - rank[1], next[1] - rank[1]) : 100;
+      const eff = s.type === "heal" ? `heal ${Math.round(s.heal * 100)}%+` : s.type === "defend" ? "shield" : `${Math.round(s.dmg * 100)}% power dmg`;
+      const row = el("div", "listrow");
+      row.innerHTML = `<div class="lr-ava">${s.element ? C.elementIcon(s.element) : "✊"}</div><div class="lr-main">
+        <div class="lr-title">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${rank[0]} (+${Math.round(rank[2] * 100)}%)</span></div>
+        <div class="lr-sub">${eff}${s.qi ? ` · ⊙${s.qi} qi` : " · free"}${next ? ` · ${pts}/${next[1]} → ${next[0]}` : " · perfected"}</div>
+        <div class="affbar"><div style="width:${pctTo}%;background:var(--gold2)"></div></div></div>`;
+      row.onclick = () => runTimed(() => L.trainTechnique(c, state.rng, t));
+      body.appendChild(row);
+    }
+  });
+}
 function openActivities() {
   const c = state.c;
   openOverlay("Activities", body => {
@@ -453,6 +489,7 @@ function resumeFrom(sv) {
   if (typeof c.awakened !== "boolean") c.awakened = true;
   if (!c.firedEvents) c.firedEvents = [];
   if (!c.sex) c.sex = "male";
+  if (!c.mastery) c.mastery = {};
   closeOverlay(); $("log").innerHTML = ""; logBanner("☯ YOUR SAGA CONTINUES ☯"); renderProfile();
   if (!c.alive) checkDeath();
 }

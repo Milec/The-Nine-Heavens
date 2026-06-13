@@ -273,3 +273,23 @@ export function vitalLabel(v) {
   if (v >= 20) return "Poor";
   return "Critical";
 }
+
+/* Technique mastery (功法精通): proficiency grows with use, boosting a skill. */
+// [rank name, min points, damage/effect bonus]
+export const MASTERY_RANKS = [
+  ["Untrained", 0, 0.00],
+  ["Novice", 25, 0.06],
+  ["Adept", 80, 0.14],
+  ["Master", 200, 0.24],
+  ["Grand Master", 450, 0.36],
+  ["Perfected", 900, 0.50],
+];
+export function masteryRank(points) {
+  let r = MASTERY_RANKS[0];
+  for (const m of MASTERY_RANKS) if (points >= m[1]) r = m;
+  return r;
+}
+export function masteryNext(points) {
+  for (const m of MASTERY_RANKS) if (points < m[1]) return m;
+  return null;
+}
