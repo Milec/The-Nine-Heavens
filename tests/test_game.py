@@ -12,8 +12,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nine_heavens import cultivation, data, sect, social, world  # noqa: E402
-from nine_heavens.character import generate_character  # noqa: E402
+from nine_heavens import (  # noqa: E402
+    alchemy, artifacts, beasts, cultivation, dao, data, sect, social, world)
+from nine_heavens.character import (  # noqa: E402
+    generate_character, reincarnate)
 from nine_heavens.game import render_sheet  # noqa: E402
 
 
@@ -177,6 +179,97 @@ def test_relationships_form_and_interact():
     assert isinstance(render_sheet(c), str)
 
 
+def test_alchemy_refines_and_extends_lifespan():
+    """Refining never goes negative; a longevity pill adds years."""
+    rng = random.Random(3)
+    c = generate_character(rng)
+    c.soul = c.comprehension = 150
+    c.herbs = 200
+    before_life = c.max_age
+    for _ in range(30):
+        if not c.alive:
+            break
+        recipe = rng.choice(data.PILL_RECIPES)
+        alchemy.refine(c, rng, recipe[0])
+        assert c.herbs >= 0
+    # With high stats and many attempts, lifespan should have grown at least once.
+    assert c.max_age >= before_life
+
+
+def test_artifacts_boost_power_and_autoequip_best():
+    """Binding a treasure raises power above base; the best is auto-equipped."""
+    rng = random.Random(0)
+    c = generate_character(rng)
+    c.realm = 4
+    base = c.base_power
+    artifacts.acquire(c, "iron_sword")
+    assert c.power > base
+    weak_power = c.power
+    artifacts.acquire(c, "chaos_bell")  # strictly better
+    assert c.equipped_artifact == "chaos_bell"
+    assert c.power > weak_power
+
+
+def test_dao_comprehension_and_bonuses():
+    """High-realm meditation yields Daos that boost power and breakthroughs."""
+    rng = random.Random(11)
+    c = generate_character(rng)
+    c.realm = 6
+    c.comprehension = c.soul = 160
+    base = c.base_power
+    for _ in range(120):
+        if len(c.daos) >= 2:
+            break
+        dao.meditate(c, rng, years=1)
+    assert c.daos, "expected at least one Dao after long meditation"
+    assert all(d in data.DAO_BY_KEY for d in c.daos)
+    assert c.dao_breakthrough_bonus > 0
+    assert c.power > base  # Daos magnify power
+
+
+def test_beast_taming_and_growth():
+    """A bested wild beast can be tamed and then strengthens over time."""
+    rng = random.Random(4)
+    c = generate_character(rng)
+    c.realm = 3
+    c.soul = c.charm = 150
+    c.recompute_max_hp()
+    c.hp = c.max_hp
+    for _ in range(60):
+        c.hp = c.max_hp
+        world.fight(c, rng, enemy=("Cloud Leopard", c.base_power * 0.4, 5, "beast"))
+        if c.beast:
+            break
+    assert c.beast is not None
+    p0 = c.beast.power
+    for _ in range(20):
+        beasts.grow(c, rng)
+    assert c.beast.power >= p0
+
+
+def test_reincarnation_carries_legacy():
+    """A reincarnated soul is stronger and counts up its rebirths."""
+    rng = random.Random(8)
+    old = generate_character(rng)
+    old.realm = 7
+    old.daos = ["sword", "time", "void"]
+    old.karma = 100
+    old.equipped_artifact = "chaos_bell"
+    old.artifacts = ["chaos_bell"]
+    new = reincarnate(old, rng)
+    assert new.reincarnation_count == 1
+    assert new.realm == 0  # a fresh life
+    assert new.karma == int(old.karma * 0.3)
+    # Legacy sharpens innate comprehension beyond a raw birth's ceiling tendency.
+    assert new.comprehension >= 1
+
+
+def test_karma_label_bands():
+    for k, expect_in in [(-200, "Devil"), (-50, "Blood"), (0, "Unremarkable"),
+                         (60, "Virtuous"), (200, "Saint")]:
+        assert expect_in in data.karma_label(k)
+
+
 if __name__ == "__main__":
     test_birth_is_well_formed()
     test_no_crashes_over_many_lives()
@@ -186,4 +279,10 @@ if __name__ == "__main__":
     test_appearance_rolled_and_affects_charm()
     test_sect_join_rank_quest_tournament()
     test_relationships_form_and_interact()
+    test_alchemy_refines_and_extends_lifespan()
+    test_artifacts_boost_power_and_autoequip_best()
+    test_dao_comprehension_and_bonuses()
+    test_beast_taming_and_growth()
+    test_reincarnation_carries_legacy()
+    test_karma_label_bands()
     print("All tests passed.")

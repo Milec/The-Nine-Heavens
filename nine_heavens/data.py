@@ -382,3 +382,120 @@ TOURNAMENT_TITLES = [
     (4, "Top Four"),
     (8, "Top Eight"),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Magic treasures / artifacts (法宝) -- a cultivator's signature weapons.
+#
+# A bound treasure multiplies combat power and, for the finest, accelerates
+# cultivation. Grades climb from crude Mortal tools to world-shaking Immortal
+# artifacts. You equip your single strongest treasure.
+# ---------------------------------------------------------------------------
+
+ARTIFACT_GRADES = ["Mortal", "Spirit", "Earth", "Heaven", "Immortal"]
+ARTIFACT_GRADE_RANK = {g: i for i, g in enumerate(ARTIFACT_GRADES)}
+
+# (key, name, grade, atk_pct, qi_bonus, blurb)
+#   atk_pct  -> fractional bonus to combat power while equipped
+#   qi_bonus -> fractional bonus to cultivation speed while equipped
+ARTIFACTS = [
+    ("iron_sword",  "Chipped Iron Sword",       "Mortal",   0.06, 0.00,
+     "A mortal-forged blade, barely a cut above a farmer's tool."),
+    ("talisman",    "Yellow Paper Talisman",     "Mortal",   0.05, 0.02,
+     "A bundle of crude warding charms."),
+    ("azure_sword", "Azure Flying Sword",        "Spirit",   0.16, 0.04,
+     "A true flying sword that hums and circles at its master's will."),
+    ("cloud_boots", "Cloud-Striding Boots",      "Spirit",   0.12, 0.03,
+     "Tread the wind itself; foes struggle to pin you down."),
+    ("flame_gourd", "Crimson Flame Gourd",       "Earth",    0.30, 0.05,
+     "Belches a torrent of spirit-fire that melts iron and beast alike."),
+    ("element_pagoda", "Five Elements Pagoda",   "Earth",    0.28, 0.10,
+     "A layered treasure-pagoda that grinds enemies between the five elements."),
+    ("dragon_cauldron", "Nine Dragon Cauldron",  "Heaven",   0.55, 0.16,
+     "Nine dragons coil its rim; it can smelt mountains and refine pills."),
+    ("stars_banner", "River-of-Stars Banner",    "Heaven",   0.50, 0.20,
+     "Unfurls a galaxy of killing starlight across the battlefield."),
+    ("chaos_bell",  "Primordial Chaos Bell",     "Immortal", 0.95, 0.32,
+     "A bell from the dawn of the world; one toll unmakes ten thousand spells."),
+]
+ARTIFACT_BY_KEY = {a[0]: a for a in ARTIFACTS}
+
+
+# ---------------------------------------------------------------------------
+# Spirit beasts (灵宠) -- tamed companions that fight at your side and grow.
+# ---------------------------------------------------------------------------
+
+SPIRIT_BEASTS = [
+    "Spirit Fox", "Cloud Leopard", "Crimson Fire Python", "Thunder Hawk",
+    "Jade-Maned Lion", "Frost Wolf", "Black Tortoise", "Six-Eared Macaque",
+    "Azure Dragonling", "Golden-Winged Roc", "Nine-Tailed Fox", "Qilin Calf",
+]
+
+
+# ---------------------------------------------------------------------------
+# Alchemy (炼丹) -- refining gathered spirit herbs into pills.
+#
+# Success rests on your soul sense, comprehension and growing alchemy skill;
+# botched batches waste herbs. The rewards range from common qi pills to the
+# coveted Longevity Pill that buys precious extra years of life.
+# ---------------------------------------------------------------------------
+
+# (key, name, herb_cost, base_success, blurb)
+PILL_RECIPES = [
+    ("qi",          "Qi-Gathering Pill",        2, 0.88,
+     "The alchemist's bread and butter; speeds a year of cultivation."),
+    ("heal",        "Spirit Healing Pill",      3, 0.78,
+     "Knits wounds and meridians; auto-used when battle turns against you."),
+    ("body",        "Marrow-Cleansing Pill",    5, 0.55,
+     "Tempers the flesh, permanently raising Constitution."),
+    ("soul",        "Soul-Nourishing Pill",     5, 0.55,
+     "Refines the spirit, permanently raising Soul Sense."),
+    ("breakthrough", "Foundation Breakthrough Pill", 7, 0.45,
+     "Consumed on your next breakthrough to greatly improve its odds."),
+    ("longevity",   "Nine-Turn Longevity Pill", 12, 0.30,
+     "The grandmaster's art -- adds precious years to your lifespan."),
+]
+PILL_BY_KEY = {p[0]: p for p in PILL_RECIPES}
+
+
+# ---------------------------------------------------------------------------
+# Daos / Laws (法则·大道) -- comprehended only by the loftiest cultivators.
+#
+# From Nascent Soul upward you may meditate on the great Daos. Each comprehended
+# Law permanently magnifies your power and smooths every breakthrough; some bend
+# lifespan or cultivation speed besides. They are the true road to ascension.
+# ---------------------------------------------------------------------------
+
+# (key, name, power_bonus, breakthrough_bonus, blurb)
+DAOS = [
+    ("sword",  "Dao of the Sword (剑道)",   0.18, 0.03,
+     "All things may be cut; your every strike sharpens toward the one true edge."),
+    ("flame",  "Dao of Flame (火道)",       0.16, 0.03,
+     "The burning law of transformation and ruin."),
+    ("space",  "Dao of Space (空间)",       0.14, 0.05,
+     "Fold distance; step a thousand li, and let blows find only afterimages."),
+    ("time",   "Dao of Time (时间)",        0.12, 0.06,
+     "The rarest law -- moments stretch and your cultivation quickens."),
+    ("vitality", "Dao of Vitality (生机)",  0.10, 0.04,
+     "The law of life unending; the years bow and your lifespan lengthens."),
+    ("slaughter", "Dao of Slaughter (杀戮)", 0.22, 0.02,
+     "A blood-soaked law of killing intent that terrifies the heavens."),
+    ("karma",  "Dao of Karma (因果)",       0.12, 0.07,
+     "Perceive the threads of cause and effect; tribulation reads you kindly."),
+    ("void",   "Dao of the Void (虚无)",    0.16, 0.05,
+     "The empty law underlying all; the foundation of true immortality."),
+]
+DAO_BY_KEY = {d[0]: d for d in DAOS}
+
+
+# Karma (业力) descriptive bands -- merit above zero, sin below.
+def karma_label(karma: int) -> str:
+    if karma <= -120:
+        return "Heaven-Defying Devil"
+    if karma <= -40:
+        return "Blood-Soaked"
+    if karma < 40:
+        return "Unremarkable"
+    if karma < 120:
+        return "Virtuous"
+    return "Living Saint"

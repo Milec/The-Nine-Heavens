@@ -5,8 +5,9 @@ from __future__ import annotations
 import random
 import textwrap
 
-from . import cultivation, data, sect, social, world
-from .character import Character, generate_character
+from . import (alchemy, artifacts, cultivation, dao, data, sect, social,
+               world)
+from .character import Character, generate_character, reincarnate
 
 
 BANNER = r"""
@@ -30,12 +31,15 @@ def _wrap(text: str, indent: str = "  ") -> str:
 def render_sheet(c: Character) -> str:
     bar = _qi_bar(c)
     elems = ", ".join(c.root.elements) if c.root and c.root.elements else "—"
+    rebirth = (f"  ·  Rebirth #{c.reincarnation_count}"
+               if c.reincarnation_count else "")
     lines = [
         DIVIDER,
-        f"  {c.name}    Age {c.age}/{c.max_age}    Reputation {c.reputation}",
+        f"  {c.name}    Age {c.age}/{c.max_age}    Reputation {c.reputation}{rebirth}",
         f"  Realm : {c.realm_label}  ({c.realm_cn})",
         f"  Qi    : {bar}  {c.qi:.0f}/{c.qi_to_next:.0f}",
-        f"  Power : {c.power:.0f}     HP {c.hp:.0f}/{c.max_hp:.0f}",
+        f"  Power : {c.power:.0f}     HP {c.hp:.0f}/{c.max_hp:.0f}"
+        f"     Karma: {c.karma:+d} ({c.karma_label})",
         DIVIDER,
         f"  Spiritual Root : {c.root.display}   [{elems}]",
         f"  Physique       : {c.physique_name}",
@@ -54,9 +58,22 @@ def render_sheet(c: Character) -> str:
         lines.append(f"  Bonds   : {_relationship_summary(c)}")
     if c.titles:
         lines.append(f"  Titles  : {', '.join(c.titles)}")
+    lines.append(DIVIDER)
+    art = (artifacts.describe(c.equipped_artifact) if c.equipped_artifact
+           else "(none bound)")
+    lines.append(f"  Treasure: {art}")
+    if c.beast is not None:
+        b = c.beast
+        lines.append(f"  Beast   : {b.name} the {b.species} "
+                     f"({b.tier}, power {b.power:.0f})")
+    if c.daos:
+        dao_names = ", ".join(data.DAO_BY_KEY[d][1] for d in c.daos)
+        lines.append(f"  Daos    : {dao_names}")
     lines += [
         DIVIDER,
-        f"  Spirit Stones : {c.spirit_stones}      Qi-Gathering Pills : {c.pills}",
+        f"  Spirit Stones : {c.spirit_stones}      Spirit Herbs : {c.herbs}",
+        f"  Qi Pills : {c.pills}   Healing : {c.healing_pills}   "
+        f"Breakthrough : {c.breakthrough_pills}   Alchemy skill : {c.alchemy_skill}",
         f"  Techniques    : {', '.join(_tech_names(c))}",
         f"  Inventory     : {', '.join(c.inventory) if c.inventory else '(empty)'}",
         DIVIDER,
@@ -132,7 +149,8 @@ MENU = """
     [5] Attempt a breakthrough      [6] View character sheet
     [7] View life chronicle         [8] Help / legend
     [9] Sect affairs                [0] Relationships
-    [q] Quit
+    [a] Alchemy (refine pills)      [t] Treasures & beast
+    [d] Comprehend the Dao          [q] Quit
 """
 
 
@@ -158,6 +176,25 @@ def play(seed=None) -> None:
     print_birth(c)
     _pause()
 
+    # The wheel of rebirth: each death may give way to a reincarnated life.
+    while True:
+        status = _live_one_life(c, rng)
+        if status == "quit":
+            print("\nYou set down the burden of immortality and live out quiet "
+                  "days. Farewell.")
+            return
+        _death_epilogue(c)
+        if _ask("\n  Reincarnate and carry your soul's legacy onward? "
+                "([y] yes / anything else to rest) > ") not in ("y", "yes"):
+            print(_wrap("Your soul finally rests, its long climb at an end."))
+            return
+        c = reincarnate(c, rng)
+        _print_rebirth(c)
+        _pause()
+
+
+def _live_one_life(c: Character, rng: random.Random) -> str:
+    """Run the action loop for a single life. Returns 'quit' or 'died'."""
     while c.alive:
         print(render_sheet(c))
         if cultivation.can_breakthrough(c):
@@ -167,12 +204,10 @@ def play(seed=None) -> None:
         try:
             choice = input("  > ").strip().lower()
         except (EOFError, KeyboardInterrupt):
-            print("\nYou abandon the dao and vanish into the mortal world. Farewell.")
-            return
+            return "quit"
 
         if choice in ("q", "quit", "exit"):
-            print("\nYou set down the burden of immortality and live out quiet days. Farewell.")
-            return
+            return "quit"
         elif choice == "1":
             _print_msgs(cultivation.cultivate(c, rng, years=1))
         elif choice == "2":
@@ -196,21 +231,46 @@ def play(seed=None) -> None:
             _sect_menu(c, rng)
         elif choice == "0":
             _social_menu(c, rng)
+        elif choice == "a":
+            _alchemy_menu(c, rng)
+        elif choice == "t":
+            _treasure_menu(c, rng)
+        elif choice == "d":
+            _print_msgs(dao.meditate(c, rng, years=1))
         else:
             print(_wrap("The heavens do not understand that command."))
 
         if c.alive:
             _pause()
+    return "died"
 
-    # Death epilogue.
+
+def _death_epilogue(c: Character) -> None:
     print()
     print(DIVIDER)
     print("  ☠  THE THREAD OF FATE IS CUT  ☠")
     print(DIVIDER)
     print(_wrap(f"{c.name} perished at age {c.age} — {c.cause_of_death}."))
     print(_wrap(f"Final attainment: {c.realm_label} ({c.realm_cn})."))
+    if c.daos:
+        print(_wrap(f"Daos comprehended: "
+                    f"{', '.join(data.DAO_BY_KEY[d][1] for d in c.daos)}."))
     _print_chronicle(c)
     print(_wrap(_epitaph(c)))
+    print(DIVIDER)
+
+
+def _print_rebirth(c: Character) -> None:
+    print()
+    print(DIVIDER)
+    print("  ☯  THE WHEEL OF REBIRTH TURNS  ☯")
+    print(DIVIDER)
+    print(_wrap(f"A new soul is born — {c.name} (Rebirth #{c.reincarnation_count}) "
+                f"— stirred by faint memories of a former life."))
+    print(_wrap(f"Spiritual Root — {c.root.display}"))
+    print(_wrap(f"Standing — {c.background_name}"))
+    print(_wrap("The legacy of your past climb sharpens your innate talent. "
+                "Begin again, and climb higher."))
     print(DIVIDER)
 
 
@@ -313,6 +373,47 @@ def _social_menu(c: Character, rng: random.Random) -> None:
         _print_msgs(social.interact_with(c, living[int(choice) - 1], rng))
 
 
+def _alchemy_menu(c: Character, rng: random.Random) -> None:
+    """The pill furnace: refine gathered herbs into pills."""
+    print(DIVIDER)
+    print(f"  ALCHEMY — Spirit Herbs: {c.herbs}   Alchemy skill: {c.alchemy_skill}")
+    print(DIVIDER)
+    for i, r in enumerate(data.PILL_RECIPES, 1):
+        key, name, cost, _base, blurb = r
+        chance = int(alchemy.success_chance(c, r) * 100)
+        print(_wrap(f"[{i}] {name}  ({cost} herbs, {chance}% success)"))
+        print(_wrap(blurb, indent="      "))
+    choice = _ask("\n  Refine which pill? (number, or [b] back) > ")
+    if choice.isdigit() and 1 <= int(choice) <= len(data.PILL_RECIPES):
+        _print_msgs(alchemy.refine(c, rng, data.PILL_RECIPES[int(choice) - 1][0]))
+
+
+def _treasure_menu(c: Character, rng: random.Random) -> None:
+    """Inspect and bind magic treasures, and check on your spirit beast."""
+    print(DIVIDER)
+    print("  TREASURES & SPIRIT BEAST")
+    print(DIVIDER)
+    if c.beast is not None:
+        b = c.beast
+        print(_wrap(f"Spirit beast: {b.name} the {b.species} "
+                    f"({b.tier}, power {b.power:.0f}, loyalty {b.loyalty})"))
+    else:
+        print(_wrap("Spirit beast: none. Best a wild beast while wandering to "
+                    "try taming one."))
+    print()
+    if not c.artifacts:
+        print(_wrap("You own no magic treasures yet. Ruins, auctions and fallen "
+                    "foes may yet yield one."))
+        return
+    print("  Your treasures (★ = bound):")
+    for i, key in enumerate(c.artifacts, 1):
+        star = "★" if key == c.equipped_artifact else " "
+        print(_wrap(f"{star}[{i}] {artifacts.describe(key)}"))
+    choice = _ask("\n  Bind which treasure? (number, or [b] back) > ")
+    if choice.isdigit() and 1 <= int(choice) <= len(c.artifacts):
+        _print_msgs(artifacts.equip(c, c.artifacts[int(choice) - 1]))
+
+
 def _print_help() -> None:
     from . import data
     print(DIVIDER)
@@ -345,6 +446,24 @@ def _print_help() -> None:
         "drives you both; Friends bring gifts; a Dao Companion's dual "
         "cultivation surges your qi; Enemies may one day draw their blades. "
         "Charm and appearance decide who you draw to your side."))
+    print()
+    print(_wrap(
+        "Alchemy (option a): refine gathered spirit herbs into pills — qi, "
+        "healing and breakthrough pills, body/soul tonics, and the prized "
+        "Longevity Pill that buys you extra years. Treasures & beast (option "
+        "t): bind your strongest magic treasure (法宝) for more power and "
+        "faster cultivation, and check on a spirit beast tamed in the wild — "
+        "both give a real edge over your peers, since foes scale only to your "
+        "base strength."))
+    print()
+    print(_wrap(
+        "Comprehend the Dao (option d): from Nascent Soul upward, meditate to "
+        "grasp the great Laws (Sword, Time, Slaughter, Karma...), each "
+        "permanently raising power and easing breakthroughs — the true road to "
+        "ascension. Karma (业力) tracks merit and sin: virtue softens the "
+        "Heavenly Tribulation, while a blood-soaked soul must also master the "
+        "heart demon. And when at last you die, your soul may reincarnate, "
+        "carrying its hard-won legacy into a new life."))
 
 
 def _pause() -> None:

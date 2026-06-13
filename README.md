@@ -123,6 +123,44 @@ Charm and appearance decide who you draw to your side — and joining a sect or
 shining in a tournament is the surest way to meet a master, a rival, or a
 kindred spirit on the dao.
 
+## Alchemy, treasures & spirit beasts
+
+- **Alchemy (炼丹, option a)** — gather **spirit herbs** in the wild and refine
+  them at the pill furnace. Success rides on your Soul Sense, Comprehension and
+  growing alchemy skill. Brew qi, healing and breakthrough pills, permanent
+  body/soul tonics, and the prized **Nine-Turn Longevity Pill** that adds
+  precious years to your lifespan.
+- **Magic treasures (法宝, option t)** — bind your strongest artifact, graded
+  from crude *Mortal* tools to world-shaking *Immortal* relics, for a flat boost
+  to combat power and cultivation speed. Found in ruins, won at auction, or
+  looted from fallen foes.
+- **Spirit beasts (灵宠)** — best a wild beast while wandering and you may tame
+  it into a companion that fights at your side and grows ever stronger as you
+  cultivate.
+
+Crucially, enemies, tournament rivals and tribulation bolts are scaled against
+your **base** strength, so treasures, Daos and beasts grant a *real* edge over
+your peers instead of being matched away.
+
+## Daos, karma & the heart demon
+
+- **Dao comprehension (法则·大道, option d)** — from **Nascent Soul** upward,
+  meditate to grasp the great Laws — Sword, Flame, Space, Time, Vitality,
+  Slaughter, Karma, the Void — each permanently magnifying your power and
+  smoothing every breakthrough. They are the true road to ascension.
+- **Karma (业力)** — slaying devils and rogues earns merit; demonic paths and
+  cruelty stain your soul. Merit softens the Heavenly Tribulation (the heavens
+  favour the virtuous), while a blood-soaked cultivator must also overcome the
+  **heart demon (心魔)** that rises mid-breakthrough to devour the unprepared.
+
+## Reincarnation (转世重生)
+
+Death need not be the end. When your thread is cut, your soul may **reincarnate**
+— reborn into a fresh, fully re-rolled life that carries a dim **legacy** of the
+last: sharpened innate talent, a head start of insight, residual karma, and, for
+a truly attained soul, even a single treasure smuggled across the wheel of
+rebirth. Each saga can climb higher than the last.
+
 ## Project layout
 
 ```
@@ -133,6 +171,10 @@ nine_heavens/
   world.py        # adventures, encounters and combat
   sect.py         # sects, ranks, contribution quests and tournaments
   social.py       # relationships: masters, rivals, friends, dao companions
+  alchemy.py      # refining spirit herbs into pills
+  artifacts.py    # magic treasures: grades, acquisition and binding
+  beasts.py       # taming and growing spirit beast companions
+  dao.py          # comprehending the great Daos / Laws
   game.py         # interactive menu loop and rendering
   __main__.py     # `python -m nine_heavens`
 play.py           # convenience launcher

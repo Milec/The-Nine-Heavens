@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import random
 
-from . import data
+from . import beasts, data
 from .character import Character
 
 
@@ -38,6 +38,9 @@ def cultivate(c: Character, rng: random.Random, years: int = 1,
         # A sect disciple draws a yearly stipend of spirit stones by rank.
         if c.sect_key:
             c.spirit_stones += data.SECT_RANKS[c.sect_rank][4]
+        # A bound spirit beast strengthens alongside its master.
+        if c.beast is not None:
+            beasts.grow(c, rng)
         _advance_age(c, rng, msgs)
         # Auto-fill stages until we hit a realm wall or run out of qi.
         while c.alive and c.qi >= c.qi_to_next and not _at_realm_wall(c):
@@ -82,10 +85,13 @@ def breakthrough_chance(c: Character) -> float:
     comp = c.comprehension / 200.0
     luck = c.luck / 300.0
     soul = c.soul / 400.0
-    chance = base + comp + luck + soul
+    chance = base + comp + luck + soul + c.dao_breakthrough_bonus
     # Surplus qi gives a cushion.
     if c.qi > c.qi_to_next * 1.5:
         chance += 0.08
+    # A saved Foundation Breakthrough Pill greatly steadies the assault.
+    if c.breakthrough_pills > 0:
+        chance += 0.15
     return max(0.02, min(0.97, chance))
 
 
@@ -105,6 +111,10 @@ def attempt_breakthrough(c: Character, rng: random.Random) -> list:
     msgs.append(
         f"You marshal your qi to break into {next_realm[0]} ({next_realm[1]})... "
         f"[{int(chance * 100)}% chance]")
+    # Burn a breakthrough pill if one was saved (already counted in the odds).
+    if c.breakthrough_pills > 0:
+        c.breakthrough_pills -= 1
+        msgs.append("  You swallow a Foundation Breakthrough Pill to steady the dao.")
 
     c.qi -= c.qi_to_next
     roll = rng.random()
@@ -117,8 +127,10 @@ def attempt_breakthrough(c: Character, rng: random.Random) -> list:
         msgs.append(f"☯ BREAKTHROUGH! You have ascended to {c.realm_label}!")
         c.note(f"Broke through to {c.realm_name}.")
 
+        # A sin-laden cultivator must first master the heart demon within.
+        msgs.extend(_heart_demon(c, rng))
         # Tribulation for the loftier realms.
-        if c.realm >= 4:
+        if c.alive and c.realm >= 4:
             msgs.extend(_tribulation(c, rng))
     else:
         # Failure -- always painful, sometimes fatal, harder at high realms.
@@ -137,6 +149,24 @@ def attempt_breakthrough(c: Character, rng: random.Random) -> list:
     return msgs
 
 
+def _heart_demon(c: Character, rng: random.Random) -> list:
+    """The inner demon (心魔) that gnaws at a sin-laden soul mid-breakthrough."""
+    if c.karma >= -30:
+        return []
+    # Heavier sin and a duller spirit make the heart demon more dangerous.
+    peril = min(0.6, (-c.karma - 30) / 220.0)
+    ward = c.soul / 300.0 + len(c.daos) * 0.04 + c.comprehension / 600.0
+    msgs = ["", "👁 A heart demon rises from your karma to devour your dao heart..."]
+    if rng.random() < peril - ward:
+        dmg = c.max_hp * rng.uniform(0.3, 0.6)
+        c.hp = max(1.0, c.hp - dmg)
+        c.stage = max(0, c.stage - 1)
+        msgs.append("   The inner demon savages your mind; you slip a stage, shaken.")
+    else:
+        msgs.append("   Your dao heart holds firm and the demon dissolves.")
+    return msgs
+
+
 def _tribulation(c: Character, rng: random.Random) -> list:
     """The Heavenly Tribulation -- nine waves of heavenly lightning."""
     msgs = ["", "⚡ The sky darkens. Tribulation clouds gather above you. ⚡"]
@@ -144,7 +174,9 @@ def _tribulation(c: Character, rng: random.Random) -> list:
     survived = 0
     # A strong body shields the flesh; a keen spirit sense reads each bolt before
     # it falls. The well-prepared walk through heavenly fire; the rest are ash.
-    defense = c.power * (1 + c.constitution / 80.0 + c.soul / 110.0)
+    # Merit (positive karma) earns the heavens' mercy; sin invites their wrath.
+    karma_factor = 1.0 + max(-0.30, min(0.30, c.karma / 400.0))
+    defense = c.power * (1 + c.constitution / 80.0 + c.soul / 110.0) * karma_factor
     for w in range(1, waves + 1):
         bolt = c.power * rng.uniform(0.7, 1.35) * (1 + w * 0.10)
         if bolt <= defense * rng.uniform(0.85, 1.3):
