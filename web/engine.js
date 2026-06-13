@@ -243,6 +243,8 @@ export function breakthroughChance(c) {
     c.soul / 400.0 + daoBreakthroughBonus(c);
   if (c.qi > qiToNext(c) * 1.5) chance += 0.08;
   if (c.breakthroughPills > 0) chance += 0.15;
+  // A serene dao heart (high happiness) steadies the assault; misery shakes it.
+  if (typeof c.happiness === "number") chance += (c.happiness - 50) / 600.0;
   return clamp(chance, 0.02, 0.97);
 }
 
@@ -718,10 +720,15 @@ function tournamentRewards(c, rng, placement, won) {
 }
 
 /* ----------------------------- relationships ----------------------------- */
-function npcName(rng) {
+export function npcName(rng) {
   let given = rng.choice(D.GIVEN_FIRST);
   if (rng.random() < 0.5) given += rng.choice(D.GIVEN_SECOND);
   return `${rng.choice(D.SURNAMES)} ${given}`;
+}
+export function givenName(rng) {
+  let given = rng.choice(D.GIVEN_FIRST);
+  if (rng.random() < 0.5) given += rng.choice(D.GIVEN_SECOND);
+  return given;
 }
 export function findNpc(c, role) { return c.relationships.find(n => n.role === role && n.alive) || null; }
 export const npcStatus = n => D.relationshipLabel(n.affinity);
