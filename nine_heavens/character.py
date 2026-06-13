@@ -1,0 +1,245 @@
+"""The cultivator: birth generation, attributes, and progression state."""
+
+from __future__ import annotations
+
+import random
+from dataclasses import dataclass, field
+from typing import Optional
+
+from . import data
+
+
+def _weighted_choice(rng: random.Random, table, weight_index: int):
+    """Pick one row from a table of tuples using one column as the weight."""
+    weights = [row[weight_index] for row in table]
+    return rng.choices(table, weights=weights, k=1)[0]
+
+
+def _roll_attribute(rng: random.Random, low: int = 1, high: int = 100) -> int:
+    """Roll an innate attribute using a mild bell curve (3d-style)."""
+    span = high - low
+    r = (rng.random() + rng.random() + rng.random()) / 3.0
+    return low + int(round(r * span))
+
+
+@dataclass
+class SpiritualRoot:
+    key: str
+    display: str
+    multiplier: float
+    comprehension_bonus: int
+    elements: list
+    blurb: str
+
+    @property
+    def is_mortal(self) -> bool:
+        return self.key == "none"
+
+
+@dataclass
+class Character:
+    name: str = "Nameless"
+    age: int = 0
+
+    # Birth-rolled identity (these barely change over a lifetime)
+    root: Optional[SpiritualRoot] = None
+    physique_key: str = "ordinary"
+    physique_name: str = "Ordinary Body (凡体)"
+    physique_blurb: str = ""
+    background_key: str = "peasant"
+    background_name: str = ""
+    background_blurb: str = ""
+    omen: str = ""
+
+    # Core attributes
+    comprehension: int = 30   # 悟性 -- speed of insight & breakthrough chance
+    constitution: int = 30    # 根骨 -- body strength & health
+    soul: int = 30            # 神识 -- spirit sense, vital at higher realms
+    luck: int = 30            # 气运 -- nudges every random roll in your favour
+    charm: int = 30           # 魅力 -- social fortune
+
+    # Progression
+    realm: int = 0            # index into data.REALMS
+    stage: int = 0            # minor stage within the realm
+    qi: float = 0.0           # accumulated qi toward the next stage
+    max_age: int = 80         # current lifespan ceiling
+
+    # Resources & belongings
+    spirit_stones: int = 0
+    reputation: int = 0
+    techniques: list = field(default_factory=lambda: ["basic_breathing"])
+    inventory: list = field(default_factory=list)
+    pills: int = 0            # generic "qi-gathering pills" you can pop to cultivate faster
+
+    # Combat-ish derived pools
+    hp: float = 50.0
+    max_hp: float = 50.0
+
+    alive: bool = True
+    cause_of_death: str = ""
+    log: list = field(default_factory=list)
+
+    # ----- derived stats -------------------------------------------------
+
+    @property
+    def realm_name(self) -> str:
+        return data.REALMS[self.realm][0]
+
+    @property
+    def realm_cn(self) -> str:
+        return data.REALMS[self.realm][1]
+
+    @property
+    def realm_stages(self) -> int:
+        return data.REALMS[self.realm][2]
+
+    @property
+    def realm_label(self) -> str:
+        stage = data.stage_label(self.stage, self.realm_stages)
+        if stage:
+            return f"{self.realm_name} – {stage}"
+        return self.realm_name
+
+    @property
+    def qi_to_next(self) -> float:
+        return data.REALMS[self.realm][4] * (1 + self.stage * 0.55)
+
+    @property
+    def technique_qi_bonus(self) -> float:
+        return sum(data.TECHNIQUES[t][2] for t in self.techniques if t in data.TECHNIQUES)
+
+    @property
+    def technique_atk_bonus(self) -> int:
+        return sum(data.TECHNIQUES[t][3] for t in self.techniques if t in data.TECHNIQUES)
+
+    @property
+    def cultivation_speed(self) -> float:
+        """How fast qi accumulates per year of seclusion.
+
+        Crucially this scales with the realm so that the ever-steeper qi
+        requirements stay reachable -- talent (root) and insight (comprehension)
+        then decide whether you outrun your lifespan."""
+        root_mult = self.root.multiplier if self.root else 0.1
+        comp = 0.55 + self.comprehension / 70.0
+        realm_factor = data.REALMS[self.realm][4] ** 0.5
+        return root_mult * comp * (1 + self.technique_qi_bonus) * realm_factor * 1.8
+
+    @property
+    def power(self) -> float:
+        """A single rough number summarising combat strength."""
+        realm_factor = (self.realm * 10 + self.stage + 1)
+        base = realm_factor ** 2.1
+        body = self.constitution * 0.8
+        soul = self.soul * 0.5
+        return base * (1 + body / 100 + soul / 100) + self.technique_atk_bonus * realm_factor
+
+    # ----- helpers -------------------------------------------------------
+
+    def note(self, text: str) -> None:
+        self.log.append((self.age, text))
+
+    def recompute_max_hp(self) -> None:
+        realm_factor = (self.realm * 10 + self.stage + 1)
+        self.max_hp = 40 + self.constitution * 1.5 + realm_factor * 12
+        self.hp = min(self.hp, self.max_hp) if self.hp > 0 else self.max_hp
+
+
+# ---------------------------------------------------------------------------
+# Birth generation -- where the heavens roll the dice on your whole life.
+# ---------------------------------------------------------------------------
+
+def _make_name(rng: random.Random) -> str:
+    surname = rng.choice(data.SURNAMES)
+    given = rng.choice(data.GIVEN_FIRST)
+    if rng.random() < 0.6:
+        given += rng.choice(data.GIVEN_SECOND)
+    return f"{surname} {given}"
+
+
+def _roll_root(rng: random.Random) -> SpiritualRoot:
+    key, display, mult, comp, _w, blurb = _weighted_choice(rng, data.ROOT_TYPES, 4)
+    elements: list = []
+    if key == "none":
+        elements = []
+    elif key == "waste":
+        elements = list(data.ELEMENTS)
+    elif key == "quad":
+        elements = rng.sample(data.ELEMENTS, 4)
+    elif key == "triple":
+        elements = rng.sample(data.ELEMENTS, 3)
+    elif key == "dual":
+        elements = rng.sample(data.ELEMENTS, 2)
+    elif key == "heavenly":
+        elements = [rng.choice(data.ELEMENTS)]
+    elif key == "variant":
+        elements = [rng.choice(data.VARIANT_ELEMENTS)]
+    elif key == "chaos":
+        elements = ["Chaos"]
+    # A little spread on the multiplier so two heavenly roots aren't identical.
+    mult = round(mult * rng.uniform(0.9, 1.12), 3)
+    return SpiritualRoot(key, display, mult, comp, elements, blurb)
+
+
+def generate_character(rng: Optional[random.Random] = None,
+                       name: Optional[str] = None) -> Character:
+    """Roll a brand new cultivator from the moment of birth."""
+    rng = rng or random.Random()
+
+    c = Character()
+    c.name = name or _make_name(rng)
+
+    # 1) Spiritual root -- the great talent die.
+    c.root = _roll_root(rng)
+
+    # 2) Special physique.
+    pk, pdisp, pblurb, body_m, qi_m, soul_m, luck_b, _w = _weighted_choice(
+        rng, data.PHYSIQUES, 7)
+    c.physique_key, c.physique_name, c.physique_blurb = pk, pdisp, pblurb
+
+    # 3) Birth standing.
+    bk, bdisp, bblurb, rep, stones, items, _w = _weighted_choice(
+        rng, data.BACKGROUNDS, 6)
+    c.background_key, c.background_name, c.background_blurb = bk, bdisp, bblurb
+    c.reputation = rep
+    c.spirit_stones = stones
+    c.inventory = list(items)
+
+    # 4) Birth omen.
+    omen, o_comp, o_body, o_soul, o_luck, _w = _weighted_choice(
+        rng, data.BIRTH_OMENS, 5)
+    c.omen = omen
+
+    # 5) Core attributes, then layer on every modifier above.
+    c.comprehension = _roll_attribute(rng) + c.root.comprehension_bonus + o_comp
+    c.constitution = _roll_attribute(rng) + o_body
+    c.soul = _roll_attribute(rng) + o_soul
+    c.luck = _roll_attribute(rng) + luck_b + o_luck
+    c.charm = _roll_attribute(rng)
+
+    # Physique scaling acts on the body/soul attributes.
+    c.constitution = int(round(c.constitution * body_m))
+    c.soul = int(round(c.soul * soul_m))
+    # Stash the qi physique multiplier on the root for cultivation speed.
+    if qi_m != 1.0:
+        c.root.multiplier = round(c.root.multiplier * qi_m, 3)
+
+    # Standing-based attribute nudges (nurture follows nature).
+    nurture = {
+        "scholar": ("comprehension", 8), "noble": ("comprehension", 6),
+        "royal": ("luck", 10), "martial": ("constitution", 10),
+        "hermit": ("comprehension", 12), "demon": ("soul", 8),
+        "slave": ("constitution", -6), "beggar": ("luck", -4),
+    }
+    if bk in nurture:
+        attr, delta = nurture[bk]
+        setattr(c, attr, getattr(c, attr) + delta)
+
+    # Clamp attributes into sane ranges.
+    for attr in ("comprehension", "constitution", "soul", "luck", "charm"):
+        setattr(c, attr, max(1, min(160, getattr(c, attr))))
+
+    c.max_age = data.REALMS[0][3]
+    c.recompute_max_hp()
+    c.note(f"Born as {c.name}, {c.background_name}.")
+    c.note(f"Spiritual root: {c.root.display}.")
+    return c
