@@ -4,8 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0e1220" />
-  <meta name="description" content="The Nine Heavens — a text-based Chinese cultivation (xianxia) RPG you can play in your browser or install on your phone." />
-  <!-- iOS PWA support -->
+  <meta name="description" content="The Nine Heavens — a xianxia life-sim RPG. Live a cultivator's life from birth to immortality, one year at a time." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Nine Heavens" />
@@ -17,26 +16,27 @@
 </head>
 <body>
   <div id="app">
-    <header id="topbar">
-      <div class="tb-line1">
-        <span id="tb-name">—</span>
-        <span id="tb-realm" class="tb-realm">—</span>
+    <header id="profile">
+      <div class="pf-top">
+        <div id="pf-avatar" class="pf-avatar">🧒</div>
+        <div class="pf-id">
+          <div id="pf-name">—</div>
+          <div id="pf-sub" class="pf-sub">—</div>
+        </div>
+        <button id="pf-more" class="pf-more" aria-label="Character sheet">☰</button>
       </div>
-      <div class="tb-bars">
-        <div class="bar qi"><div id="tb-qi-fill" class="fill"></div><span id="tb-qi-label" class="bar-label">Qi</span></div>
-        <div class="bar hp"><div id="tb-hp-fill" class="fill"></div><span id="tb-hp-label" class="bar-label">HP</span></div>
-      </div>
-      <div id="tb-chips" class="tb-chips"></div>
+      <div id="pf-bars" class="pf-bars"></div>
+      <div id="pf-chips" class="pf-chips"></div>
     </header>
 
     <main id="log" aria-live="polite"></main>
 
-    <nav id="actionbar">
-      <button class="act" data-act="cultivate">Cultivate<small>1 yr</small></button>
-      <button class="act" data-act="cultivate3">Seclude<small>3 yrs</small></button>
-      <button class="act" data-act="wander">Wander<small>adventure</small></button>
-      <button class="act act-break" data-act="breakthrough" id="btn-break">Break<small>through</small></button>
-      <button class="act act-menu" data-act="menu">Menu<small>more</small></button>
+    <nav id="tabbar">
+      <button class="tab" data-tab="cultivate"><span class="ico">🧘</span>Cultivate</button>
+      <button class="tab" data-tab="people"><span class="ico">👪</span>People</button>
+      <button class="tab tab-age" data-tab="age"><span class="ico">⊕</span>Age&nbsp;Up</button>
+      <button class="tab" data-tab="activities"><span class="ico">🎴</span>Do</button>
+      <button class="tab" data-tab="sect"><span class="ico">🏯</span>Sect</button>
     </nav>
   </div>
 

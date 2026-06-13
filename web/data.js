@@ -221,3 +221,55 @@ export function karmaLabel(k) {
   if (k < 120) return "Virtuous";
   return "Living Saint";
 }
+
+/* ===================================================================
+ * BitLife-style life-sim layer: family, life stages, vitals, activities.
+ * =================================================================== */
+
+export const AWAKENING_AGE = 6;     // spiritual root revealed (测灵根)
+export const COMING_OF_AGE = 16;    // adulthood; free to leave home
+
+// What your parents do, and roughly how cultivated they are, by birth standing.
+// [father_occupation, mother_occupation, parent_realm_index]
+export const PARENT_PROFILE = {
+  slave:    ["a bond-servant", "a kitchen maid", 0],
+  beggar:   ["unknown", "unknown", 0],
+  peasant:  ["a rice farmer", "a weaver", 0],
+  hunter:   ["a mountain hunter", "an herb-gatherer", 1],
+  merchant: ["a spice merchant", "a shopkeeper", 1],
+  martial:  ["a martial instructor", "a clan matron", 2],
+  scholar:  ["a village teacher", "a calligrapher", 1],
+  sect:     ["an outer-sect disciple", "a sect handmaiden", 2],
+  noble:    ["a clan elder", "a clan lady", 4],
+  royal:    ["an imperial prince", "an imperial consort", 5],
+  demon:    ["a devil-path cultivator", "a blood witch", 3],
+  hermit:   ["a reclusive master", "a wandering immortal", 5],
+};
+
+// Sibling relation labels by sex.
+export const KIN = {
+  father: "Father", mother: "Mother",
+  brother: "Brother", sister: "Sister",
+  son: "Son", daughter: "Daughter",
+  spouse: "Dao Partner",
+};
+
+// Avatar emoji by life stage / realm tier.
+export function avatarFor(c) {
+  if (!c.awakened && c.age < AWAKENING_AGE) return c.age < 2 ? "👶" : "🧒";
+  if (c.realm >= 9) return "😇";
+  if (c.realm >= 7) return "🧝";
+  if (c.realm >= 5) return "🧙";
+  if (c.realm >= 3) return "🧘";
+  if (c.age < COMING_OF_AGE) return "🧒";
+  return c.sex === "female" ? "👩" : "🧑";
+}
+
+// Vital-stat descriptive bands.
+export function vitalLabel(v) {
+  if (v >= 85) return "Excellent";
+  if (v >= 65) return "Good";
+  if (v >= 40) return "Fair";
+  if (v >= 20) return "Poor";
+  return "Critical";
+}

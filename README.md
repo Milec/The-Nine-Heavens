@@ -23,9 +23,21 @@ adventure, and claw your way up the realms toward the legendary **Nine Heavens**
 ### On your phone (iOS & Android) — no install required
 
 The Nine Heavens ships as a **mobile-first web app (PWA)** in [`web/`](web/): a
-self-contained port of the full game in vanilla JavaScript with a touch
-interface, offline support, and automatic save. It runs in any modern mobile
-browser and can be **added to your home screen** to play like a native app.
+self-contained, **BitLife-style xianxia life-sim** in vanilla JavaScript with a
+touch interface, offline support, and automatic save. It runs in any modern
+mobile browser and can be **added to your home screen** to play like a native app.
+
+You are **born into a family** and live your cultivator's life **one year at a
+time**: tap **Age Up** and narrative events unfold — childhood, the **Spiritual
+Root Awakening** at age 6 that reveals your talent, sect recruiters, duels,
+ruins, romance, demonic temptations, betrayals, and loss — many with **choices
+that shape your fate**. Between years, use the tabs to **Cultivate** (seclusion,
+breakthroughs, the Dao), tend **Relationships** (family, masters, rivals, dao
+companions, even children of your own), pursue **Activities** (train, study,
+rest, alchemy, adventure), and climb your **Sect**. Two new vital stats —
+**Health** and **Happiness** — rise and fall with your choices and steady (or
+shake) your breakthroughs. Die, and your soul may **reincarnate** into a fresh
+life carrying its hard-won legacy.
 
 - **Hosted:** enable GitHub Pages for this repo (Settings → Pages → deploy from
   the default branch, root folder). The root [`index.html`](index.html)
@@ -41,10 +53,24 @@ browser and can be **added to your home screen** to play like a native app.
   ```
   (Serving over HTTP is required — ES modules don't load from `file://`.)
 
-The mobile version mirrors the Python engine's mechanics and balance: birth
-randomness, the eleven realms, sects, relationships, alchemy, treasures, spirit
-beasts, Daos, karma, and reincarnation are all there, driven by tappable
-buttons and slide-up menus.
+Combat is a **turn-based minigame**: your learned **techniques become usable
+skills** (Azure Cloud Palm, Nine-Yang Burst with a burn DoT, Blood Spike that
+lifesteals but stains your karma, the defense-piercing Great Void Rend…), spent
+from a **qi pool** you must manage. Your **spiritual-root element** drives a Wu
+Xing advantage/weakness cycle, your **bound treasure** and **tamed beast** join
+the fight, and stats decide crits, dodges and shields. Enemies wield their own
+**signature moves and elements** (a Demonic Outrider drains your blood; a
+Flame-Mane Lion sets you ablaze). Pick fights via **Wander the World**, **Hunt
+Spirit Beasts** (tameable), the non-lethal **Arena**, **dueling** a rival, or by
+seeking a **boss** — a fearsome named cultivator that enrages near death and
+always drops a treasure. And from the Golden Core up, every **breakthrough
+summons an interactive Heavenly Tribulation**: a survival battle against
+escalating lightning you must endure with shields, heals and nerve.
+
+Under the hood it reuses the same cultivation engine and balance as the Python
+version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,
+karma, tribulations and reincarnation) and wraps it in a life-sim layer of
+family, life stages, vitals, ~30 branching life events and interactive combat.
 
 ### In a terminal (desktop)
 
@@ -211,9 +237,12 @@ index.html        # root redirect to the web app (for GitHub Pages)
 web/              # mobile-first PWA port (iOS & Android)
   index.html      # app shell           manifest.webmanifest  # PWA manifest
   style.css       # mobile-first theme   sw.js               # offline service worker
-  data.js         # data tables (mirror of data.py)
-  engine.js       # game engine (port of the Python package)
-  ui.js           # touch UI, overlays, save/resume, reincarnation
+  data.js         # data tables (mirror of data.py) + life-sim tables
+  engine.js       # cultivation engine (port of the Python package)
+  events.js       # branching year-by-year life events
+  life.js         # family, vitals, awakening, the "age up" loop, activities
+  combat.js       # turn-based combat minigame (technique skills, elements)
+  ui.js           # BitLife-style tabbed touch UI, event modals, save/resume
   icons/          # generated app icons (+ generate_icons.py)
 ```
 
