@@ -564,16 +564,19 @@ export function refine(c, rng, recipeKey) {
   if (c.age > c.maxAge && c.alive) { c.alive = false; c.causeOfDeath = "old age at the pill furnace"; msgs.push(`☠ Your lifespan ends at ${c.age}, furnace still warm.`); }
   return msgs;
 }
-function applyPill(c, key, rng) {
+// Apply a pill's effect, scaled by a quality multiplier (1 = ordinary).
+export function grantPill(c, key, rng, mult = 1) {
   const name = D.PILL_BY_KEY[key][1];
-  if (key === "qi") { const n = rng.randint(1, 2); c.pills += n; return [`  Success! You refine ${n} ${name}(s).`]; }
-  if (key === "heal") { const n = rng.randint(1, 2); c.healingPills += n; return [`  Success! You refine ${n} ${name}(s).`]; }
-  if (key === "breakthrough") { c.breakthroughPills += 1; return [`  Success! A ${name} -- save it for your next breakthrough.`]; }
-  if (key === "body") { const g = rng.randint(1, 3); c.constitution = Math.min(160, c.constitution + g); recomputeMaxHp(c); return [`  Success! The ${name} tempers your body. (+${g} Constitution)`]; }
-  if (key === "soul") { const g = rng.randint(1, 3); c.soul = Math.min(160, c.soul + g); return [`  Success! The ${name} refines your spirit. (+${g} Soul Sense)`]; }
-  if (key === "longevity") { const g = Math.floor(c.maxAge * rng.uniform(0.05, 0.11)) + 20; c.maxAge += g; note(c, `Refined a ${name}, extending lifespan by ${g} years.`); return [`  ✦ Success! The ${name} adds ${g} years to your lifespan!`]; }
+  const scale = n => Math.max(1, Math.round(n * mult));
+  if (key === "qi") { const n = scale(rng.randint(1, 2)); c.pills += n; return [`  You refine ${n} ${name}(s).`]; }
+  if (key === "heal") { const n = scale(rng.randint(1, 2)); c.healingPills += n; return [`  You refine ${n} ${name}(s).`]; }
+  if (key === "breakthrough") { const n = scale(1); c.breakthroughPills += n; return [`  You refine ${n} ${name}(s) -- save for a breakthrough.`]; }
+  if (key === "body") { const g = scale(rng.randint(1, 3)); c.constitution = Math.min(160, c.constitution + g); recomputeMaxHp(c); return [`  The ${name} tempers your body. (+${g} Constitution)`]; }
+  if (key === "soul") { const g = scale(rng.randint(1, 3)); c.soul = Math.min(160, c.soul + g); return [`  The ${name} refines your spirit. (+${g} Soul Sense)`]; }
+  if (key === "longevity") { const g = Math.round((Math.floor(c.maxAge * rng.uniform(0.05, 0.11)) + 20) * mult); c.maxAge += g; note(c, `Refined a ${name}, +${g} years of life.`); return [`  ✦ The ${name} adds ${g} years to your lifespan!`]; }
   return ["  Success!"];
 }
+function applyPill(c, key, rng) { return grantPill(c, key, rng, 1); }
 
 /* -------------------------------- dao ------------------------------------ */
 export const DAO_MIN_REALM = 5;

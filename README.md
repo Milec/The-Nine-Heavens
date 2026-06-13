@@ -88,6 +88,22 @@ After each cleared stage you choose to **press deeper** for richer spoils or
 **withdraw** with what you hold — and a **Realm Guardian** boss waits at the
 heart for those bold (or greedy) enough to reach it.
 
+Three more systems round out a cultivator's life:
+
+- **Lineage (传承)** — at the Golden Core you may **take disciples**, and **teach
+  your techniques** to disciples, children and your dao companion. Your students
+  carry your arts onward, and the teaching **echoes across reincarnation**,
+  sharpening the talent of your next life.
+- **Alchemy furnace minigame (炼丹)** — refining is now hands-on: keep the heat
+  needle inside a drifting jade band over several phases to build **pill
+  quality** (Crude → Fine → Flawless, scaling the effect) while avoiding the
+  instability that blows up your furnace. Soul, comprehension and skill widen
+  your margin for error.
+- **World standing (声望)** — your name climbs from *Unknown* to *Legendary* (or
+  sinks to *Notorious*). Fame draws **sect invitations, grand banquets and
+  admirers' gifts**; infamy and heavy sin mark you **Wanted**, summoning bounty
+  hunters and slamming doors in your face.
+
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,
 karma, tribulations and reincarnation) and wraps it in a life-sim layer of

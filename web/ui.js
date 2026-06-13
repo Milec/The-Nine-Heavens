@@ -65,9 +65,11 @@ function renderProfile() {
   const add = (label, val, warn) => chips.appendChild(el("span", "chip" + (warn ? " warn" : ""), `${label} <b>${val}</b>`));
   add("Age", `${c.age}/${c.maxAge}`);
   if (c.awakened) add("✦", Math.floor(E.power(c)));
+  add("Fame", D.standingLabel(c.reputation));
   add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`);
   add("💎", c.spiritStones);
   if (c.herbs) add("🌿", c.herbs);
+  if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", true);
   if (c.awakened && E.canBreakthrough(c)) add("Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, true);
 
   $("tabbar").querySelector(".tab-age").classList.toggle("ready", c.awakened && E.canBreakthrough(c));
@@ -179,6 +181,27 @@ function openPeople() {
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>meet someone new (free)</small>";
     b.onclick = () => { const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
     body.appendChild(b);
+    if (c.realm >= 4 && L.getDisciples(c).length < 3) {
+      const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>pass your arts to the next generation</small>";
+      d.onclick = () => { logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
+      body.appendChild(d);
+    }
+  });
+}
+function openTeachPicker(npc) {
+  const c = state.c;
+  openOverlay(`Teach · ${npc.name}`, body => {
+    const techs = c.techniques.filter(t => t !== "basic_breathing");
+    if (!techs.length) { body.appendChild(el("p", "note", "You know no techniques worth passing on yet.")); return; }
+    body.appendChild(el("p", "note", `Pass one of your arts to ${npc.name}. They will carry it onward — and the teaching echoes into your next life.`));
+    for (const t of techs) {
+      const known = (npc.learned || []).includes(t);
+      const row = el("div", "listrow" + (known ? " disabled" : ""));
+      row.innerHTML = `<div class="lr-ava">📖</div><div class="lr-main"><div class="lr-title">${escapeHtml(D.TECHNIQUES[t][0])}</div><div class="lr-sub">${known ? "already learned" : D.TECHNIQUES[t][4]}</div></div>`;
+      if (!known) row.onclick = () => { logMessages(L.teachTo(c, npc, t)); renderProfile(); openPerson(npc); };
+      body.appendChild(row);
+    }
+    backBtn(body, () => openPerson(npc));
   });
 }
 function personRow(n) {
@@ -197,7 +220,7 @@ function personEmoji(n) {
   if (n.kin === "Father") return "👨"; if (n.kin === "Mother") return "👩";
   if (n.kin === "Brother") return "👦"; if (n.kin === "Sister") return "👧";
   if (n.kin === "Son") return "🧒"; if (n.kin === "Daughter") return "🧒";
-  return ({ master: "🧓", rival: "😼", friend: "🙂", companion: "💞", enemy: "😠", nemesis: "👿" })[n.role] || "🧑";
+  return ({ master: "🧓", rival: "😼", friend: "🙂", companion: "💞", enemy: "😠", nemesis: "👿", disciple: "🙇" })[n.role] || "🧑";
 }
 function openPerson(n) {
   const c = state.c;
@@ -209,6 +232,7 @@ function openPerson(n) {
     for (const act of L.relationActions(c, n)) {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
       b.onclick = () => {
+        if (act.id === "teach") { openTeachPicker(n); return; }
         if (act.id === "duel") {  // an interactive duel to the finish
           const isNemesis = n.role === "nemesis";
           const enemy = isNemesis
@@ -290,10 +314,10 @@ function openAlchemy() {
   openOverlay("Alchemy 炼丹", body => {
     body.appendChild(el("p", "note", `Spirit Herbs: ${c.herbs} · Skill: ${c.alchemySkill}. Refining costs a year; failures salvage some herbs.`));
     for (const r of D.PILL_RECIPES) {
-      const can = c.herbs >= r[2], chance = Math.floor(E.alchemySuccess(c, r) * 100);
+      const can = c.herbs >= r[2];
       const row = el("div", "listrow" + (can ? "" : " disabled"));
-      row.innerHTML = `<div class="lr-ava">⚗️</div><div class="lr-main"><div class="lr-title">${r[1]} <span class="lr-sub" style="display:inline">(${chance}%)</span></div><div class="lr-sub">${r[2]} herbs · ${r[4]}</div></div>`;
-      if (can) row.onclick = () => runTimed(() => E.refine(c, state.rng, r[0]));
+      row.innerHTML = `<div class="lr-ava">⚗️</div><div class="lr-main"><div class="lr-title">${r[1]}</div><div class="lr-sub">${r[2]} herbs · ${r[4]}</div></div>`;
+      if (can) row.onclick = () => startBrew(r);
       body.appendChild(row);
     }
     backBtn(body, openActivities);
@@ -370,7 +394,7 @@ function openSheet() {
       ["Age", `${c.age} / ${c.maxAge}`],
       ["Realm", c.awakened ? `${E.realmLabel(c)} (${E.realmCn(c)})` : "Unawakened child"],
       ["Health / Happiness", `${Math.floor(c.health)} (${D.vitalLabel(c.health)}) / ${Math.floor(c.happiness)} (${D.vitalLabel(c.happiness)})`],
-      ["Reputation", c.reputation], ["Karma", `${c.karma >= 0 ? "+" : ""}${c.karma} (${E.karmaLabelFor(c)})`],
+      ["Standing", `${c.reputation} (${D.standingLabel(c.reputation)})`], ["Karma", `${c.karma >= 0 ? "+" : ""}${c.karma} (${E.karmaLabelFor(c)})`],
     ]));
     body.appendChild(el("div", "section-h", "Born With"));
     body.appendChild(infoRows([
@@ -539,6 +563,65 @@ function doBossFight() {
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
   startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
 }
+/* ----------------------- alchemy furnace minigame ------------------------ */
+// Keep the heat needle inside the drifting target band over several phases to
+// build pill quality; stray too far and instability risks an explosion.
+function brewZone(c) { return Math.round(Math.min(46, 18 + c.soul / 8 + c.comprehension / 14 + c.alchemySkill * 0.4)); }
+function startBrew(recipe) {
+  const c = state.c; if (c.herbs < recipe[2]) return; closeOverlay();
+  c.age += 1; c.herbs -= recipe[2];
+  const rng = state.rng;
+  state.brew = { recipe, heat: 50, target: rng.randint(38, 62), zone: brewZone(c), rounds: 4, round: 1, quality: 0, instability: 0, msg: "Stoke the furnace and keep the flame within the jade band." };
+  renderBrew();
+}
+function renderBrew() {
+  const B = state.brew;
+  openOverlay("Pill Furnace 丹炉", body => {
+    body.appendChild(el("p", "note", `Refining ${B.recipe[1]} — phase ${Math.min(B.round, B.rounds)}/${B.rounds}.`));
+    const zoneLeft = clampPct(B.target - B.zone / 2, 100), zoneW = Math.min(100 - zoneLeft, (B.zone / 100) * 100);
+    const gauge = el("div", "brew");
+    gauge.innerHTML = `<div class="brew-gauge"><div class="brew-band" style="left:${zoneLeft}%;width:${zoneW}%"></div><div class="brew-needle" style="left:${clampPct(B.heat, 100)}%"></div></div>
+      <div class="brew-stats"><span>🔥 Heat ${Math.round(B.heat)}</span><span>✦ Quality ${B.quality}/${B.rounds * 2}</span><span>⚠ Instability ${B.instability}/5</span></div>`;
+    body.appendChild(gauge);
+    body.appendChild(el("div", "line " + (B.msg.startsWith("✦") ? "epic" : B.msg.startsWith("⚠") || B.msg.startsWith("💥") ? "bad" : "sub"), escapeHtml(B.msg)));
+    if (B.done) {
+      const cont = el("button", "mbtn full primary"); cont.innerHTML = "Withdraw the Pill<small>see the result</small>";
+      cont.onclick = applyBrew; body.appendChild(cont);
+    } else {
+      const grid = el("div", "menu-grid");
+      const mk = (l, s, d) => { const b = el("button", "mbtn"); b.innerHTML = `${l}<small>${s}</small>`; b.onclick = () => brewAct(d); grid.appendChild(b); };
+      mk("Lower Flame", "−heat", -14); mk("Hold Steady", "±0", 0); mk("Raise Flame", "+heat", 14);
+      const stoke = el("button", "mbtn full"); stoke.innerHTML = "Bellows Surge<small>+big heat</small>"; stoke.onclick = () => brewAct(26); grid.appendChild(stoke);
+      body.appendChild(grid);
+    }
+  }, false);
+}
+function brewAct(delta) {
+  const B = state.brew, rng = state.rng;
+  B.heat = Math.max(0, Math.min(100, B.heat + delta + rng.uniform(-3, 3)));
+  const dist = Math.abs(B.heat - B.target);
+  if (dist <= B.zone / 2) { B.quality += 2; B.msg = "✦ Perfect balance — the pill's essence purifies."; }
+  else if (dist <= B.zone) { B.quality += 1; B.msg = "The furnace holds steady; the pill takes shape."; }
+  else { const inc = dist > B.zone * 2 ? 2 : 1; B.instability += inc; B.msg = "⚠ The flame lurches wildly — instability rises!"; }
+  if (B.instability >= 5 || B.round >= B.rounds) B.done = true;
+  else { B.round++; B.target = Math.max(15, Math.min(85, B.target + rng.uniform(-15, 15))); }
+  renderBrew();
+}
+function applyBrew() {
+  const c = state.c, B = state.brew, rng = state.rng;
+  c.alchemySkill += 1;
+  let msgs;
+  if (B.instability >= 5) {
+    const salv = Math.floor(B.recipe[2] / 3); c.herbs += salv;
+    msgs = [`💥 The furnace erupts! The ${B.recipe[1]} is lost. (salvaged ${salv} herbs)`];
+  } else {
+    const q = B.quality; let grade, mult;
+    if (q >= 7) { grade = "Flawless"; mult = 2.2; } else if (q >= 4) { grade = "Fine"; mult = 1.4; } else { grade = "Crude"; mult = 0.8; }
+    msgs = [`You withdraw a ${grade} ${B.recipe[1]} (quality ${q}/${B.rounds * 2}).`].concat(E.grantPill(c, B.recipe[0], rng, mult));
+  }
+  state.brew = null; closeOverlay(); logMessages(msgs); endActivityYear();
+}
+
 /* --- Secret Realm: a multi-stage delve with carried wounds and a guardian --- */
 function doSecretRealm() {
   const c = state.c; if (!c.alive) return; closeOverlay();

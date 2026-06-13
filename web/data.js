@@ -297,3 +297,14 @@ export function masteryNext(points) {
   for (const m of MASTERY_RANKS) if (points < m[1]) return m;
   return null;
 }
+
+/* World standing (声望) -- how the cultivation world regards your name. */
+export function standingLabel(rep) {
+  if (rep <= -40) return "Notorious";
+  if (rep <= -12) return "Disreputable";
+  if (rep < 15) return "Unknown";
+  if (rep < 40) return "Known";
+  if (rep < 90) return "Renowned";
+  if (rep < 180) return "Famous";
+  return "Legendary";
+}

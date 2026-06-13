@@ -41,7 +41,14 @@ export function bornCharacter(rng, name, sex) {
 
 export function reincarnateLife(old, rng, name) {
   const c = E.reincarnate(old, rng, name);
-  return augment(c, rng);
+  augment(c, rng);
+  // The arts you passed to students and kin echo across the wheel of rebirth.
+  const inherited = old.relationships.reduce((a, n) => a + ((n.learned && n.learned.length) || 0), 0);
+  if (inherited) {
+    c.comprehension = Math.min(160, c.comprehension + Math.min(20, inherited * 2));
+    note(c, `The arts you passed to ${inherited} student(s) in a former life sharpen your innate insight. (+Comprehension)`);
+  }
+  return c;
 }
 
 // Free social action (no year cost): go out and meet someone new.
@@ -287,6 +294,9 @@ function finishYear(c, rng, msgs) {
 /* --------------------- free relationship interactions -------------------- */
 // These do NOT cost a year (BitLife-style); they shift affinity and mood.
 
+const teachableTechs = c => c.techniques.filter(t => t !== "basic_breathing");
+export const getDisciples = c => c.relationships.filter(n => n.role === "disciple" && n.alive);
+
 export function relationActions(c, npc) {
   if (npc.role === "nemesis") {
     return [
@@ -294,8 +304,17 @@ export function relationActions(c, npc) {
       { id: "duel", label: "Settle the rivalry (showdown)" },
     ];
   }
+  if (npc.role === "disciple") {
+    const acts = [{ id: "talk", label: "Check on your disciple" }];
+    if (teachableTechs(c).length) acts.push({ id: "teach", label: "Teach a technique" });
+    acts.push({ id: "gift", label: "Give a gift (5 stones)" });
+    acts.push({ id: "spar", label: "Spar" });
+    return acts;
+  }
   const acts = [];
   acts.push({ id: "talk", label: npc.role === "family" ? "Spend time together" : "Converse" });
+  if ((npc.role === "companion" || npc.kin === "Son" || npc.kin === "Daughter") && teachableTechs(c).length)
+    acts.push({ id: "teach", label: "Teach a technique" });
   if (npc.role !== "enemy") acts.push({ id: "gift", label: "Give a gift (5 stones)" });
   if (npc.role === "family" && (npc.realm || 0) >= 2) acts.push({ id: "guidance", label: "Seek their guidance" });
   if (npc.role === "family" && (c.backgroundKey === "noble" || c.backgroundKey === "royal")) acts.push({ id: "askhelp", label: "Ask for resources" });
@@ -340,6 +359,32 @@ export function doRelationAction(c, npc, action, rng) {
     }
     default: return ["Nothing happens."];
   }
+}
+
+// Take a disciple to carry your arts onward (free; Golden Core and up).
+export function takeDisciple(c, rng) {
+  if (c.realm < 4) return ["You must reach the Golden Core before any youth will kneel to you as master."];
+  if (getDisciples(c).length >= 3) return ["You already shepherd three disciples — enough for any master."];
+  const n = mkNpc("disciple", E.npcName(rng), 55);
+  n.kin = "Disciple"; n.power = E.power(c) * rng.uniform(0.2, 0.45); n.learned = [];
+  c.relationships.push(n);
+  c.happiness = clampN(c.happiness + 4, 0, 100);
+  note(c, `Took ${n.name} as a disciple.`);
+  return [`You take ${n.name} under your wing as a disciple. They kowtow three times, eyes brimming.`];
+}
+
+// Pass one of your techniques to a child / disciple / dao companion (free).
+export function teachTo(c, npc, techKey) {
+  npc.learned = npc.learned || [];
+  const name = D.TECHNIQUES[techKey] ? D.TECHNIQUES[techKey][0] : techKey;
+  if (npc.learned.includes(techKey)) return [`${npc.name} has already mastered ${name}.`];
+  npc.learned.push(techKey);
+  npc.power = (npc.power || E.power(c) * 0.4) * 1.15 + 5;
+  npc.affinity = clampN(npc.affinity + 10, -100, 100);
+  c.happiness = clampN(c.happiness + 5, 0, 100);
+  c.karma += 1;
+  note(c, `Taught ${name} to ${npc.name}.`);
+  return [`You pass on ${name} to ${npc.name}. They train day and night to honour the gift. (+Happiness, +Karma)`];
 }
 
 /* ------------------------------ queries ---------------------------------- */

@@ -164,3 +164,10 @@ body {
 .cbt-skill.off { opacity: .4; }
 .cbt-skill.flee { background: #2a2030; border-color: #5a3a4a; }
 .cbt-skill.flee .cs-cost { color: var(--muted); }
+
+/* ---- alchemy furnace minigame ---- */
+.brew { margin: 10px 0 6px; }
+.brew-gauge { position: relative; height: 26px; border-radius: 8px; background: linear-gradient(90deg,#13233a,#3a2417); border: 1px solid var(--line); overflow: hidden; }
+.brew-band { position: absolute; top: 0; bottom: 0; background: rgba(111,214,179,.30); border-left: 2px solid var(--jade); border-right: 2px solid var(--jade); }
+.brew-needle { position: absolute; top: -3px; bottom: -3px; width: 4px; margin-left: -2px; background: var(--gold); box-shadow: 0 0 8px var(--gold); border-radius: 2px; transition: left .2s ease; }
+.brew-stats { display: flex; justify-content: space-between; font-size: .74rem; color: var(--muted); margin-top: 8px; }
