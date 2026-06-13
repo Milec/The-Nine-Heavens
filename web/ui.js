@@ -2,6 +2,7 @@
 import * as E from "./engine.js";
 import * as D from "./data.js";
 import * as L from "./life.js";
+import * as C from "./combat.js";
 
 const STORAGE_KEY = "nineheavens.save.v3";
 const state = { c: null, rng: null, deadHandled: false, overlayClosable: true };
@@ -161,7 +162,7 @@ function openCultivate() {
     mk("Secluded Cultivation", "focus 3 years", () => runTimed(() => E.cultivate(c, state.rng, 3)));
     mk("Use a Qi Pill", `cultivate · ${c.pills} left`, () => runTimed(() => E.cultivate(c, state.rng, 1, true)), { disabled: c.pills <= 0 });
     mk("Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
-    mk("Wander the World", "adventure (1 yr)", () => runTimed(() => E.adventure(c, state.rng)));
+    mk("Wander the World", "adventure & battle", doWander);
     body.appendChild(grid);
   });
 }
@@ -207,6 +208,15 @@ function openPerson(n) {
     for (const act of L.relationActions(c, n)) {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
       b.onclick = () => {
+        if (act.id === "duel") {  // an interactive duel to the finish
+          const enemy = { name: n.name, kind: "rogue", power: n.power || E.power(c), element: null, reward: (c.realm + 1) * 6 };
+          logMessages([`You challenge ${n.name} to settle things with qi and steel!`]);
+          startBattle(enemy, { title: `Duel · ${n.name}` }, (outcome) => {
+            if (state.c.alive && outcome === "win") { n.alive = false; logMessages([`You defeat ${n.name} and end the feud for good.`]); }
+            renderProfile(); if (!state.c.alive) checkDeath(); else openPeople();
+          });
+          return;
+        }
         const res = L.doRelationAction(c, n, act.id, state.rng);
         logMessages(res); renderProfile();
         if (!c.alive) { closeOverlay(); checkDeath(); return; }
@@ -228,6 +238,9 @@ function openActivities() {
     mk("Study Scriptures", "build comprehension", () => runTimed(() => L.studyScriptures(c, state.rng)));
     mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
     mk("Take Odd Jobs", "earn spirit stones", () => runTimed(() => L.oddJobs(c, state.rng)));
+    const canHunt = c.awakened && c.root.key !== "none";
+    mk("Hunt Spirit Beasts", canHunt ? "battle · tameable" : "needs cultivation", canHunt ? doHunt : null, { disabled: !canHunt });
+    mk("Spar in the Arena", canHunt ? "train · non-lethal" : "needs cultivation", canHunt ? doArena : null, { disabled: !canHunt });
     mk("Refine Pills", `alchemy · ${c.herbs} herbs`, openAlchemy);
     mk("Treasures & Beast", "your assets", openAssets);
     body.appendChild(grid);
@@ -442,6 +455,104 @@ function resumeFrom(sv) {
   if (!c.alive) checkDeath();
 }
 function startOrDeath() { if (!state.c) startScreen(); else if (!state.c.alive) checkDeath(); }
+
+/* ---------------------------- combat minigame ---------------------------- */
+const STATUS_EMOJI = { burn: "🔥", bleed: "🩸", empower: "💪", weaken: "💢", stun: "💫", regen: "💚" };
+function statusChips(u) {
+  let s = "";
+  if (u.shield > 0) s += `🛡️${Math.round(u.shield)} `;
+  for (const st of u.statuses) s += `${STATUS_EMOJI[st.type] || "•"}${st.turns} `;
+  return s.trim();
+}
+function unitPanel(u, isPlayer) {
+  const p = el("div", "cbt-unit" + (isPlayer ? " you" : ""));
+  const elemIcon = isPlayer ? "🧘" : C.elementIcon(u.element);
+  let html = `<div class="cu-top"><span class="cu-name">${elemIcon} ${escapeHtml(u.name)}</span><span class="cu-status">${statusChips(u)}</span></div>`;
+  html += `<div class="hpbar"><div class="hpfill${isPlayer ? " you" : ""}" style="width:${clampPct(u.hp, u.maxHp)}%"></div><span>${Math.max(0, Math.round(u.hp))}/${Math.round(u.maxHp)}</span></div>`;
+  if (isPlayer) html += `<div class="qibar"><div class="qifill" style="width:${clampPct(u.qi, u.maxQi)}%"></div><span>Qi ${Math.round(u.qi)}/${Math.round(u.maxQi)}</span></div>`;
+  p.innerHTML = html;
+  return p;
+}
+function startBattle(enemyDef, opts, onDone) {
+  const B = C.createBattle(state.c, enemyDef, state.rng, opts || {});
+  B.feed = [`⚔ A ${enemyDef.name} faces you!  (foe ≈ ${Math.round(enemyDef.power)}, you ≈ ${Math.round(E.power(state.c))})`];
+  renderBattleScreen(B, onDone);
+}
+function renderBattleScreen(B, onDone) {
+  openOverlay(B.opts.title || "Battle", body => {
+    body.appendChild(unitPanel(B.enemy, false));
+    body.appendChild(el("div", "cbt-vs", `— turn ${B.turn} —`));
+    const feed = el("div", "cbt-feed");
+    (B.feed || []).slice(-9).forEach(l => feed.appendChild(el("div", "line " + classify(l), escapeHtml(l))));
+    body.appendChild(feed);
+    body.appendChild(unitPanel(B.player, true));
+    if (B.over) {
+      const cont = el("button", "mbtn full primary");
+      cont.innerHTML = `Continue<small>${B.outcome === "win" ? "victory!" : B.outcome === "lose" ? "defeat..." : B.outcome === "yield" ? "you yield" : "you flee"}</small>`;
+      cont.onclick = () => { const sum = B.finish(); closeOverlay(); logMessages(sum); if (onDone) onDone(B.outcome); };
+      body.appendChild(cont);
+    } else {
+      const grid = el("div", "cbt-actions");
+      for (const a of B.actions()) {
+        const b = el("button", "cbt-skill" + (a.disabled ? " off" : "") + (a.id === "flee" ? " flee" : ""));
+        b.innerHTML = `<span class="cs-name">${a.element ? C.elementIcon(a.element) + " " : ""}${escapeHtml(a.name)}</span><span class="cs-cost">${a.qi ? "⊙" + a.qi : "free"}</span>`;
+        if (!a.disabled) b.onclick = () => { const r = B.act(a.id); (B.feed = B.feed || []).push(...r.lines); renderBattleScreen(B, onDone); };
+        grid.appendChild(b);
+      }
+      body.appendChild(grid);
+    }
+    feed.scrollTop = feed.scrollHeight;
+  }, false);
+}
+
+/* entry points that spend a year, then resolve old-age before continuing */
+function endActivityYear() {
+  const c = state.c;
+  if (c.alive && c.age > c.maxAge && state.rng.random() > (c.luck + c.soul) / 400) {
+    c.alive = false; c.causeOfDeath = "old age, lifespan exhausted"; c.log.push([c.age, "Died of old age."]);
+    logMessages([`☠ Your lifespan ends at ${c.age}.`]);
+  }
+  renderProfile(); save(); checkDeath();
+}
+function doWander() {
+  const c = state.c; if (!c.alive) return; closeOverlay();
+  c.age += 1;
+  if (c.awakened && c.root.key !== "none" && state.rng.random() < 0.58) {
+    const enemy = C.makeEnemy(c, state.rng);
+    logMessages([`You roam the wild reaches and are set upon by a ${enemy.name}!`]);
+    startBattle(enemy, { title: "Wild Encounter" }, () => endActivityYear());
+  } else {
+    logMessages(wanderFortune(c)); endActivityYear();
+  }
+}
+function doHunt() {
+  const c = state.c; if (!c.alive) return; closeOverlay();
+  c.age += 1;
+  const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]) });
+  logMessages([`You track a ${enemy.name} through the spirit-wilds and corner it.`]);
+  startBattle(enemy, { title: "Beast Hunt" }, () => endActivityYear());
+}
+function doArena() {
+  const c = state.c; if (!c.alive) return; closeOverlay();
+  c.age += 1;
+  const enemy = C.makeEnemy(c, state.rng, { kind: "rogue", name: "Sparring Partner", factor: state.rng.uniform(0.8, 1.1), element: null });
+  logMessages(["You step into the sect sparring ring. (non-lethal)"]);
+  startBattle(enemy, { title: "Arena Spar", nonLethal: true }, (outcome) => {
+    if (state.c.alive) {
+      c.happiness = Math.min(100, c.happiness + 4);
+      if (outcome === "win") { c.comprehension = Math.min(160, c.comprehension + 1); logMessages(["A clean victory in the ring sharpens your martial sense. (+Comprehension)"]); }
+    }
+    endActivityYear();
+  });
+}
+function wanderFortune(c) {
+  const rng = state.rng, r = rng.random();
+  if (r < 0.3) { const g = rng.randint(5, 20) * (c.realm + 1); c.spiritStones += g; return [`You find a lost coin-pouch of ${g} spirit stones.`]; }
+  if (r < 0.55) { const h = rng.randint(3, 8) + c.realm; c.herbs += h; return [`You harvest ${h} spirit herbs from a hidden vale.`]; }
+  if (r < 0.7 && c.awakened) { c.qi += E.qiToNext(c) * 0.4; return ["By a roaring waterfall you grasp a sliver of the dao; your qi surges."]; }
+  if (r < 0.82) return E.acquireArtifact(c, E.randomArtifact(c, rng));
+  return ["You wander quiet mountains and trade rumours at a roadside inn. An uneventful year."];
+}
 
 /* ----------------------------- wiring ------------------------------------ */
 const TABS = { cultivate: openCultivate, people: openPeople, activities: openActivities, sect: openSect, age: doAgeUp };

@@ -53,10 +53,19 @@ life carrying its hard-won legacy.
   ```
   (Serving over HTTP is required — ES modules don't load from `file://`.)
 
+Combat is a **turn-based minigame**: your learned **techniques become usable
+skills** (Azure Cloud Palm, Nine-Yang Burst with a burn DoT, Blood Spike that
+lifesteals but stains your karma, the defense-piercing Great Void Rend…), spent
+from a **qi pool** you must manage. Your **spiritual-root element** drives a Wu
+Xing advantage/weakness cycle, your **bound treasure** and **tamed beast** join
+the fight, and stats decide crits, dodges and shields. Pick fights via **Wander
+the World**, **Hunt Spirit Beasts** (tameable), the non-lethal **Arena**, or by
+**dueling** a rival.
+
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,
 karma, tribulations and reincarnation) and wraps it in a life-sim layer of
-family, life stages, vitals and ~30 branching life events.
+family, life stages, vitals, ~30 branching life events and interactive combat.
 
 ### In a terminal (desktop)
 
@@ -227,6 +236,7 @@ web/              # mobile-first PWA port (iOS & Android)
   engine.js       # cultivation engine (port of the Python package)
   events.js       # branching year-by-year life events
   life.js         # family, vitals, awakening, the "age up" loop, activities
+  combat.js       # turn-based combat minigame (technique skills, elements)
   ui.js           # BitLife-style tabbed touch UI, event modals, save/resume
   icons/          # generated app icons (+ generate_icons.py)
 ```
