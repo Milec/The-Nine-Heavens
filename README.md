@@ -20,7 +20,35 @@ adventure, and claw your way up the realms toward the legendary **Nine Heavens**
 
 ## Play
 
-No dependencies beyond Python 3.8+. From the repo root:
+### On your phone (iOS & Android) — no install required
+
+The Nine Heavens ships as a **mobile-first web app (PWA)** in [`web/`](web/): a
+self-contained port of the full game in vanilla JavaScript with a touch
+interface, offline support, and automatic save. It runs in any modern mobile
+browser and can be **added to your home screen** to play like a native app.
+
+- **Hosted:** enable GitHub Pages for this repo (Settings → Pages → deploy from
+  the default branch, root folder). The root [`index.html`](index.html)
+  redirects to the game at `/web/`. Open the Pages URL on your phone, then:
+  - **iOS (Safari):** Share → *Add to Home Screen*.
+  - **Android (Chrome):** ⋮ menu → *Install app* / *Add to Home Screen*.
+  Once added it works **offline**.
+- **Locally / over your home Wi-Fi:** serve the folder and open it on your phone
+  using your computer's LAN IP:
+  ```bash
+  cd web && python3 -m http.server 8000
+  # then on your phone visit  http://<your-computer-ip>:8000
+  ```
+  (Serving over HTTP is required — ES modules don't load from `file://`.)
+
+The mobile version mirrors the Python engine's mechanics and balance: birth
+randomness, the eleven realms, sects, relationships, alchemy, treasures, spirit
+beasts, Daos, karma, and reincarnation are all there, driven by tappable
+buttons and slide-up menus.
+
+### In a terminal (desktop)
+
+The original text version needs nothing beyond Python 3.8+. From the repo root:
 
 ```bash
 python play.py
@@ -177,8 +205,16 @@ nine_heavens/
   dao.py          # comprehending the great Daos / Laws
   game.py         # interactive menu loop and rendering
   __main__.py     # `python -m nine_heavens`
-play.py           # convenience launcher
+play.py           # convenience launcher (terminal)
 tests/            # headless simulation tests
+index.html        # root redirect to the web app (for GitHub Pages)
+web/              # mobile-first PWA port (iOS & Android)
+  index.html      # app shell           manifest.webmanifest  # PWA manifest
+  style.css       # mobile-first theme   sw.js               # offline service worker
+  data.js         # data tables (mirror of data.py)
+  engine.js       # game engine (port of the Python package)
+  ui.js           # touch UI, overlays, save/resume, reincarnation
+  icons/          # generated app icons (+ generate_icons.py)
 ```
 
 ## Tests
