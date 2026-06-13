@@ -279,6 +279,7 @@ function openActivities() {
     mk("Hunt Spirit Beasts", canHunt ? "battle · tameable" : "needs cultivation", canHunt ? doHunt : null, { disabled: !canHunt });
     mk("Spar in the Arena", canHunt ? "train · non-lethal" : "needs cultivation", canHunt ? doArena : null, { disabled: !canHunt });
     mk("Seek a Worthy Foe", canBoss ? "BOSS · great rewards" : "needs Foundation+", canBoss ? doBossFight : null, { disabled: !canBoss });
+    mk("Enter a Secret Realm", canBoss ? "delve · escalating loot" : "needs Foundation+", canBoss ? doSecretRealm : null, { disabled: !canBoss });
     mk("Refine Pills", `alchemy · ${c.herbs} herbs`, openAlchemy);
     mk("Treasures & Beast", "your assets", openAssets);
     body.appendChild(grid);
@@ -538,6 +539,78 @@ function doBossFight() {
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
   startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
 }
+/* --- Secret Realm: a multi-stage delve with carried wounds and a guardian --- */
+function doSecretRealm() {
+  const c = state.c; if (!c.alive) return; closeOverlay();
+  c.age += 1;
+  const depth = 3 + Math.floor(state.rng.random() * 3); // 3-5 stages incl. guardian
+  state.realmRun = { depth, idx: 0, hpFrac: 1 };
+  logMessages(["You step through a shimmering rift into a Secret Realm — the qi here is thick as honey, and the danger thicker still."]);
+  realmStage();
+}
+function realmStage() {
+  const c = state.c, R = state.realmRun;
+  if (R.idx >= R.depth) { realmComplete(); return; }
+  const stageNo = R.idx + 1, last = R.idx === R.depth - 1;
+  if (last) {
+    const guardian = C.makeBoss(c, state.rng, { name: "the Realm Guardian", factor: 1.4 + state.rng.random() * 0.2, element: "Earth" });
+    logMessages([`Stage ${stageNo}/${R.depth} — ${guardian.name} bars the inner sanctum!`]);
+    startBattle(guardian, { title: "Secret Realm · Guardian", startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+    return;
+  }
+  if (state.rng.random() < 0.6) {
+    const enemy = C.makeEnemy(c, state.rng, { factor: 0.8 + R.idx * 0.15 });
+    logMessages([`Stage ${stageNo}/${R.depth} — a ${enemy.name} lurks in the mist.`]);
+    startBattle(enemy, { title: `Secret Realm · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+  } else {
+    logMessages([`Stage ${stageNo}/${R.depth} —`].concat(realmFortune(c)));
+    R.idx++;
+    realmPrompt();
+  }
+}
+function realmAfterBattle(outcome) {
+  const c = state.c, R = state.realmRun;
+  if (!c.alive) { state.realmRun = null; renderProfile(); checkDeath(); return; }
+  if (outcome !== "win") { logMessages(["You withdraw from the realm with the spoils you have."]); realmEnd(false); return; }
+  // A brief breather between stages, but wounds still carry forward.
+  R.hpFrac = Math.min(1, Math.max(0.12, c.hp / c.maxHp) + 0.25);
+  R.idx++;
+  if (R.idx >= R.depth) realmComplete();
+  else realmPrompt();
+}
+function realmFortune(c) {
+  const rng = state.rng, r = rng.random();
+  if (r < 0.3) return E.acquireArtifact(c, E.randomArtifact(c, rng));
+  if (r < 0.55) { const h = rng.randint(5, 12) + c.realm; c.herbs += h; return [`a grove of spirit herbs — you harvest ${h}.`]; }
+  if (r < 0.72) { c.pills += rng.randint(1, 3); return ["a dusty pill cache, still potent."]; }
+  if (r < 0.86) { c.hp = c.maxHp; const R = state.realmRun; if (R) R.hpFrac = 1; return ["a tranquil spirit spring — you bathe and recover fully."]; }
+  c.qi += E.qiToNext(c) * 0.5; return ["an ancient dao inscription — insight floods you and your qi surges."];
+}
+function realmPrompt() {
+  const R = state.realmRun;
+  openOverlay("Secret Realm", body => {
+    body.appendChild(el("p", "note", `You have cleared ${R.idx} of ${R.depth} stages. Press deeper for richer spoils — or withdraw now and keep what you hold.`));
+    const deeper = el("button", "mbtn full primary"); deeper.innerHTML = "Press Deeper<small>greater danger, greater reward</small>";
+    deeper.onclick = () => { closeOverlay(); realmStage(); };
+    body.appendChild(deeper);
+    const out = el("button", "mbtn full"); out.innerHTML = "Withdraw with Your Spoils<small>end the delve safely</small>";
+    out.onclick = () => { closeOverlay(); logMessages(["You retrace your steps and leave the realm, spoils in hand."]); realmEnd(false); };
+    body.appendChild(out);
+  }, false);
+}
+function realmComplete() {
+  const c = state.c, R = state.realmRun;
+  const stones = (c.realm + 2) * state.rng.randint(15, 30);
+  c.spiritStones += stones; c.reputation += 5;
+  const lines = [`✦ You conquer the Secret Realm to its very heart! (+${stones} spirit stones, +5 reputation)`];
+  if (c.sectKey) { c.contribution += 80; lines.push("  Your charted findings earn +80 sect contribution."); }
+  if (state.rng.random() < 0.5) { const t = realmFortune(c); lines.push("  In the inner sanctum: " + t[0]); }
+  const title = "Secret Realm Delver";
+  if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, "Conquered a Secret Realm."]); lines.push(`  ✦ You earn the title: ${title}!`); }
+  logMessages(lines);
+  realmEnd(true);
+}
+function realmEnd() { state.realmRun = null; endActivityYear(); }
 function doTournament() {
   const c = state.c; if (!c.alive || !c.sectKey) return; closeOverlay();
   c.age += 1;

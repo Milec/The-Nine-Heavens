@@ -126,9 +126,10 @@ export function makeTribulation(c, rng) {
 /* ----------------------------- the battle -------------------------------- */
 export function createBattle(c, enemyDef, rng, opts = {}) {
   const P = E.power(c);
+  const pMax = P * 1.9;
   const player = {
     isPlayer: true, ref: c, name: c.name,
-    maxHp: P * 1.9, hp: P * 1.9,
+    maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),
     maxQi: 40 + c.soul * 0.4 + c.realm * 6, qi: 40 + c.soul * 0.4 + c.realm * 6,
     atk: P - E.beastPower(c),
     mitig: clampN(c.constitution / 300 + c.realm * 0.012, 0, 0.5),

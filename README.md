@@ -82,6 +82,12 @@ orthodox arts you can learn techniques with distinct combat mechanics — a
 foe, a **binding seal** that weakens and may stun, and a **recoil ultimate** that
 hits like a mountain but leaves you spent.
 
+You can also **delve a Secret Realm (秘境)**: a multi-stage expedition of
+escalating battles and fortune-rooms where **wounds carry between fights**.
+After each cleared stage you choose to **press deeper** for richer spoils or
+**withdraw** with what you hold — and a **Realm Guardian** boss waits at the
+heart for those bold (or greedy) enough to reach it.
+
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,
 karma, tribulations and reincarnation) and wraps it in a life-sim layer of
