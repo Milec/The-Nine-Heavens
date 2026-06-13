@@ -11,6 +11,8 @@
  *              | auto(c,rng,A)-> str | str[] }                    // a passive card
  */
 
+import * as D from "./data.js";
+
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const cap = (c, k, v) => { c[k] = Math.min(160, c[k] + v); };
 
@@ -242,6 +244,73 @@ export const EVENTS = [
       { label: "Fight for your sect", result: (c, rng, A) => { const res = A.fight(); if (c.alive) { c.contribution += 40; c.reputation += 4; res.push("Your sect repels the invaders. Your valour earns contribution and renown."); } return ["You take your place in the battle-line."].concat(res); } },
       { label: "Hide until it passes", result: (c, rng, A) => { c.reputation -= 6; A.happy(-4); return "You cower in the herb-cellar while others bleed. The sect remembers cowards."; } },
     ],
+  },
+  /* ------------------------------ nemesis ------------------------------- */
+  {
+    id: "destined_rival", weight: 8, minAge: 8, maxAge: 18, awakened: true, once: true,
+    cond: c => !c.relationships.some(n => n.role === "nemesis" && n.alive),
+    text: () => "A gifted, arrogant peer humiliates you before a watching crowd, sneering that you will never amount to anything. The shame burns.",
+    choices: [
+      { label: "Swear to surpass them", result: (c, rng, A) => { const n = A.makeNemesis("a public humiliation in your youth"); cap(c, "comprehension", 2); A.happy(-4); return `You meet ${n.name}'s eyes and silently vow to grind their pride to dust. A lifelong rivalry is born. (See them in Relationships.)`; } },
+      { label: "Swallow it calmly", result: (c, rng, A) => { const n = A.makeNemesis("a public humiliation in your youth"); cap(c, "soul", 2); return `You bow your head and walk away — but ${n.name} marks you as a rival, and will not let it rest. (+Soul)`; } },
+    ],
+  },
+  {
+    id: "nemesis_surge", weight: 4, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "nemesis" && n.alive),
+    auto: (c, rng, A) => { const n = A.nemesis(); if (n) n.power *= rng.uniform(1.12, 1.28); return `Word reaches you: your nemesis ${n ? n.name : ""} has stumbled into a fortuitous chance and surged in power. The gap yawns wider.`; },
+  },
+  {
+    id: "nemesis_taunt", weight: 5, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "nemesis" && n.alive),
+    text: c => { const n = c.relationships.find(x => x.role === "nemesis" && x.alive); return `${n ? n.name : "Your nemesis"} struts past with a retinue, loudly mocking your "pitiful" cultivation for all to hear.`; },
+    choices: [
+      { label: "Redouble your training", result: (c, rng, A) => { cap(c, "comprehension", 2); A.happy(-3); return "You answer with silence and sweat. Their scorn becomes fuel. (+Comprehension)"; } },
+      { label: "Answer their challenge now", result: (c, rng, A) => { const n = A.nemesis(); return ["Blood rushes to your head — you call them out on the spot!"].concat(A.fight([n.name, n.power, (c.realm + 1) * 6, "rogue"])); } },
+    ],
+  },
+  {
+    id: "nemesis_ambush", weight: 4, minRealm: 2, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "nemesis" && n.alive),
+    auto: (c, rng, A) => { const n = A.nemesis(); return ["Your nemesis " + n.name + " ambushes you on a lonely mountain road!"].concat(A.fight([n.name, n.power, (c.realm + 1) * 7, "rogue"])); },
+  },
+  /* ----------------------- reputation & world standing ------------------ */
+  {
+    id: "sect_invitation", weight: 6, awakened: true, once: true,
+    cond: c => c.reputation >= 45 && !c.sectKey && c.realm >= 1,
+    text: () => "Your name has spread. Envoys from a great sect arrive bearing jade tokens, inviting you to join as a core disciple on the spot.",
+    choices: [
+      { label: "Accept the honour", result: (c, rng, A) => { const key = c.realm >= 2 ? "heavensword" : "azure"; c.sectKey = key; c.sectRank = 0; c.contribution = 0; c.reputation += 10; const nm = D.SECT_BY_KEY[key][1]; A.note(`Invited into the ${nm}.`); return `You don the robes of the ${nm} as an honoured guest-disciple. Doors open across the realm.`; } },
+      { label: "Decline — walk your own road", result: (c, rng, A) => { cap(c, "soul", 1); c.reputation += 2; return "You bow and refuse. A rogue cultivator beholden to none — the elders leave impressed despite themselves."; } },
+    ],
+  },
+  {
+    id: "grand_banquet", weight: 5, awakened: true,
+    cond: c => c.reputation >= 40,
+    text: () => "You are seated as a guest of honour at a grand cultivators' banquet, wine flowing and dao-debate sparkling.",
+    choices: [
+      { label: "Mingle with the elite", result: (c, rng, A) => { c.reputation += 3; A.happy(6); if (!c.relationships.some(n => n.role === "companion" && n.alive) && rng.random() < 0.3) { const n = A.meet("companion", { affinity: 26 }); return `Amid the lanterns, ${n.name} seeks you out, and something kindles.`; } const f = A.meet("friend", { affinity: 18 }); return `You trade dao insights with ${f.name}; a useful friendship forms.`; } },
+      { label: "Watch from the shadows", result: (c, rng, A) => { cap(c, "comprehension", 1); return "You observe the powerful and learn the shape of their ambitions. (+Comprehension)"; } },
+    ],
+  },
+  {
+    id: "admirer_gifts", weight: 4, awakened: true, cond: c => c.reputation >= 80,
+    auto: (c, rng, A) => { const g = rng.randint(20, 60); A.stones(g); c.pills += 1; A.happy(3); return `Admirers and hangers-on shower the famous you with gifts. (+${g} stones, +1 pill)`; },
+  },
+  {
+    id: "bounty_hunter", weight: 6, awakened: true, minRealm: 1,
+    cond: c => c.reputation <= -25 || c.karma <= -60,
+    auto: (c, rng, A) => ["A bounty hunter, lured by the price on your head, falls upon you!"].concat(A.fight(["a Bounty Hunter", A.power() * rng.uniform(1.0, 1.4), (c.realm + 1) * 8, "rogue"])),
+  },
+  {
+    id: "shunned", weight: 4, awakened: true, cond: c => c.reputation <= -15,
+    auto: (c, rng, A) => { A.happy(-4); return "Doors slam as you pass; merchants refuse your custom and mothers usher their children indoors. Infamy has its price."; },
+  },
+  /* ------------------------- disciples & lineage ------------------------ */
+  {
+    id: "grateful_disciple", weight: 4, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "disciple" && n.alive),
+    auto: (c, rng, A) => { const d = c.relationships.find(n => n.role === "disciple" && n.alive); const g = rng.randint(10, 30) * (c.realm + 1); A.stones(g); c.reputation += 2; A.happy(3); return `Your disciple ${d ? d.name : ""} returns from a journey laden with gifts and tales of upholding your name. (+${g} stones, +2 reputation)`; },
   },
   {
     id: "heart_demon_whisper", weight: 5, awakened: true,

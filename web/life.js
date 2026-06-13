@@ -17,8 +17,23 @@ function augment(c, rng, sex) {
   c.health = clampN(60 + Math.floor(c.constitution / 4) + rng.randint(-5, 10), 0, 100);
   c.awakened = false;
   c.firedEvents = [];
+  c.mastery = c.mastery || {};
+  c.region = c.region || "azuredomain";
   generateFamily(c, rng);
   return c;
+}
+
+export const getNemesis = c => c.relationships.find(n => n.role === "nemesis" && n.alive) || null;
+function makeNemesis(c, rng, grudge) {
+  if (getNemesis(c)) return getNemesis(c);
+  const n = mkNpc("nemesis", E.npcName(rng), -45);
+  n.kin = "Nemesis"; n.grudge = grudge || "an old slight you barely remember";
+  n.power = E.basePower(c) * rng.uniform(1.05, 1.25) + 2;
+  n.element = rng.choice([...D.ELEMENTS, "Dark", "Lightning"]);
+  n.encounters = 0;
+  c.relationships.push(n);
+  note(c, `${n.name} becomes your sworn nemesis.`);
+  return n;
 }
 
 export function bornCharacter(rng, name, sex) {
@@ -27,7 +42,14 @@ export function bornCharacter(rng, name, sex) {
 
 export function reincarnateLife(old, rng, name) {
   const c = E.reincarnate(old, rng, name);
-  return augment(c, rng);
+  augment(c, rng);
+  // The arts you passed to students and kin echo across the wheel of rebirth.
+  const inherited = old.relationships.reduce((a, n) => a + ((n.learned && n.learned.length) || 0), 0);
+  if (inherited) {
+    c.comprehension = Math.min(160, c.comprehension + Math.min(20, inherited * 2));
+    note(c, `The arts you passed to ${inherited} student(s) in a former life sharpen your innate insight. (+Comprehension)`);
+  }
+  return c;
 }
 
 // Free social action (no year cost): go out and meet someone new.
@@ -117,6 +139,8 @@ function makeApi(c, rng) {
     meet: (role, opts) => meetPerson(c, rng, role, opts),
     kin: label => c.relationships.find(n => n.kin === label && n.alive) || null,
     kinAdjust: (label, d) => { const n = c.relationships.find(x => x.kin === label && x.alive); if (n) n.affinity = clampN(n.affinity + d, -100, 100); },
+    makeNemesis: grudge => makeNemesis(c, rng, grudge),
+    nemesis: () => getNemesis(c),
   };
 }
 
@@ -161,6 +185,10 @@ export function ageUp(c, rng) {
     if (c.sectKey) c.spiritStones += D.SECT_RANKS[c.sectRank][4];
     if (c.hp < c.maxHp) c.hp = Math.min(c.maxHp, c.hp + c.maxHp * 0.5);
   }
+
+  // Your nemesis cultivates too, always shadowing your strength.
+  const nem = getNemesis(c);
+  if (nem) nem.power = Math.max(nem.power * 1.03, E.basePower(c) * rng.uniform(1.0, 1.18));
 
   // Vitals drift gently; old age erodes health.
   c.happiness = clampN(c.happiness + rng.randint(-2, 2), 0, 100);
@@ -243,6 +271,21 @@ export function oddJobs(c, rng) {
   finishYear(c, rng, msgs);
   return msgs;
 }
+export function trainTechnique(c, rng, techKey) {
+  if (!c.alive) return ["You are dead."];
+  if (!c.mastery) c.mastery = {};
+  c.age += 1;
+  const gain = rng.randint(6, 12) + Math.floor(c.comprehension / 12);
+  const before = D.masteryRank(c.mastery[techKey] || 0)[0];
+  c.mastery[techKey] = (c.mastery[techKey] || 0) + gain;
+  c.happiness = clampN(c.happiness - 2, 0, 100);
+  const name = D.TECHNIQUES[techKey][0];
+  const rank = D.masteryRank(c.mastery[techKey]);
+  const msgs = [`You drill ${name} relentlessly for a year. (+${gain} mastery)`];
+  if (rank[0] !== before) msgs.push(`  ✦ ${name} advances to ${rank[0]} (+${Math.round(rank[2] * 100)}% effect)!`);
+  finishYear(c, rng, msgs);
+  return msgs;
+}
 
 function finishYear(c, rng, msgs) {
   if (c.health <= 0 && c.alive) { c.alive = false; c.causeOfDeath = "failing health"; msgs.push("☠ Your health gives out entirely. You die."); note(c, "Died of failing health."); return; }
@@ -252,9 +295,27 @@ function finishYear(c, rng, msgs) {
 /* --------------------- free relationship interactions -------------------- */
 // These do NOT cost a year (BitLife-style); they shift affinity and mood.
 
+const teachableTechs = c => c.techniques.filter(t => t !== "basic_breathing");
+export const getDisciples = c => c.relationships.filter(n => n.role === "disciple" && n.alive);
+
 export function relationActions(c, npc) {
+  if (npc.role === "nemesis") {
+    return [
+      { id: "taunt", label: "Trade barbs" },
+      { id: "duel", label: "Settle the rivalry (showdown)" },
+    ];
+  }
+  if (npc.role === "disciple") {
+    const acts = [{ id: "talk", label: "Check on your disciple" }];
+    if (teachableTechs(c).length) acts.push({ id: "teach", label: "Teach a technique" });
+    acts.push({ id: "gift", label: "Give a gift (5 stones)" });
+    acts.push({ id: "spar", label: "Spar" });
+    return acts;
+  }
   const acts = [];
   acts.push({ id: "talk", label: npc.role === "family" ? "Spend time together" : "Converse" });
+  if ((npc.role === "companion" || npc.kin === "Son" || npc.kin === "Daughter") && teachableTechs(c).length)
+    acts.push({ id: "teach", label: "Teach a technique" });
   if (npc.role !== "enemy") acts.push({ id: "gift", label: "Give a gift (5 stones)" });
   if (npc.role === "family" && (npc.realm || 0) >= 2) acts.push({ id: "guidance", label: "Seek their guidance" });
   if (npc.role === "family" && (c.backgroundKey === "noble" || c.backgroundKey === "royal")) acts.push({ id: "askhelp", label: "Ask for resources" });
@@ -268,6 +329,7 @@ export function doRelationAction(c, npc, action, rng) {
   const adj = d => { npc.affinity = clampN(npc.affinity + d, -100, 100); };
   const happy = n => { c.happiness = clampN(c.happiness + n, 0, 100); };
   switch (action) {
+    case "taunt": adj(-rng.randint(2, 6)); happy(rng.random() < 0.5 ? 2 : -2); return [`You and ${npc.name} trade venomous barbs over your old grudge (${npc.grudge}). The rivalry sharpens.`];
     case "talk": adj(rng.randint(3, 8)); happy(2); return [`You spend a warm while with ${npc.name}. (${E.npcStatus(npc)})`];
     case "gift":
       if (c.spiritStones < 5) return ["You cannot spare even 5 spirit stones."];
@@ -298,6 +360,32 @@ export function doRelationAction(c, npc, action, rng) {
     }
     default: return ["Nothing happens."];
   }
+}
+
+// Take a disciple to carry your arts onward (free; Golden Core and up).
+export function takeDisciple(c, rng) {
+  if (c.realm < 4) return ["You must reach the Golden Core before any youth will kneel to you as master."];
+  if (getDisciples(c).length >= 3) return ["You already shepherd three disciples — enough for any master."];
+  const n = mkNpc("disciple", E.npcName(rng), 55);
+  n.kin = "Disciple"; n.power = E.power(c) * rng.uniform(0.2, 0.45); n.learned = [];
+  c.relationships.push(n);
+  c.happiness = clampN(c.happiness + 4, 0, 100);
+  note(c, `Took ${n.name} as a disciple.`);
+  return [`You take ${n.name} under your wing as a disciple. They kowtow three times, eyes brimming.`];
+}
+
+// Pass one of your techniques to a child / disciple / dao companion (free).
+export function teachTo(c, npc, techKey) {
+  npc.learned = npc.learned || [];
+  const name = D.TECHNIQUES[techKey] ? D.TECHNIQUES[techKey][0] : techKey;
+  if (npc.learned.includes(techKey)) return [`${npc.name} has already mastered ${name}.`];
+  npc.learned.push(techKey);
+  npc.power = (npc.power || E.power(c) * 0.4) * 1.15 + 5;
+  npc.affinity = clampN(npc.affinity + 10, -100, 100);
+  c.happiness = clampN(c.happiness + 5, 0, 100);
+  c.karma += 1;
+  note(c, `Taught ${name} to ${npc.name}.`);
+  return [`You pass on ${name} to ${npc.name}. They train day and night to honour the gift. (+Happiness, +Karma)`];
 }
 
 /* ------------------------------ queries ---------------------------------- */

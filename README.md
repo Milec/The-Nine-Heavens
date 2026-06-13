@@ -31,10 +31,12 @@ You are **born into a family** and live your cultivator's life **one year at a
 time**: tap **Age Up** and narrative events unfold — childhood, the **Spiritual
 Root Awakening** at age 6 that reveals your talent, sect recruiters, duels,
 ruins, romance, demonic temptations, betrayals, and loss — many with **choices
-that shape your fate**. Between years, use the tabs to **Cultivate** (seclusion,
-breakthroughs, the Dao), tend **Relationships** (family, masters, rivals, dao
-companions, even children of your own), pursue **Activities** (train, study,
-rest, alchemy, adventure), and climb your **Sect**. Two new vital stats —
+that shape your fate**. Within each year you may perform a few **deeds** — use
+the tabs to **Cultivate** (seclusion, breakthroughs, the Dao), tend
+**Relationships** (family, masters, rivals, dao companions, even children of
+your own), pursue **Activities** (train, study, rest, alchemy, adventure), and
+climb your **Sect**. Only **Age Up** passes a year and fires events; it also
+refreshes your deeds, so there's no rush — do what you can, then live another year. Two new vital stats —
 **Health** and **Happiness** — rise and fall with your choices and steady (or
 shake) your breakthroughs. Die, and your soul may **reincarnate** into a fresh
 life carrying its hard-won legacy.
@@ -66,6 +68,54 @@ seeking a **boss** — a fearsome named cultivator that enrages near death and
 always drops a treasure. And from the Golden Core up, every **breakthrough
 summons an interactive Heavenly Tribulation**: a survival battle against
 escalating lightning you must endure with shields, heals and nerve.
+
+Your techniques have **mastery** that deepens every time you use them in battle
+(or drill them) — Untrained → Novice → … → Perfected — raising their power, so a
+favoured art grows with you. And early in life a **destined nemesis (宿敌)** is
+born: an arrogant rival who taunts, ambushes and **cultivates in lockstep with
+you** across the years, until you finally hunt them down for a climactic boss
+showdown — the classic xianxia grudge, paid in full.
+
+The sect **Grand Tournament** is a four-round gauntlet of **interactive duels**
+against rival disciples, capped by a fight with the **Reigning Champion**, for
+contribution, renown, titles and a shot at catching an admirer's eye. Beyond the
+orthodox arts you can learn techniques with distinct combat mechanics — a
+**multi-hit** sword storm, a **reflecting parry** that turns a blow back on the
+foe, a **binding seal** that weakens and may stun, and a **recoil ultimate** that
+hits like a mountain but leaves you spent.
+
+You can also **delve a Secret Realm (秘境)**: a multi-stage expedition of
+escalating battles and fortune-rooms where **wounds carry between fights**.
+After each cleared stage you choose to **press deeper** for richer spoils or
+**withdraw** with what you hold — and a **Realm Guardian** boss waits at the
+heart for those bold (or greedy) enough to reach it.
+
+Three more systems round out a cultivator's life:
+
+- **Lineage (传承)** — at the Golden Core you may **take disciples**, and **teach
+  your techniques** to disciples, children and your dao companion. Your students
+  carry your arts onward, and the teaching **echoes across reincarnation**,
+  sharpening the talent of your next life.
+- **Alchemy furnace minigame (炼丹)** — refining is now hands-on: keep the heat
+  needle inside a drifting jade band over several phases to build **pill
+  quality** (Crude → Fine → Flawless, scaling the effect) while avoiding the
+  instability that blows up your furnace. Soul, comprehension and skill widen
+  your margin for error.
+- **World standing (声望)** — your name climbs from *Unknown* to *Legendary* (or
+  sinks to *Notorious*). Fame draws **sect invitations, grand banquets and
+  admirers' gifts**; infamy and heavy sin mark you **Wanted**, summoning bounty
+  hunters and slamming doors in your face.
+- **Regions of the world (地域)** — **travel** from the gentle Azure Heartlands to
+  the Demon-Haunted Wastes and the Starfall Frontier; the deeper you roam, the
+  **deadlier the foes and the richer the spoils** of every wander, hunt, boss and
+  Secret Realm.
+- **Multi-phase bosses** — boss-tier foes (named cultivators, realm guardians, the
+  tournament champion, your nemesis) **enter a second phase at half health** and
+  **telegraph a devastating element-themed ultimate** — guard, heal, or be
+  shattered when it lands.
+- **Achievements & Legacy** — feats persist across **every reincarnation and new
+  soul**. Each achievement earns **Heavenly Favor** that blesses the innate
+  Comprehension and Fortune of all your future lives — true meta-progression.
 
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,

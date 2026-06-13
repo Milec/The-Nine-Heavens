@@ -101,6 +101,10 @@ export const TECHNIQUES = {
   nine_yang: ["Nine-Yang Profound Art", 2, 0.30, 12, "A blazing yang scripture that pairs perfectly with a yang body."],
   moon_mirror: ["Moon-Mirror Heart Sutra", 2, 0.28, 8, "Stills the mind to a silver pool, sharpening the soul."],
   great_void: ["Great Void Immortal Canon", 3, 0.55, 22, "A near-mythical immortal canon said to lead all the way to ascension."],
+  sword_rain: ["Myriad Sword Rain Art", 2, 0.20, 14, "A storm of flying swords that strikes again and again."],
+  mirror_parry: ["Mirror-Light Body Art", 2, 0.18, 8, "A defensive art that turns a foe's own force back upon them."],
+  spirit_bind: ["Spirit-Binding Seal", 2, 0.16, 6, "Soul-script that shackles an enemy's qi and will."],
+  heaven_slash: ["Heaven-Splitting Sabre", 3, 0.42, 20, "A single annihilating cut that leaves you spent."],
 };
 
 // [key, display, charmBonus, blurb, weight]
@@ -273,3 +277,45 @@ export function vitalLabel(v) {
   if (v >= 20) return "Poor";
   return "Critical";
 }
+
+/* Technique mastery (功法精通): proficiency grows with use, boosting a skill. */
+// [rank name, min points, damage/effect bonus]
+export const MASTERY_RANKS = [
+  ["Untrained", 0, 0.00],
+  ["Novice", 25, 0.06],
+  ["Adept", 80, 0.14],
+  ["Master", 200, 0.24],
+  ["Grand Master", 450, 0.36],
+  ["Perfected", 900, 0.50],
+];
+export function masteryRank(points) {
+  let r = MASTERY_RANKS[0];
+  for (const m of MASTERY_RANKS) if (points >= m[1]) r = m;
+  return r;
+}
+export function masteryNext(points) {
+  for (const m of MASTERY_RANKS) if (points < m[1]) return m;
+  return null;
+}
+
+/* World standing (声望) -- how the cultivation world regards your name. */
+export function standingLabel(rep) {
+  if (rep <= -40) return "Notorious";
+  if (rep <= -12) return "Disreputable";
+  if (rep < 15) return "Unknown";
+  if (rep < 40) return "Known";
+  if (rep < 90) return "Renowned";
+  if (rep < 180) return "Famous";
+  return "Legendary";
+}
+
+/* Regions of the world (地域) -- travel scales danger and reward. */
+// [key, name, cn, dangerFactor, blurb]
+export const REGIONS = [
+  ["azuredomain", "Azure Heartlands", "青云腹地", 0.85, "Tranquil orthodox heartlands; gentle foes, modest spoils. A safe place to begin."],
+  ["cloudmarsh", "Misty Cloud Marsh", "云泽", 1.0, "Trackless wetlands prowled by venomous spirit-beasts."],
+  ["frostpeaks", "Ten-Thousand Frost Peaks", "万寒峰", 1.25, "Killing cold and frost-beasts — richer pickings for those strong enough."],
+  ["demonwastes", "Demon-Haunted Wastes", "魔渊", 1.6, "Devil-path cultivators and corpse-fiends roam freely. Deadly, but lucrative."],
+  ["starfall", "Starfall Frontier", "星陨之地", 2.0, "A shattered immortal battlefield at the edge of the map. Death and fortune in equal measure."],
+];
+export const REGION_BY_KEY = Object.fromEntries(REGIONS.map(r => [r[0], r]));

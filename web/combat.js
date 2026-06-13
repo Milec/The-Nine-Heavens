@@ -33,6 +33,10 @@ export const SKILLS = {
   nine_yang: { id: "yang_burst", tech: "nine_yang", name: "Nine-Yang Burst", qi: 20, dmg: 0.44, element: "Fire", target: { type: "burn", turns: 3, value: 0.05 }, desc: "Searing fire that burns over 3 turns." },
   moon_mirror: { id: "moon_calm", tech: "moon_mirror", name: "Moon-Mirror Calm", qi: 18, type: "heal", heal: 0.22, cleanse: true, qiRestore: 0.1, desc: "Soothe wounds and cleanse afflictions in moonlight." },
   great_void: { id: "void_rend", tech: "great_void", name: "Great Void Rend", qi: 30, dmg: 0.62, pierce: 0.5, desc: "Tear space itself; ignores half the foe's defense." },
+  sword_rain: { id: "sword_rain", tech: "sword_rain", name: "Myriad Sword Rain", qi: 24, dmg: 0.22, hits: 3, element: "Metal", desc: "Three flying-sword strikes; each can crit and exploit elements." },
+  mirror_parry: { id: "mirror_parry", tech: "mirror_parry", name: "Mirror-Light Parry", qi: 12, type: "defend", shield: 0.16, counter: 0.6, qiRestore: 0.15, desc: "Shield up and reflect 60% of the next blow back at the foe." },
+  spirit_bind: { id: "spirit_bind", tech: "spirit_bind", name: "Spirit-Binding Seal", qi: 18, dmg: 0.30, element: "Light", target: { type: "weaken", turns: 2, value: 0.30 }, target2: { type: "stun", turns: 1, value: 0, chance: 0.35 }, desc: "Shackle the foe: heavy weaken, with a chance to stun." },
+  heaven_slash: { id: "heaven_slash", tech: "heaven_slash", name: "Heaven-Splitting Slash", qi: 32, dmg: 0.95, pierce: 0.4, element: "Metal", self: { type: "weaken", turns: 1, value: 0.30 }, desc: "A colossal cut — but it leaves you spent (weakened) next turn." },
 };
 const SKILL_BY_TECH = {};
 for (const k in SKILLS) if (SKILLS[k].tech) SKILL_BY_TECH[SKILLS[k].tech] = SKILLS[k];
@@ -82,7 +86,8 @@ function buildKit(kind, name) {
 export function makeEnemy(c, rng, opts = {}) {
   const kind = opts.kind || (rng.random() < 0.6 ? "beast" : "rogue");
   const name = opts.name || rng.choice(kind === "beast" ? BEAST_FOES : ROGUE_FOES);
-  const factor = opts.factor != null ? opts.factor : rng.choices([0.5, 0.8, 1.0, 1.3, 1.7], [26, 34, 23, 12, 5]);
+  let factor = opts.factor != null ? opts.factor : rng.choices([0.5, 0.8, 1.0, 1.3, 1.7], [26, 34, 23, 12, 5]);
+  factor *= (opts.factorMult || 1);    // region danger scaling
   const power = opts.power != null ? opts.power : Math.max(5, E.basePower(c) * factor * rng.uniform(0.85, 1.15));
   const element = opts.element !== undefined ? opts.element : (BEAST_ELEM[name] || (rng.random() < 0.5 ? rng.choice(D.ELEMENTS) : null));
   const reward = opts.reward != null ? opts.reward : Math.floor((c.realm + 1) * Math.max(0.5, power / Math.max(1, E.basePower(c))) * rng.randint(3, 9));
@@ -90,9 +95,11 @@ export function makeEnemy(c, rng, opts = {}) {
 }
 
 const BOSS_NAMES = ["Blood-Robe Patriarch", "Iron Vajra Monk", "Sword Fiend of the Abyss", "Heartless Fox Empress", "Crippled-Hand Elder", "Ghost-King of the Wastes"];
+const ULTIMATES = { Fire: "Inferno Apocalypse", Water: "Drowning World", Metal: "Ten-Thousand Sword Tomb", Wood: "World-Devouring Forest", Earth: "Mountain-Crush Seal", Dark: "Soul-Rending Abyss", Lightning: "Heaven's Wrath", Ice: "Absolute Zero Domain" };
 export function makeBoss(c, rng, opts = {}) {
   const name = opts.name || rng.choice(BOSS_NAMES);
-  const power = E.basePower(c) * (opts.factor || rng.uniform(1.2, 1.6)) * rng.uniform(0.95, 1.08);
+  const power = (opts.power != null ? opts.power
+    : E.basePower(c) * (opts.factor || rng.uniform(1.2, 1.6)) * rng.uniform(0.95, 1.08)) * (opts.factorMult || 1);
   const element = opts.element || rng.choice([...D.ELEMENTS, "Dark", "Lightning"]);
   const e = makeEnemy(c, rng, { kind: "rogue", name, power, element, boss: true, hpMult: 2.8,
     reward: Math.floor((c.realm + 2) * rng.randint(20, 40)) });
@@ -103,6 +110,8 @@ export function makeBoss(c, rng, opts = {}) {
     { w: 3, m: { name: "Soul Lash", dmg: 0.55, element: "Dark", target: { type: "stun", turns: 1, value: 0, chance: 0.4 } } },
     { w: 2, m: { name: "Blood Recovery", type: "heal", heal: 0.14 } },
   ] };
+  e.ultName = opts.ultName || ULTIMATES[element] || "Annihilation Strike";
+  e.ultElement = element;
   return e;
 }
 
@@ -121,9 +130,10 @@ export function makeTribulation(c, rng) {
 /* ----------------------------- the battle -------------------------------- */
 export function createBattle(c, enemyDef, rng, opts = {}) {
   const P = E.power(c);
+  const pMax = P * 1.9;
   const player = {
     isPlayer: true, ref: c, name: c.name,
-    maxHp: P * 1.9, hp: P * 1.9,
+    maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),
     maxQi: 40 + c.soul * 0.4 + c.realm * 6, qi: 40 + c.soul * 0.4 + c.realm * 6,
     atk: P - E.beastPower(c),
     mitig: clampN(c.constitution / 300 + c.realm * 0.012, 0, 0.5),
@@ -142,6 +152,7 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     shield: 0, statuses: [],
     kit: enemyDef.kit || buildKit(enemyDef.kind, enemyDef.name),
     boss: !!enemyDef.boss, tribulation: !!enemyDef.tribulation, _enraged: false,
+    phase: 1, ultName: enemyDef.ultName, ultElement: enemyDef.ultElement, _charging: false,
   };
   const B = {
     player, enemy, rng, def: enemyDef, opts, turn: 1, over: false, outcome: null,
@@ -182,12 +193,22 @@ function tickStart(B, u, lines) {
 }
 const icon = u => u.isPlayer ? "🧘" : (elementIcon(u.element));
 
+export function masteryMultiplier(c, skill) {
+  if (!skill || !skill.tech || !c || !c.mastery) return 1;
+  return 1 + D.masteryRank(c.mastery[skill.tech] || 0)[2];
+}
 function resolveSkill(B, att, def, skill, lines) {
   const rng = B.rng;
+  const mm = att.isPlayer ? masteryMultiplier(att.ref, skill) : 1;
   if (skill.qiRestore && att.isPlayer) att.qi = Math.min(att.maxQi, att.qi + att.maxQi * skill.qiRestore);
-  if (skill.type === "defend") { att.shield += att.maxHp * skill.shield; lines.push(`${icon(att)} ${att.name} raises a qi shield.`); return; }
+  if (skill.type === "defend") {
+    att.shield += att.maxHp * skill.shield * mm;
+    if (skill.counter) addStatus(att, "counter", 2, skill.counter);
+    lines.push(`${icon(att)} ${att.name} — ${skill.name || "guards"}${skill.counter ? " (reflecting stance)" : ""}.`);
+    return;
+  }
   if (skill.type === "heal") {
-    const heal = att.maxHp * skill.heal + (att.ref ? att.ref.soul * 0.6 : 0);
+    const heal = (att.maxHp * skill.heal + (att.ref ? att.ref.soul * 0.6 : 0)) * mm;
     att.hp = Math.min(att.maxHp, att.hp + heal);
     if (skill.cleanse) att.statuses = att.statuses.filter(s => !["burn", "bleed", "weaken"].includes(s.type));
     lines.push(`${icon(att)} ${att.name} — ${skill.name || "heals"}: +${Math.round(heal)} HP${skill.cleanse ? ", cleansed" : ""}.`);
@@ -200,23 +221,30 @@ function resolveSkill(B, att, def, skill, lines) {
   }
   if (skill.self) addStatus(att, skill.self.type, skill.self.turns + 1, skill.self.value);
   if (skill.karma && att.ref) att.ref.karma += skill.karma;
-  // Damage.
-  let base = att.atk * skill.dmg * statusAtkMult(att);
-  let mult = elementMult(skill.element || att.element, def.element);
-  let crit = rng.random() < att.crit;
-  if (crit) mult *= 2;
-  base *= mult * rng.uniform(0.9, 1.1);
-  if (rng.random() < def.dodge) { lines.push(`${icon(def)} ${def.name} flickers aside — dodged!`); return; }
-  let dmg = base * (1 - def.mitig * (1 - (skill.pierce || 0)));
-  if (def.shield > 0) { const a = Math.min(def.shield, dmg); def.shield -= a; dmg -= a; }
-  dmg = Math.max(0, Math.round(dmg));
-  def.hp -= dmg;
-  lines.push(`${icon(att)} ${att.name} — ${skill.name}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${Math.round(dmg)} dmg${mult > 1.05 ? " (element advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
-  if (skill.lifesteal) { const h = dmg * skill.lifesteal; att.hp = Math.min(att.maxHp, att.hp + h); if (h > 0) lines.push(`   ${att.name} drains ${Math.round(h)} HP.`); }
-  if (skill.target && def.hp > 0 && (skill.target.chance == null || rng.random() < skill.target.chance)) {
-    addStatus(def, skill.target.type, skill.target.turns + 1, skill.target.value);
-    lines.push(`   ${def.name} is afflicted: ${skill.target.type}!`);
+  // Damage (supports multi-hit; each hit rolls its own crit and element).
+  const hits = skill.hits || 1;
+  for (let h = 0; h < hits; h++) {
+    if (def.hp <= 0) break;
+    let base = att.atk * skill.dmg * statusAtkMult(att) * mm;
+    let mult = elementMult(skill.element || att.element, def.element);
+    const crit = rng.random() < att.crit;
+    if (crit) mult *= 2;
+    base *= mult * rng.uniform(0.9, 1.1);
+    if (rng.random() < def.dodge) { lines.push(`${icon(def)} ${def.name} evades${hits > 1 ? ` hit ${h + 1}` : ""} — dodged!`); continue; }
+    let dmg = base * (1 - def.mitig * (1 - (skill.pierce || 0)));
+    if (def.shield > 0) { const a = Math.min(def.shield, dmg); def.shield -= a; dmg -= a; }
+    dmg = Math.max(0, Math.round(dmg));
+    def.hp -= dmg;
+    lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
+    if (skill.lifesteal && dmg > 0) { const hh = dmg * skill.lifesteal; att.hp = Math.min(att.maxHp, att.hp + hh); lines.push(`   ${att.name} drains ${Math.round(hh)} HP.`); }
+    // Counter / reflect: a defender in a reflecting stance turns force back.
+    const cs = def.statuses.find(s => s.type === "counter");
+    if (cs && dmg > 0) { const refl = Math.round(dmg * cs.value); att.hp -= refl; def.statuses = def.statuses.filter(s => s !== cs); lines.push(`   ✦ ${def.name} reflects ${refl} damage back!`); }
   }
+  // Status afflictions (applied once, if the foe still stands).
+  const applyTarget = t => { if (t && def.hp > 0 && (t.chance == null || rng.random() < t.chance)) { addStatus(def, t.type, t.turns + 1, t.value); lines.push(`   ${def.name} is afflicted: ${t.type}!`); } };
+  applyTarget(skill.target);
+  applyTarget(skill.target2);
 }
 
 function enemyChoose(B) {
@@ -245,7 +273,16 @@ function takeRound(B, actionId) {
   } else {
     const skill = skillById(c, actionId) || SKILLS.strike;
     if (P.qi < skill.qi) { lines.push("Not enough qi — you fall back on a basic strike."); resolveSkill(B, P, En, SKILLS.strike, lines); }
-    else { P.qi -= skill.qi; resolveSkill(B, P, En, skill, lines); }
+    else {
+      P.qi -= skill.qi; resolveSkill(B, P, En, skill, lines);
+      if (skill.tech) {  // using a technique deepens your mastery of it
+        if (!c.mastery) c.mastery = {};
+        const before = D.masteryRank(c.mastery[skill.tech] || 0)[0];
+        c.mastery[skill.tech] = (c.mastery[skill.tech] || 0) + B.rng.randint(2, 4);
+        const after = D.masteryRank(c.mastery[skill.tech])[0];
+        if (after !== before) lines.push(`   ✦ Your ${skill.name} deepens to ${after}!`);
+      }
+    }
   }
 
   // Beast ally assists each round.
@@ -259,11 +296,24 @@ function takeRound(B, actionId) {
   // --- enemy turn ---
   tickStart(B, En, lines);
   if (En.hp <= 0) { B.over = true; B.outcome = "win"; lines.push(`🏆 ${En.name} succumbs to its wounds!`); return { lines, over: true, outcome: "win" }; }
+  // Boss phase transition at half health: shed restraint, shield up, empower.
+  if (En.boss && !En.tribulation && En.phase === 1 && En.hp < En.maxHp * 0.5) {
+    En.phase = 2; En.shield += En.maxHp * 0.22; addStatus(En, "empower", 99, 0.18);
+    lines.push(`✦ ${En.name} sheds all restraint and enters its second phase!`);
+  }
   if (hasStatus(En, "stun")) { lines.push(`💫 ${En.name} is stunned!`); En.statuses = En.statuses.filter(s => s.type !== "stun"); }
-  else {
+  else if (En._charging) {
+    // Release the telegraphed ultimate.
+    En._charging = false;
+    lines.push(`⚡ ${En.name} unleashes ${En.ultName || "its ultimate"}!`);
+    resolveSkill(B, En, P, { name: En.ultName || "Ultimate", dmg: 1.05, element: En.ultElement || En.element, pierce: 0.25 }, lines);
+  } else {
     const choice = enemyChoose(B);
     if (choice.enrage) { addStatus(En, "empower", 99, 0.30); lines.push(`🔥 ${En.name} ENRAGES — its aura erupts!`); }
-    else resolveSkill(B, En, P, choice.move, lines);
+    else if (En.phase === 2 && En.ultName && B.rng.random() < 0.3) {
+      En._charging = true;
+      lines.push(`⚡ ${En.name} gathers a devastating ${En.ultName} — brace yourself!`);
+    } else resolveSkill(B, En, P, choice.move, lines);
   }
   // The Heavenly Tribulation escalates relentlessly each round.
   if (En.tribulation && En.hp > 0) addStatus(En, "empower", 99, 0.06);
@@ -302,6 +352,7 @@ function finishBattle(B) {
 
   if (B.outcome === "win") {
     c.hp = Math.max(1, c.maxHp * Math.max(0.15, frac));
+    if (B.opts.noSpoils) { E.recomputeMaxHp(c); return [`You best ${En.name}!`]; }
     c.spiritStones += B.def.reward; c.reputation += En.boss ? 8 : 1;
     lines.push(`Victory! +${B.def.reward} spirit stones, +${En.boss ? 8 : 1} reputation.`);
     if (En.kind === "rogue" && (En.name.includes("Demonic") || En.name.includes("Corpse") || En.name.includes("Bandit") || rng.random() < 0.5)) { c.karma += 2; }
