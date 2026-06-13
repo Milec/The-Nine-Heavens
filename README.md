@@ -58,9 +58,14 @@ skills** (Azure Cloud Palm, Nine-Yang Burst with a burn DoT, Blood Spike that
 lifesteals but stains your karma, the defense-piercing Great Void Rend…), spent
 from a **qi pool** you must manage. Your **spiritual-root element** drives a Wu
 Xing advantage/weakness cycle, your **bound treasure** and **tamed beast** join
-the fight, and stats decide crits, dodges and shields. Pick fights via **Wander
-the World**, **Hunt Spirit Beasts** (tameable), the non-lethal **Arena**, or by
-**dueling** a rival.
+the fight, and stats decide crits, dodges and shields. Enemies wield their own
+**signature moves and elements** (a Demonic Outrider drains your blood; a
+Flame-Mane Lion sets you ablaze). Pick fights via **Wander the World**, **Hunt
+Spirit Beasts** (tameable), the non-lethal **Arena**, **dueling** a rival, or by
+seeking a **boss** — a fearsome named cultivator that enrages near death and
+always drops a treasure. And from the Golden Core up, every **breakthrough
+summons an interactive Heavenly Tribulation**: a survival battle against
+escalating lightning you must endure with shields, heals and nerve.
 
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,

@@ -158,7 +158,7 @@ function openCultivate() {
     const grid = el("div", "menu-grid");
     const mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
     if (E.canBreakthrough(c))
-      mk("Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}% · risky`, () => runTimed(() => E.attemptBreakthrough(c, state.rng)), { full: true, primary: true });
+      mk("Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
     mk("Secluded Cultivation", "focus 3 years", () => runTimed(() => E.cultivate(c, state.rng, 3)));
     mk("Use a Qi Pill", `cultivate · ${c.pills} left`, () => runTimed(() => E.cultivate(c, state.rng, 1, true)), { disabled: c.pills <= 0 });
     mk("Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
@@ -239,8 +239,10 @@ function openActivities() {
     mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
     mk("Take Odd Jobs", "earn spirit stones", () => runTimed(() => L.oddJobs(c, state.rng)));
     const canHunt = c.awakened && c.root.key !== "none";
+    const canBoss = canHunt && c.realm >= 2;
     mk("Hunt Spirit Beasts", canHunt ? "battle · tameable" : "needs cultivation", canHunt ? doHunt : null, { disabled: !canHunt });
     mk("Spar in the Arena", canHunt ? "train · non-lethal" : "needs cultivation", canHunt ? doArena : null, { disabled: !canHunt });
+    mk("Seek a Worthy Foe", canBoss ? "BOSS · great rewards" : "needs Foundation+", canBoss ? doBossFight : null, { disabled: !canBoss });
     mk("Refine Pills", `alchemy · ${c.herbs} herbs`, openAlchemy);
     mk("Treasures & Beast", "your assets", openAssets);
     body.appendChild(grid);
@@ -475,8 +477,29 @@ function unitPanel(u, isPlayer) {
 }
 function startBattle(enemyDef, opts, onDone) {
   const B = C.createBattle(state.c, enemyDef, state.rng, opts || {});
-  B.feed = [`⚔ A ${enemyDef.name} faces you!  (foe ≈ ${Math.round(enemyDef.power)}, you ≈ ${Math.round(E.power(state.c))})`];
+  if (enemyDef.tribulation)
+    B.feed = ["⚡ The Heavenly Tribulation descends! Endure the lightning and disperse the cloud before it scatters your soul — there is no fleeing this."];
+  else if (enemyDef.boss)
+    B.feed = [`☠ The ${enemyDef.name} looms before you — a foe far beyond common rabble. (power ≈ ${Math.round(enemyDef.power)}, you ≈ ${Math.round(E.power(state.c))})`];
+  else
+    B.feed = [`⚔ A ${enemyDef.name} faces you!  (foe ≈ ${Math.round(enemyDef.power)}, you ≈ ${Math.round(E.power(state.c))})`];
   renderBattleScreen(B, onDone);
+}
+function doBreakthrough() {
+  const c = state.c; if (!c.alive || !E.canBreakthrough(c)) return; closeOverlay();
+  const msgs = E.attemptBreakthrough(c, state.rng, { deferTribulation: true });
+  logMessages(msgs);
+  if (c.alive && c._tribulationPending) {
+    c._tribulationPending = false;
+    startBattle(C.makeTribulation(c, state.rng), { title: "Heavenly Tribulation ⚡" }, () => { renderProfile(); save(); checkDeath(); });
+  } else { renderProfile(); save(); checkDeath(); }
+}
+function doBossFight() {
+  const c = state.c; if (!c.alive) return; closeOverlay();
+  c.age += 1;
+  const boss = C.makeBoss(c, state.rng);
+  logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
+  startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
 }
 function renderBattleScreen(B, onDone) {
   openOverlay(B.opts.title || "Battle", body => {

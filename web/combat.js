@@ -48,14 +48,74 @@ const BEAST_FOES = ["Iron-Fang Wolf", "Rock-Shell Tortoise", "Cloud Leopard", "V
 const ROGUE_FOES = ["Masked Rogue", "Demonic Outrider", "Bandit Qi-user", "Rival Disciple", "Fallen Puppet", "Corpse Refiner"];
 const BEAST_ELEM = { "Flame-Mane Lion": "Fire", "Frost Python": "Ice", "Thunder Roc": "Lightning", "Venom Serpent": "Wood", "Rock-Shell Tortoise": "Earth", "Cloud Leopard": "Wind", "Iron-Fang Wolf": "Metal" };
 
+/* Enemy move kits: a basic attack plus weighted signature moves. Move shape
+ * matches resolveSkill (dmg is a fraction of the enemy's power). */
+const KITS = {
+  beast: { basic: { name: "Claw", dmg: 0.43 }, moves: [
+    { w: 5, m: { name: "Pounce", dmg: 0.70 } },
+    { w: 3, m: { name: "Feral Roar", type: "buff", self: { type: "empower", turns: 2, value: 0.25 } } },
+    { w: 2, m: { name: "Rending Bite", dmg: 0.50, target: { type: "bleed", turns: 3, value: 0.05 } } },
+  ] },
+  rogue: { basic: { name: "Slash", dmg: 0.43 }, moves: [
+    { w: 5, m: { name: "Heavy Strike", dmg: 0.68 } },
+    { w: 3, m: { name: "Crippling Cut", dmg: 0.45, target: { type: "weaken", turns: 2, value: 0.2 } } },
+    { w: 2, m: { name: "Smoke & Step", type: "defend", shield: 0.20 } },
+  ] },
+};
+// Signature moves keyed by foe name, mixed into that foe's kit.
+const NAMED = {
+  "Corpse Refiner": { w: 4, m: { name: "Corpse Miasma", dmg: 0.42, element: "Dark", target: { type: "bleed", turns: 3, value: 0.06 } } },
+  "Demonic Outrider": { w: 4, m: { name: "Blood Drain", dmg: 0.55, element: "Dark", lifesteal: 0.6 } },
+  "Fallen Puppet": { w: 3, m: { name: "Iron Carapace", type: "defend", shield: 0.30 } },
+  "Flame-Mane Lion": { w: 4, m: { name: "Inferno Maw", dmg: 0.55, element: "Fire", target: { type: "burn", turns: 3, value: 0.06 } } },
+  "Frost Python": { w: 4, m: { name: "Frost Coil", dmg: 0.50, element: "Ice", target: { type: "stun", turns: 1, value: 0, chance: 0.5 } } },
+  "Thunder Roc": { w: 4, m: { name: "Thunderclap", dmg: 0.62, element: "Lightning" } },
+  "Venom Serpent": { w: 4, m: { name: "Venom Fang", dmg: 0.44, element: "Wood", target: { type: "bleed", turns: 4, value: 0.05 } } },
+};
+function buildKit(kind, name) {
+  const base = KITS[kind] || KITS.rogue;
+  const kit = { basic: base.basic, moves: base.moves.slice() };
+  if (NAMED[name]) kit.moves = kit.moves.concat([NAMED[name]]);
+  return kit;
+}
+
 export function makeEnemy(c, rng, opts = {}) {
   const kind = opts.kind || (rng.random() < 0.6 ? "beast" : "rogue");
   const name = opts.name || rng.choice(kind === "beast" ? BEAST_FOES : ROGUE_FOES);
   const factor = opts.factor != null ? opts.factor : rng.choices([0.5, 0.8, 1.0, 1.3, 1.7], [26, 34, 23, 12, 5]);
   const power = opts.power != null ? opts.power : Math.max(5, E.basePower(c) * factor * rng.uniform(0.85, 1.15));
-  const element = opts.element || BEAST_ELEM[name] || (rng.random() < 0.5 ? rng.choice(D.ELEMENTS) : null);
+  const element = opts.element !== undefined ? opts.element : (BEAST_ELEM[name] || (rng.random() < 0.5 ? rng.choice(D.ELEMENTS) : null));
   const reward = opts.reward != null ? opts.reward : Math.floor((c.realm + 1) * Math.max(0.5, power / Math.max(1, E.basePower(c))) * rng.randint(3, 9));
-  return { name, kind, power, element, reward };
+  return { name, kind, power, element, reward, kit: buildKit(kind, name), boss: !!opts.boss, tribulation: !!opts.tribulation, hpMult: opts.hpMult };
+}
+
+const BOSS_NAMES = ["Blood-Robe Patriarch", "Iron Vajra Monk", "Sword Fiend of the Abyss", "Heartless Fox Empress", "Crippled-Hand Elder", "Ghost-King of the Wastes"];
+export function makeBoss(c, rng, opts = {}) {
+  const name = opts.name || rng.choice(BOSS_NAMES);
+  const power = E.basePower(c) * (opts.factor || rng.uniform(1.2, 1.6)) * rng.uniform(0.95, 1.08);
+  const element = opts.element || rng.choice([...D.ELEMENTS, "Dark", "Lightning"]);
+  const e = makeEnemy(c, rng, { kind: "rogue", name, power, element, boss: true, hpMult: 2.8,
+    reward: Math.floor((c.realm + 2) * rng.randint(20, 40)) });
+  // A boss draws on a richer, deadlier kit.
+  e.kit = { basic: { name: "Strike", dmg: 0.46 }, moves: [
+    { w: 5, m: { name: "Crushing Blow", dmg: 0.72 } },
+    { w: 3, m: { name: "Domain Pressure", dmg: 0.5, element, target: { type: "weaken", turns: 2, value: 0.25 } } },
+    { w: 3, m: { name: "Soul Lash", dmg: 0.55, element: "Dark", target: { type: "stun", turns: 1, value: 0, chance: 0.4 } } },
+    { w: 2, m: { name: "Blood Recovery", type: "heal", heal: 0.14 } },
+  ] };
+  return e;
+}
+
+export function makeTribulation(c, rng) {
+  // A survival race: endure the heavenly lightning while dispersing the cloud.
+  const power = E.power(c) * (0.70 + c.realm * 0.04);
+  const e = makeEnemy(c, rng, { kind: "tribulation", name: "Heavenly Tribulation", power, element: "Lightning", boss: true, tribulation: true, hpMult: 5.0, reward: 0 });
+  e.kit = { basic: { name: "Heavenly Bolt", dmg: 0.50, element: "Lightning" }, moves: [
+    { w: 5, m: { name: "Forked Lightning", dmg: 0.66, element: "Lightning" } },
+    { w: 2, m: { name: "Heart-Demon Surge", dmg: 0.40, element: "Dark", target: { type: "weaken", turns: 2, value: 0.2 } } },
+    { w: 1, m: { name: "TRIBULATION THUNDER", dmg: 1.0, element: "Lightning" } },
+  ] };
+  return e;
 }
 
 /* ----------------------------- the battle -------------------------------- */
@@ -73,12 +133,15 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     shield: 0, statuses: [], beast: E.beastPower(c),
   };
   const ep = enemyDef.power;
+  const hpMult = enemyDef.hpMult || 2.3;
   const enemy = {
     isPlayer: false, name: enemyDef.name, kind: enemyDef.kind,
-    maxHp: ep * 2.3, hp: ep * 2.3,
+    maxHp: ep * hpMult, hp: ep * hpMult,
     atk: ep, mitig: 0.08 + (enemyDef.kind === "rogue" ? 0.04 : 0),
-    crit: 0.15, dodge: 0.06, element: enemyDef.element || null,
+    crit: 0.15, dodge: enemyDef.tribulation ? 0 : 0.06, element: enemyDef.element || null,
     shield: 0, statuses: [],
+    kit: enemyDef.kit || buildKit(enemyDef.kind, enemyDef.name),
+    boss: !!enemyDef.boss, tribulation: !!enemyDef.tribulation, _enraged: false,
   };
   const B = {
     player, enemy, rng, def: enemyDef, opts, turn: 1, over: false, outcome: null,
@@ -93,7 +156,7 @@ function listActions(B) {
   const c = B.player.ref, acts = [];
   for (const s of playerSkills(c)) acts.push({ id: s.id, name: s.name, qi: s.qi, desc: s.desc, element: s.element, disabled: B.player.qi < s.qi });
   if (c.healingPills > 0) acts.push({ id: "pill", name: `Healing Pill (${c.healingPills})`, qi: 0, desc: "Restore 40% HP. Uses your turn." });
-  acts.push({ id: "flee", name: "Flee", qi: 0, desc: "Try to escape. Fails leave you open." });
+  if (!B.enemy.tribulation) acts.push({ id: "flee", name: "Flee", qi: 0, desc: "Try to escape. Failure leaves you open." });
   return acts;
 }
 
@@ -127,7 +190,12 @@ function resolveSkill(B, att, def, skill, lines) {
     const heal = att.maxHp * skill.heal + (att.ref ? att.ref.soul * 0.6 : 0);
     att.hp = Math.min(att.maxHp, att.hp + heal);
     if (skill.cleanse) att.statuses = att.statuses.filter(s => !["burn", "bleed", "weaken"].includes(s.type));
-    lines.push(`${icon(att)} ${att.name} restores ${Math.round(heal)} HP${skill.cleanse ? " and cleanses afflictions" : ""}.`);
+    lines.push(`${icon(att)} ${att.name} — ${skill.name || "heals"}: +${Math.round(heal)} HP${skill.cleanse ? ", cleansed" : ""}.`);
+    return;
+  }
+  if (skill.type === "buff") {
+    if (skill.self) addStatus(att, skill.self.type, skill.self.turns + 1, skill.self.value);
+    lines.push(`${icon(att)} ${att.name} — ${skill.name} (${skill.self ? skill.self.type : "focus"}).`);
     return;
   }
   if (skill.self) addStatus(att, skill.self.type, skill.self.turns + 1, skill.self.value);
@@ -144,15 +212,20 @@ function resolveSkill(B, att, def, skill, lines) {
   dmg = Math.max(0, Math.round(dmg));
   def.hp -= dmg;
   lines.push(`${icon(att)} ${att.name} — ${skill.name}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${Math.round(dmg)} dmg${mult > 1.05 ? " (element advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
-  if (skill.lifesteal && att.isPlayer === att.isPlayer) { const h = dmg * skill.lifesteal; att.hp = Math.min(att.maxHp, att.hp + h); if (h > 0) lines.push(`   ${att.name} drains ${Math.round(h)} HP.`); }
-  if (skill.target && def.hp > 0) { addStatus(def, skill.target.type, skill.target.turns + 1, skill.target.value); lines.push(`   ${def.name} is afflicted with ${skill.target.type}.`); }
+  if (skill.lifesteal) { const h = dmg * skill.lifesteal; att.hp = Math.min(att.maxHp, att.hp + h); if (h > 0) lines.push(`   ${att.name} drains ${Math.round(h)} HP.`); }
+  if (skill.target && def.hp > 0 && (skill.target.chance == null || rng.random() < skill.target.chance)) {
+    addStatus(def, skill.target.type, skill.target.turns + 1, skill.target.value);
+    lines.push(`   ${def.name} is afflicted: ${skill.target.type}!`);
+  }
 }
 
 function enemyChoose(B) {
   const e = B.enemy, rng = B.rng;
-  if (e.hp < e.maxHp * 0.25 && rng.random() < 0.25) return { id: "e_guard", name: "Guard", type: "defend", shield: 0.18 };
-  if (rng.random() < 0.45) return { id: "e_heavy", name: "Savage Blow", dmg: 0.70, element: e.element };
-  return { id: "e_strike", name: "Strike", dmg: 0.43, element: e.element };
+  // Bosses enrage once, hard, when badly wounded.
+  if (e.boss && !e.tribulation && e.hp < e.maxHp * 0.30 && !e._enraged) { e._enraged = true; return { enrage: true }; }
+  const kit = e.kit;
+  if (rng.random() < 0.5 && kit.moves.length) return { move: rng.choices(kit.moves.map(x => x.m), kit.moves.map(x => x.w)) };
+  return { move: kit.basic };
 }
 
 function takeRound(B, actionId) {
@@ -188,10 +261,12 @@ function takeRound(B, actionId) {
   if (En.hp <= 0) { B.over = true; B.outcome = "win"; lines.push(`🏆 ${En.name} succumbs to its wounds!`); return { lines, over: true, outcome: "win" }; }
   if (hasStatus(En, "stun")) { lines.push(`💫 ${En.name} is stunned!`); En.statuses = En.statuses.filter(s => s.type !== "stun"); }
   else {
-    const m = enemyChoose(B);
-    if (m.type === "defend") { En.shield += En.maxHp * m.shield; lines.push(`${icon(En)} ${En.name} guards.`); }
-    else resolveSkill(B, En, P, { name: m.name, dmg: m.dmg, element: m.element }, lines);
+    const choice = enemyChoose(B);
+    if (choice.enrage) { addStatus(En, "empower", 99, 0.30); lines.push(`🔥 ${En.name} ENRAGES — its aura erupts!`); }
+    else resolveSkill(B, En, P, choice.move, lines);
   }
+  // The Heavenly Tribulation escalates relentlessly each round.
+  if (En.tribulation && En.hp > 0) addStatus(En, "empower", 99, 0.06);
 
   // --- end of round upkeep ---
   tickStart(B, P, lines);
@@ -210,12 +285,34 @@ function takeRound(B, actionId) {
 function finishBattle(B) {
   const c = B.player.ref, En = B.enemy, rng = B.rng, lines = [];
   const frac = clampN(B.player.hp / B.player.maxHp, 0, 1);
+
+  // The Heavenly Tribulation is its own kind of trial.
+  if (En.tribulation) {
+    if (B.outcome === "win") {
+      c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac));
+      c.qi += E.qiToNext(c) * 0.3;
+      lines.push("⚡ You weather the Heavenly Tribulation! The clouds disperse and your new realm settles, unshakable.");
+    } else {
+      if (rng.random() < c.luck / 320) { c.hp = c.maxHp * 0.1; lines.push("⚡ The final bolt should have ended you — a hidden fortune drags you back from oblivion!"); }
+      else { c.alive = false; c.causeOfDeath = `struck down by the ${E.realmName(c)} tribulation`; c.hp = 0; c.log.push([c.age, "Died crossing the Heavenly Tribulation."]); lines.push("☠ The tribulation lightning scatters your soul. You die crossing the heavens."); }
+    }
+    E.recomputeMaxHp(c);
+    return lines;
+  }
+
   if (B.outcome === "win") {
     c.hp = Math.max(1, c.maxHp * Math.max(0.15, frac));
-    c.spiritStones += B.def.reward; c.reputation += 1;
-    lines.push(`Victory! +${B.def.reward} spirit stones, +1 reputation.`);
+    c.spiritStones += B.def.reward; c.reputation += En.boss ? 8 : 1;
+    lines.push(`Victory! +${B.def.reward} spirit stones, +${En.boss ? 8 : 1} reputation.`);
     if (En.kind === "rogue" && (En.name.includes("Demonic") || En.name.includes("Corpse") || En.name.includes("Bandit") || rng.random() < 0.5)) { c.karma += 2; }
-    if (rng.random() < 0.16 + c.luck / 900) {
+    if (En.boss) {
+      // A slain boss always yields a treasure, and a lasting tale.
+      lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng, rng.random() < 0.4 ? "Heaven" : null)));
+      c.pills += rng.randint(1, 3); c.herbs += rng.randint(3, 8);
+      const title = `Slayer of the ${En.name}`;
+      if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, `Slew the ${En.name}.`]); }
+      lines.push(`✦ You earn renown as the ${title}!`);
+    } else if (rng.random() < 0.16 + c.luck / 900) {
       const r = rng.random();
       if (r < 0.25) lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng)));
       else if (r < 0.55) { const n = rng.randint(2, 5); c.herbs += n; lines.push(`You gather ${n} spirit herbs.`); }

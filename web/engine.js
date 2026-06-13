@@ -248,8 +248,9 @@ export function breakthroughChance(c) {
   return clamp(chance, 0.02, 0.97);
 }
 
-export function attemptBreakthrough(c, rng) {
+export function attemptBreakthrough(c, rng, opts = {}) {
   const msgs = [];
+  c._tribulationPending = false;
   if (!canBreakthrough(c)) {
     if (!atRealmWall(c)) return ["You have not yet reached the peak of this realm."];
     if (c.qi < qiToNext(c)) return ["Your qi is not yet condensed enough to attempt a breakthrough."];
@@ -265,7 +266,12 @@ export function attemptBreakthrough(c, rng) {
     msgs.push(`☯ BREAKTHROUGH! You have ascended to ${realmLabel(c)}!`);
     note(c, `Broke through to ${realmName(c)}.`);
     pushAll(msgs, heartDemon(c, rng));
-    if (c.alive && c.realm >= 4) pushAll(msgs, tribulation(c, rng));
+    // From Golden Core up, the heavens send a Tribulation. The web UI can run
+    // it as an interactive battle; otherwise resolve it automatically here.
+    if (c.alive && c.realm >= 4) {
+      if (opts.deferTribulation) { c._tribulationPending = true; msgs.push("⚡ The sky darkens — a Heavenly Tribulation gathers above you!"); }
+      else pushAll(msgs, tribulation(c, rng));
+    }
   } else {
     const backlash = (c.realm + 1) * 0.04;
     msgs.push("✗ The breakthrough fails; qi-deviation tears through your meridians.");
