@@ -86,7 +86,8 @@ function buildKit(kind, name) {
 export function makeEnemy(c, rng, opts = {}) {
   const kind = opts.kind || (rng.random() < 0.6 ? "beast" : "rogue");
   const name = opts.name || rng.choice(kind === "beast" ? BEAST_FOES : ROGUE_FOES);
-  const factor = opts.factor != null ? opts.factor : rng.choices([0.5, 0.8, 1.0, 1.3, 1.7], [26, 34, 23, 12, 5]);
+  let factor = opts.factor != null ? opts.factor : rng.choices([0.5, 0.8, 1.0, 1.3, 1.7], [26, 34, 23, 12, 5]);
+  factor *= (opts.factorMult || 1);    // region danger scaling
   const power = opts.power != null ? opts.power : Math.max(5, E.basePower(c) * factor * rng.uniform(0.85, 1.15));
   const element = opts.element !== undefined ? opts.element : (BEAST_ELEM[name] || (rng.random() < 0.5 ? rng.choice(D.ELEMENTS) : null));
   const reward = opts.reward != null ? opts.reward : Math.floor((c.realm + 1) * Math.max(0.5, power / Math.max(1, E.basePower(c))) * rng.randint(3, 9));
@@ -94,10 +95,11 @@ export function makeEnemy(c, rng, opts = {}) {
 }
 
 const BOSS_NAMES = ["Blood-Robe Patriarch", "Iron Vajra Monk", "Sword Fiend of the Abyss", "Heartless Fox Empress", "Crippled-Hand Elder", "Ghost-King of the Wastes"];
+const ULTIMATES = { Fire: "Inferno Apocalypse", Water: "Drowning World", Metal: "Ten-Thousand Sword Tomb", Wood: "World-Devouring Forest", Earth: "Mountain-Crush Seal", Dark: "Soul-Rending Abyss", Lightning: "Heaven's Wrath", Ice: "Absolute Zero Domain" };
 export function makeBoss(c, rng, opts = {}) {
   const name = opts.name || rng.choice(BOSS_NAMES);
-  const power = opts.power != null ? opts.power
-    : E.basePower(c) * (opts.factor || rng.uniform(1.2, 1.6)) * rng.uniform(0.95, 1.08);
+  const power = (opts.power != null ? opts.power
+    : E.basePower(c) * (opts.factor || rng.uniform(1.2, 1.6)) * rng.uniform(0.95, 1.08)) * (opts.factorMult || 1);
   const element = opts.element || rng.choice([...D.ELEMENTS, "Dark", "Lightning"]);
   const e = makeEnemy(c, rng, { kind: "rogue", name, power, element, boss: true, hpMult: 2.8,
     reward: Math.floor((c.realm + 2) * rng.randint(20, 40)) });
@@ -108,6 +110,8 @@ export function makeBoss(c, rng, opts = {}) {
     { w: 3, m: { name: "Soul Lash", dmg: 0.55, element: "Dark", target: { type: "stun", turns: 1, value: 0, chance: 0.4 } } },
     { w: 2, m: { name: "Blood Recovery", type: "heal", heal: 0.14 } },
   ] };
+  e.ultName = opts.ultName || ULTIMATES[element] || "Annihilation Strike";
+  e.ultElement = element;
   return e;
 }
 
@@ -148,6 +152,7 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     shield: 0, statuses: [],
     kit: enemyDef.kit || buildKit(enemyDef.kind, enemyDef.name),
     boss: !!enemyDef.boss, tribulation: !!enemyDef.tribulation, _enraged: false,
+    phase: 1, ultName: enemyDef.ultName, ultElement: enemyDef.ultElement, _charging: false,
   };
   const B = {
     player, enemy, rng, def: enemyDef, opts, turn: 1, over: false, outcome: null,
@@ -291,11 +296,24 @@ function takeRound(B, actionId) {
   // --- enemy turn ---
   tickStart(B, En, lines);
   if (En.hp <= 0) { B.over = true; B.outcome = "win"; lines.push(`🏆 ${En.name} succumbs to its wounds!`); return { lines, over: true, outcome: "win" }; }
+  // Boss phase transition at half health: shed restraint, shield up, empower.
+  if (En.boss && !En.tribulation && En.phase === 1 && En.hp < En.maxHp * 0.5) {
+    En.phase = 2; En.shield += En.maxHp * 0.22; addStatus(En, "empower", 99, 0.18);
+    lines.push(`✦ ${En.name} sheds all restraint and enters its second phase!`);
+  }
   if (hasStatus(En, "stun")) { lines.push(`💫 ${En.name} is stunned!`); En.statuses = En.statuses.filter(s => s.type !== "stun"); }
-  else {
+  else if (En._charging) {
+    // Release the telegraphed ultimate.
+    En._charging = false;
+    lines.push(`⚡ ${En.name} unleashes ${En.ultName || "its ultimate"}!`);
+    resolveSkill(B, En, P, { name: En.ultName || "Ultimate", dmg: 1.05, element: En.ultElement || En.element, pierce: 0.25 }, lines);
+  } else {
     const choice = enemyChoose(B);
     if (choice.enrage) { addStatus(En, "empower", 99, 0.30); lines.push(`🔥 ${En.name} ENRAGES — its aura erupts!`); }
-    else resolveSkill(B, En, P, choice.move, lines);
+    else if (En.phase === 2 && En.ultName && B.rng.random() < 0.3) {
+      En._charging = true;
+      lines.push(`⚡ ${En.name} gathers a devastating ${En.ultName} — brace yourself!`);
+    } else resolveSkill(B, En, P, choice.move, lines);
   }
   // The Heavenly Tribulation escalates relentlessly each round.
   if (En.tribulation && En.hp > 0) addStatus(En, "empower", 99, 0.06);

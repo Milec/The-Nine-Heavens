@@ -308,3 +308,14 @@ export function standingLabel(rep) {
   if (rep < 180) return "Famous";
   return "Legendary";
 }
+
+/* Regions of the world (地域) -- travel scales danger and reward. */
+// [key, name, cn, dangerFactor, blurb]
+export const REGIONS = [
+  ["azuredomain", "Azure Heartlands", "青云腹地", 0.85, "Tranquil orthodox heartlands; gentle foes, modest spoils. A safe place to begin."],
+  ["cloudmarsh", "Misty Cloud Marsh", "云泽", 1.0, "Trackless wetlands prowled by venomous spirit-beasts."],
+  ["frostpeaks", "Ten-Thousand Frost Peaks", "万寒峰", 1.25, "Killing cold and frost-beasts — richer pickings for those strong enough."],
+  ["demonwastes", "Demon-Haunted Wastes", "魔渊", 1.6, "Devil-path cultivators and corpse-fiends roam freely. Deadly, but lucrative."],
+  ["starfall", "Starfall Frontier", "星陨之地", 2.0, "A shattered immortal battlefield at the edge of the map. Death and fortune in equal measure."],
+];
+export const REGION_BY_KEY = Object.fromEntries(REGIONS.map(r => [r[0], r]));

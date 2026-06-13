@@ -103,6 +103,17 @@ Three more systems round out a cultivator's life:
   sinks to *Notorious*). Fame draws **sect invitations, grand banquets and
   admirers' gifts**; infamy and heavy sin mark you **Wanted**, summoning bounty
   hunters and slamming doors in your face.
+- **Regions of the world (地域)** — **travel** from the gentle Azure Heartlands to
+  the Demon-Haunted Wastes and the Starfall Frontier; the deeper you roam, the
+  **deadlier the foes and the richer the spoils** of every wander, hunt, boss and
+  Secret Realm.
+- **Multi-phase bosses** — boss-tier foes (named cultivators, realm guardians, the
+  tournament champion, your nemesis) **enter a second phase at half health** and
+  **telegraph a devastating element-themed ultimate** — guard, heal, or be
+  shattered when it lands.
+- **Achievements & Legacy** — feats persist across **every reincarnation and new
+  soul**. Each achievement earns **Heavenly Favor** that blesses the innate
+  Comprehension and Fortune of all your future lives — true meta-progression.
 
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,

@@ -18,6 +18,7 @@ function augment(c, rng, sex) {
   c.awakened = false;
   c.firedEvents = [];
   c.mastery = c.mastery || {};
+  c.region = c.region || "azuredomain";
   generateFamily(c, rng);
   return c;
 }

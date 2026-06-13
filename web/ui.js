@@ -3,6 +3,40 @@ import * as E from "./engine.js";
 import * as D from "./data.js";
 import * as L from "./life.js";
 import * as C from "./combat.js";
+import * as meta from "./meta.js";
+
+const regionMult = c => (D.REGION_BY_KEY[c.region || "azuredomain"] || [, , , 1])[3] || 1;
+function applyFavor(c) {
+  const f = meta.favor();
+  if (f > 0) {
+    c.comprehension = Math.min(160, c.comprehension + Math.min(15, f));
+    c.luck = Math.min(160, c.luck + Math.min(10, Math.floor(f / 2)));
+  }
+  return f;
+}
+function award(id) { const a = meta.unlock(id); if (a) logMessages([`🏆 Achievement unlocked — ${a[1]}: ${a[2]}`]); }
+function checkAchievements() {
+  const c = state.c; if (!c) return;
+  if (c.realm >= 3) award("foundation");
+  if (c.realm >= 4) award("golden");
+  if (c.realm >= 5) award("nascent");
+  if (c.realm >= 10) award("ascend");
+  if (c.reputation >= 180) award("legendary");
+  if (c.karma <= -120) award("devil");
+  if (c.karma >= 120) award("saint");
+  if (c.daos && c.daos.length) award("daoist");
+  if (c.beast) award("tamer");
+  if (c.reincarnationCount >= 5) award("eternal");
+  if (c.sectKey && c.sectRank >= D.SECT_RANKS.length - 1) award("sectmaster");
+  const t = c.titles || [];
+  if (t.includes("Dao Companion")) award("companion");
+  if (t.some(x => x.startsWith("Nemesis Slain"))) award("nemesis");
+  if (t.includes("Tournament Champion")) award("champion");
+  if (t.includes("Secret Realm Delver")) award("delver");
+  if (t.some(x => x.startsWith("Slayer of"))) award("bossslayer");
+  const taught = (c.relationships || []).reduce((a, n) => a + ((n.learned && n.learned.length) || 0), 0);
+  if (taught >= 5) award("patriarch");
+}
 
 const STORAGE_KEY = "nineheavens.save.v3";
 const state = { c: null, rng: null, deadHandled: false, overlayClosable: true };
@@ -69,11 +103,13 @@ function renderProfile() {
   add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`);
   add("💎", c.spiritStones);
   if (c.herbs) add("🌿", c.herbs);
+  if (D.REGION_BY_KEY[c.region]) add("📍", D.REGION_BY_KEY[c.region][2]);
   if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", true);
   if (c.awakened && E.canBreakthrough(c)) add("Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, true);
 
   $("tabbar").querySelector(".tab-age").classList.toggle("ready", c.awakened && E.canBreakthrough(c));
   save();
+  checkAchievements();
 }
 
 /* ------------------------------ overlays --------------------------------- */
@@ -305,6 +341,7 @@ function openActivities() {
     mk("Seek a Worthy Foe", canBoss ? "BOSS · great rewards" : "needs Foundation+", canBoss ? doBossFight : null, { disabled: !canBoss });
     mk("Enter a Secret Realm", canBoss ? "delve · escalating loot" : "needs Foundation+", canBoss ? doSecretRealm : null, { disabled: !canBoss });
     mk("Refine Pills", `alchemy · ${c.herbs} herbs`, openAlchemy);
+    mk("Travel the World", D.REGION_BY_KEY[c.region] ? D.REGION_BY_KEY[c.region][1] : "regions", openTravel);
     mk("Treasures & Beast", "your assets", openAssets);
     body.appendChild(grid);
   });
@@ -321,6 +358,36 @@ function openAlchemy() {
       body.appendChild(row);
     }
     backBtn(body, openActivities);
+  });
+}
+function openTravel() {
+  const c = state.c;
+  openOverlay("Travel the World", body => {
+    body.appendChild(el("p", "note", "Distant regions hold deadlier foes and far richer spoils. Travelling takes a year. Where the danger is greater, so is the reward."));
+    for (const r of D.REGIONS) {
+      const here = r[0] === c.region;
+      const row = el("div", "listrow" + (here ? " bound" : ""));
+      const tier = r[3] <= 0.9 ? "safe" : r[3] <= 1.1 ? "moderate" : r[3] <= 1.35 ? "dangerous" : r[3] <= 1.7 ? "perilous" : "deadly";
+      row.innerHTML = `<div class="lr-ava">📍</div><div class="lr-main"><div class="lr-title">${here ? "★ " : ""}${r[1]} <span class="lr-sub" style="display:inline">(${r[2]})</span></div><div class="lr-sub">${tier} · danger ×${r[3]}<br>${r[4]}</div></div>`;
+      if (!here) row.onclick = () => {
+        c.age += 1; c.region = r[0]; closeOverlay();
+        logMessages([`You journey to the ${r[1]} (${r[2]}). The dangers here scale ×${r[3]}.`]);
+        endActivityYear();
+      };
+      body.appendChild(row);
+    }
+  });
+}
+function openAchievements(backFn) {
+  openOverlay("Achievements & Legacy", body => {
+    const f = meta.favor();
+    body.appendChild(el("p", "note", `Heavenly Favor: ${f} — every soul you raise is born with +${Math.min(15, f)} Comprehension and +${Math.min(10, Math.floor(f / 2))} Fortune. Feats persist across all reincarnations and new lives.`));
+    for (const a of meta.list()) {
+      const row = el("div", "listrow" + (a.got ? " bound" : " disabled"));
+      row.innerHTML = `<div class="lr-ava">${a.got ? "🏆" : "🔒"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(a.name)}</div><div class="lr-sub">${escapeHtml(a.desc)}</div></div>`;
+      body.appendChild(row);
+    }
+    if (backFn) backBtn(body, backFn);
   });
 }
 function openAssets() {
@@ -419,6 +486,8 @@ function openSheet() {
       ["Qi / Healing / Breakthrough Pills", `${c.pills} / ${c.healingPills} / ${c.breakthroughPills}`],
       ["Techniques", c.techniques.map(t => D.TECHNIQUES[t][0]).join(", ")],
     ]));
+    const ach = el("button", "mbtn full"); ach.innerHTML = "✦ Achievements & Legacy";
+    ach.onclick = () => openAchievements(openSheet); body.appendChild(ach);
     body.appendChild(el("div", "section-h", "Life Chronicle"));
     for (const [age, text] of c.log.slice(-30)) body.appendChild(el("div", "chron-line", `<b>Age ${age}</b> — ${escapeHtml(text)}`));
   });
@@ -444,7 +513,7 @@ function deathScreen() {
     const rein = el("button", "mbtn full primary");
     rein.innerHTML = "Reincarnate<small>be reborn carrying your soul's legacy</small>";
     rein.onclick = () => {
-      state.c = L.reincarnateLife(c, state.rng); state.deadHandled = false; closeOverlay();
+      state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.deadHandled = false; closeOverlay();
       logBanner("☯ THE WHEEL OF REBIRTH TURNS ☯");
       logMessages([`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), dimly recalling a former life.`, "Age up to live this new life. Your past climb has sharpened your innate talent."]);
       renderProfile();
@@ -492,6 +561,7 @@ function startScreen() {
     begin.onclick = () => {
       state.rng = new E.RNG();
       state.c = L.bornCharacter(state.rng, input.value.trim() || null, chosenSex);
+      applyFavor(state.c);
       closeOverlay(); $("log").innerHTML = ""; renderBirth(state.c); renderProfile();
     };
     const sv = loadSave();
@@ -503,6 +573,10 @@ function startScreen() {
     }
     body.appendChild(card);
     body.appendChild(begin);
+    const ach = el("button", "mbtn full");
+    ach.innerHTML = `Achievements & Legacy<small>Heavenly Favor: ${meta.favor()}</small>`;
+    ach.onclick = () => openAchievements(startScreen);
+    body.appendChild(ach);
   }, false);
 }
 function resumeFrom(sv) {
@@ -515,6 +589,7 @@ function resumeFrom(sv) {
   if (!c.firedEvents) c.firedEvents = [];
   if (!c.sex) c.sex = "male";
   if (!c.mastery) c.mastery = {};
+  if (!c.region) c.region = "azuredomain";
   closeOverlay(); $("log").innerHTML = ""; logBanner("☯ YOUR SAGA CONTINUES ☯"); renderProfile();
   if (!c.alive) checkDeath();
 }
@@ -559,7 +634,7 @@ function doBreakthrough() {
 function doBossFight() {
   const c = state.c; if (!c.alive) return; closeOverlay();
   c.age += 1;
-  const boss = C.makeBoss(c, state.rng);
+  const boss = C.makeBoss(c, state.rng, { factorMult: regionMult(c) });
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
   startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
 }
@@ -616,7 +691,7 @@ function applyBrew() {
     msgs = [`💥 The furnace erupts! The ${B.recipe[1]} is lost. (salvaged ${salv} herbs)`];
   } else {
     const q = B.quality; let grade, mult;
-    if (q >= 7) { grade = "Flawless"; mult = 2.2; } else if (q >= 4) { grade = "Fine"; mult = 1.4; } else { grade = "Crude"; mult = 0.8; }
+    if (q >= 7) { grade = "Flawless"; mult = 2.2; award("alchemist"); } else if (q >= 4) { grade = "Fine"; mult = 1.4; } else { grade = "Crude"; mult = 0.8; }
     msgs = [`You withdraw a ${grade} ${B.recipe[1]} (quality ${q}/${B.rounds * 2}).`].concat(E.grantPill(c, B.recipe[0], rng, mult));
   }
   state.brew = null; closeOverlay(); logMessages(msgs); endActivityYear();
@@ -636,13 +711,13 @@ function realmStage() {
   if (R.idx >= R.depth) { realmComplete(); return; }
   const stageNo = R.idx + 1, last = R.idx === R.depth - 1;
   if (last) {
-    const guardian = C.makeBoss(c, state.rng, { name: "the Realm Guardian", factor: 1.4 + state.rng.random() * 0.2, element: "Earth" });
+    const guardian = C.makeBoss(c, state.rng, { name: "the Realm Guardian", factor: 1.4 + state.rng.random() * 0.2, element: "Earth", factorMult: regionMult(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — ${guardian.name} bars the inner sanctum!`]);
     startBattle(guardian, { title: "Secret Realm · Guardian", startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
     return;
   }
   if (state.rng.random() < 0.6) {
-    const enemy = C.makeEnemy(c, state.rng, { factor: 0.8 + R.idx * 0.15 });
+    const enemy = C.makeEnemy(c, state.rng, { factor: 0.8 + R.idx * 0.15, factorMult: regionMult(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — a ${enemy.name} lurks in the mist.`]);
     startBattle(enemy, { title: `Secret Realm · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
   } else {
@@ -755,7 +830,7 @@ function renderBattleScreen(B, onDone) {
     if (B.over) {
       const cont = el("button", "mbtn full primary");
       cont.innerHTML = `Continue<small>${B.outcome === "win" ? "victory!" : B.outcome === "lose" ? "defeat..." : B.outcome === "yield" ? "you yield" : "you flee"}</small>`;
-      cont.onclick = () => { const sum = B.finish(); closeOverlay(); logMessages(sum); if (onDone) onDone(B.outcome); };
+      cont.onclick = () => { const sum = B.finish(); closeOverlay(); logMessages(sum); if (B.outcome === "win") award("first_blood"); if (onDone) onDone(B.outcome); };
       body.appendChild(cont);
     } else {
       const grid = el("div", "cbt-actions");
@@ -784,7 +859,7 @@ function doWander() {
   const c = state.c; if (!c.alive) return; closeOverlay();
   c.age += 1;
   if (c.awakened && c.root.key !== "none" && state.rng.random() < 0.58) {
-    const enemy = C.makeEnemy(c, state.rng);
+    const enemy = C.makeEnemy(c, state.rng, { factorMult: regionMult(c) });
     logMessages([`You roam the wild reaches and are set upon by a ${enemy.name}!`]);
     startBattle(enemy, { title: "Wild Encounter" }, () => endActivityYear());
   } else {
@@ -794,7 +869,7 @@ function doWander() {
 function doHunt() {
   const c = state.c; if (!c.alive) return; closeOverlay();
   c.age += 1;
-  const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]) });
+  const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]), factorMult: regionMult(c) });
   logMessages([`You track a ${enemy.name} through the spirit-wilds and corner it.`]);
   startBattle(enemy, { title: "Beast Hunt" }, () => endActivityYear());
 }
