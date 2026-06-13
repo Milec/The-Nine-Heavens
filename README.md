@@ -31,10 +31,12 @@ You are **born into a family** and live your cultivator's life **one year at a
 time**: tap **Age Up** and narrative events unfold — childhood, the **Spiritual
 Root Awakening** at age 6 that reveals your talent, sect recruiters, duels,
 ruins, romance, demonic temptations, betrayals, and loss — many with **choices
-that shape your fate**. Between years, use the tabs to **Cultivate** (seclusion,
-breakthroughs, the Dao), tend **Relationships** (family, masters, rivals, dao
-companions, even children of your own), pursue **Activities** (train, study,
-rest, alchemy, adventure), and climb your **Sect**. Two new vital stats —
+that shape your fate**. Within each year you may perform a few **deeds** — use
+the tabs to **Cultivate** (seclusion, breakthroughs, the Dao), tend
+**Relationships** (family, masters, rivals, dao companions, even children of
+your own), pursue **Activities** (train, study, rest, alchemy, adventure), and
+climb your **Sect**. Only **Age Up** passes a year and fires events; it also
+refreshes your deeds, so there's no rush — do what you can, then live another year. Two new vital stats —
 **Health** and **Happiness** — rise and fall with your choices and steady (or
 shake) your breakthroughs. Die, and your soul may **reincarnate** into a fresh
 life carrying its hard-won legacy.

@@ -98,6 +98,7 @@ function renderProfile() {
   const chips = $("pf-chips"); chips.innerHTML = "";
   const add = (label, val, warn) => chips.appendChild(el("span", "chip" + (warn ? " warn" : ""), `${label} <b>${val}</b>`));
   add("Age", `${c.age}/${c.maxAge}`);
+  add("Deeds", `${deedsLeft()}/${ACTIONS_PER_YEAR}`, deedsLeft() <= 0);
   if (c.awakened) add("✦", Math.floor(E.power(c)));
   add("Fame", D.standingLabel(c.reputation));
   add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`);
@@ -123,12 +124,45 @@ function openOverlay(title, build, closable = true) {
 }
 function closeOverlay() { $("overlay").classList.add("hidden"); }
 
-/* run a year-costing action that does NOT roll life events (focused activity) */
+/* ----------------------- time model: deeds per year ---------------------- *
+ * Only Age Up advances the year. Other actions are instantaneous but limited
+ * to a few "deeds" per year so you can't do everything at once. */
+const ACTIONS_PER_YEAR = 3;
+const deedsLeft = () => (state.actionsLeft == null ? ACTIONS_PER_YEAR : state.actionsLeft);
+
+function useAction() {
+  if (!state.c || !state.c.alive) return false;
+  if (deedsLeft() <= 0) {
+    closeOverlay();
+    logMessages(["· You have done all you can this year. Tap ⊕ Age Up to let a year pass. ·"]);
+    renderProfile();
+    return false;
+  }
+  state.actionsLeft = deedsLeft() - 1;
+  return true;
+}
+// Run an effect without letting it advance the year (undo any internal aging).
+function preserveAge(fn) {
+  const c = state.c, a = c.age, wasAlive = c.alive;
+  const r = fn();
+  if (c.age !== a) c.age = a;
+  if (wasAlive && !c.alive && /old age|lifespan/.test(c.causeOfDeath || "")) { c.alive = true; c.causeOfDeath = ""; }
+  return r;
+}
+/* a deed: costs one of the year's actions; never ages you */
 function runTimed(fn) {
-  if (!state.c.alive) return;
-  const msgs = fn();
+  if (!useAction()) return;
+  const msgs = preserveAge(fn);
   closeOverlay();
-  logMessages(msgs && msgs.length ? msgs : ["A year slips quietly by."]);
+  logMessages(msgs && msgs.length ? msgs : ["You spend a season in focused effort."]);
+  renderProfile(); checkDeath();
+}
+/* a free, instantaneous action (decisions, admin, social) — no deed, no year */
+function runFree(fn) {
+  if (!state.c.alive) return;
+  const msgs = preserveAge(fn);
+  closeOverlay();
+  if (msgs && msgs.length) logMessages(msgs);
   renderProfile(); checkDeath();
 }
 
@@ -137,6 +171,7 @@ function doAgeUp() {
   if (!state.c.alive) { startOrDeath(); return; }
   closeOverlay();
   const { events } = L.ageUp(state.c, state.rng);
+  state.actionsLeft = ACTIONS_PER_YEAR;   // a fresh year, fresh deeds
   logYear(state.c.age);
   if (!events.length) logMessages([idleFlavor()]);
   processQueue(events.slice());
@@ -197,8 +232,8 @@ function openCultivate() {
     const mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
     if (E.canBreakthrough(c))
       mk("Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
-    mk("Secluded Cultivation", "focus 3 years", () => runTimed(() => E.cultivate(c, state.rng, 3)));
-    mk("Use a Qi Pill", `cultivate · ${c.pills} left`, () => runTimed(() => E.cultivate(c, state.rng, 1, true)), { disabled: c.pills <= 0 });
+    mk("Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.cultivate(c, state.rng, 1)));
+    mk("Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.cultivate(c, state.rng, 1, true)), { disabled: c.pills <= 0 });
     mk("Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
     mk("Wander the World", "adventure & battle", doWander);
     mk("Techniques & Mastery", "train your arts", openTechniques, { full: true });
@@ -214,12 +249,12 @@ function openPeople() {
     body.appendChild(el("div", "section-h", "Bonds"));
     if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or companions yet."));
     bonds.forEach(n => body.appendChild(personRow(n)));
-    const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>meet someone new (free)</small>";
-    b.onclick = () => { const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
+    const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
+    b.onclick = () => { if (!useAction()) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
     body.appendChild(b);
     if (c.realm >= 4 && L.getDisciples(c).length < 3) {
-      const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>pass your arts to the next generation</small>";
-      d.onclick = () => { logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
+      const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>a deed · pass on your arts</small>";
+      d.onclick = () => { if (!useAction()) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
       body.appendChild(d);
     }
   });
@@ -363,14 +398,15 @@ function openAlchemy() {
 function openTravel() {
   const c = state.c;
   openOverlay("Travel the World", body => {
-    body.appendChild(el("p", "note", "Distant regions hold deadlier foes and far richer spoils. Travelling takes a year. Where the danger is greater, so is the reward."));
+    body.appendChild(el("p", "note", "Distant regions hold deadlier foes and far richer spoils. Where the danger is greater, so is the reward."));
     for (const r of D.REGIONS) {
       const here = r[0] === c.region;
       const row = el("div", "listrow" + (here ? " bound" : ""));
       const tier = r[3] <= 0.9 ? "safe" : r[3] <= 1.1 ? "moderate" : r[3] <= 1.35 ? "dangerous" : r[3] <= 1.7 ? "perilous" : "deadly";
       row.innerHTML = `<div class="lr-ava">📍</div><div class="lr-main"><div class="lr-title">${here ? "★ " : ""}${r[1]} <span class="lr-sub" style="display:inline">(${r[2]})</span></div><div class="lr-sub">${tier} · danger ×${r[3]}<br>${r[4]}</div></div>`;
       if (!here) row.onclick = () => {
-        c.age += 1; c.region = r[0]; closeOverlay();
+        if (!useAction()) return;
+        c.region = r[0]; closeOverlay();
         logMessages([`You journey to the ${r[1]} (${r[2]}). The dangers here scale ×${r[3]}.`]);
         endActivityYear();
       };
@@ -421,7 +457,7 @@ function openSect() {
         const gate = ok ? `${Math.floor(E.joinChance(c, s) * 100)}% accepted` : `needs ${D.REALMS[s[5]][0]}`;
         const row = el("div", "listrow" + (ok ? "" : " disabled"));
         row.innerHTML = `<div class="lr-ava">🏯</div><div class="lr-main"><div class="lr-title">${s[1]}</div><div class="lr-sub">${s[2]} · ${gate}<br>${s[9]}</div></div>`;
-        if (ok) row.onclick = () => runTimed(() => E.attemptJoin(c, state.rng, s[0]));
+        if (ok) row.onclick = () => runFree(() => E.attemptJoin(c, state.rng, s[0]));
         body.appendChild(row);
       }
       return;
@@ -431,11 +467,11 @@ function openSect() {
     if (req) body.appendChild(el("p", "note", E.canPromote(c) ? `Promotion to ${req[0]}: READY` : `Next rank ${req[0]} — needs ${D.REALMS[req[1]][0]} & ${req[2]} contribution.`));
     const grid = el("div", "menu-grid");
     const mk = (l, s, h, full) => { const b = el("button", "mbtn" + (full ? " full" : "")); b.innerHTML = `${l}<small>${s}</small>`; b.onclick = h; grid.appendChild(b); };
-    mk("Take a Quest", "earn contribution", openQuests);
-    mk("Attempt Promotion", "climb the ranks", () => runTimed(() => E.attemptPromotion(c, state.rng)));
-    mk("Grand Tournament", "interactive duels", doTournament);
-    mk("Sect Store", "25 contrib → pills", () => runTimed(() => E.exchangeContribution(c, state.rng)));
-    const leave = el("button", "mbtn full danger"); leave.innerHTML = "Leave the Sect<small>go rogue</small>"; leave.onclick = () => runTimed(() => E.leaveSect(c)); grid.appendChild(leave);
+    mk("Take a Quest", "a deed · earn contribution", openQuests);
+    mk("Attempt Promotion", "climb the ranks", () => runFree(() => E.attemptPromotion(c, state.rng)));
+    mk("Grand Tournament", "a deed · interactive duels", doTournament);
+    mk("Sect Store", "25 contrib → pills", () => runFree(() => E.exchangeContribution(c, state.rng)));
+    const leave = el("button", "mbtn full danger"); leave.innerHTML = "Leave the Sect<small>go rogue</small>"; leave.onclick = () => runFree(() => E.leaveSect(c)); grid.appendChild(leave);
     body.appendChild(grid);
   });
 }
@@ -513,7 +549,7 @@ function deathScreen() {
     const rein = el("button", "mbtn full primary");
     rein.innerHTML = "Reincarnate<small>be reborn carrying your soul's legacy</small>";
     rein.onclick = () => {
-      state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.deadHandled = false; closeOverlay();
+      state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.actionsLeft = ACTIONS_PER_YEAR; state.deadHandled = false; closeOverlay();
       logBanner("☯ THE WHEEL OF REBIRTH TURNS ☯");
       logMessages([`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), dimly recalling a former life.`, "Age up to live this new life. Your past climb has sharpened your innate talent."]);
       renderProfile();
@@ -535,7 +571,7 @@ function renderBirth(c) {
     `Physique — ${c.physiqueName}`, "  " + c.physiqueBlurb, "",
     `Appearance — ${c.appearanceName}`, "  " + c.appearanceBlurb, "",
     `The family's spiritual root is still a mystery. The Awakening Ceremony comes at age ${D.AWAKENING_AGE}.`,
-    "✦ Tap AGE UP to live your life, one year at a time.",
+    `✦ Each year you may perform up to ${ACTIONS_PER_YEAR} deeds (cultivate, fight, brew, travel...). Only the ⊕ Age Up button passes a year and fires life events — and refreshes your deeds.`,
   ]);
 }
 
@@ -561,7 +597,7 @@ function startScreen() {
     begin.onclick = () => {
       state.rng = new E.RNG();
       state.c = L.bornCharacter(state.rng, input.value.trim() || null, chosenSex);
-      applyFavor(state.c);
+      applyFavor(state.c); state.actionsLeft = ACTIONS_PER_YEAR;
       closeOverlay(); $("log").innerHTML = ""; renderBirth(state.c); renderProfile();
     };
     const sv = loadSave();
@@ -581,6 +617,7 @@ function startScreen() {
 }
 function resumeFrom(sv) {
   state.c = sv.c; state.rng = new E.RNG(0); state.rng.s = sv.s >>> 0; state.deadHandled = false;
+  state.actionsLeft = ACTIONS_PER_YEAR;
   // Back-compat: ensure life-sim fields exist on older saves.
   const c = state.c;
   if (typeof c.happiness !== "number") c.happiness = 55;
@@ -632,8 +669,8 @@ function doBreakthrough() {
   } else { renderProfile(); save(); checkDeath(); }
 }
 function doBossFight() {
-  const c = state.c; if (!c.alive) return; closeOverlay();
-  c.age += 1;
+  if (!useAction()) return;
+  const c = state.c; closeOverlay();
   const boss = C.makeBoss(c, state.rng, { factorMult: regionMult(c) });
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
   startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
@@ -643,8 +680,10 @@ function doBossFight() {
 // build pill quality; stray too far and instability risks an explosion.
 function brewZone(c) { return Math.round(Math.min(46, 18 + c.soul / 8 + c.comprehension / 14 + c.alchemySkill * 0.4)); }
 function startBrew(recipe) {
-  const c = state.c; if (c.herbs < recipe[2]) return; closeOverlay();
-  c.age += 1; c.herbs -= recipe[2];
+  const c = state.c; if (c.herbs < recipe[2]) return;
+  if (!useAction()) return;
+  closeOverlay();
+  c.herbs -= recipe[2];
   const rng = state.rng;
   state.brew = { recipe, heat: 50, target: rng.randint(38, 62), zone: brewZone(c), rounds: 4, round: 1, quality: 0, instability: 0, msg: "Stoke the furnace and keep the flame within the jade band." };
   renderBrew();
@@ -699,8 +738,8 @@ function applyBrew() {
 
 /* --- Secret Realm: a multi-stage delve with carried wounds and a guardian --- */
 function doSecretRealm() {
-  const c = state.c; if (!c.alive) return; closeOverlay();
-  c.age += 1;
+  if (!useAction()) return;
+  const c = state.c; closeOverlay();
   const depth = 3 + Math.floor(state.rng.random() * 3); // 3-5 stages incl. guardian
   state.realmRun = { depth, idx: 0, hpFrac: 1 };
   logMessages(["You step through a shimmering rift into a Secret Realm — the qi here is thick as honey, and the danger thicker still."]);
@@ -770,8 +809,9 @@ function realmComplete() {
 }
 function realmEnd() { state.realmRun = null; endActivityYear(); }
 function doTournament() {
-  const c = state.c; if (!c.alive || !c.sectKey) return; closeOverlay();
-  c.age += 1;
+  const c = state.c; if (!c.alive || !c.sectKey) return;
+  if (!useAction()) return;
+  closeOverlay();
   state.tourney = { round: 1, max: 4, won: 0 };
   logMessages([`⚑ The ${E.sectName(c)} grand tournament begins — 16 disciples enter the ring.`]);
   tourneyRound();
@@ -847,17 +887,12 @@ function renderBattleScreen(B, onDone) {
 }
 
 /* entry points that spend a year, then resolve old-age before continuing */
-function endActivityYear() {
-  const c = state.c;
-  if (c.alive && c.age > c.maxAge && state.rng.random() > (c.luck + c.soul) / 400) {
-    c.alive = false; c.causeOfDeath = "old age, lifespan exhausted"; c.log.push([c.age, "Died of old age."]);
-    logMessages([`☠ Your lifespan ends at ${c.age}.`]);
-  }
+function endActivityYear() {   // an action concluded -- no time passes
   renderProfile(); save(); checkDeath();
 }
 function doWander() {
-  const c = state.c; if (!c.alive) return; closeOverlay();
-  c.age += 1;
+  if (!useAction()) return;
+  const c = state.c; closeOverlay();
   if (c.awakened && c.root.key !== "none" && state.rng.random() < 0.58) {
     const enemy = C.makeEnemy(c, state.rng, { factorMult: regionMult(c) });
     logMessages([`You roam the wild reaches and are set upon by a ${enemy.name}!`]);
@@ -867,15 +902,15 @@ function doWander() {
   }
 }
 function doHunt() {
-  const c = state.c; if (!c.alive) return; closeOverlay();
-  c.age += 1;
+  if (!useAction()) return;
+  const c = state.c; closeOverlay();
   const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]), factorMult: regionMult(c) });
   logMessages([`You track a ${enemy.name} through the spirit-wilds and corner it.`]);
   startBattle(enemy, { title: "Beast Hunt" }, () => endActivityYear());
 }
 function doArena() {
-  const c = state.c; if (!c.alive) return; closeOverlay();
-  c.age += 1;
+  if (!useAction()) return;
+  const c = state.c; closeOverlay();
   const enemy = C.makeEnemy(c, state.rng, { kind: "rogue", name: "Sparring Partner", factor: state.rng.uniform(0.8, 1.1), element: null });
   logMessages(["You step into the sect sparring ring. (non-lethal)"]);
   startBattle(enemy, { title: "Arena Spar", nonLethal: true }, (outcome) => {
