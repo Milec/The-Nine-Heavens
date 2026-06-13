@@ -341,7 +341,7 @@ function openSect() {
     const mk = (l, s, h, full) => { const b = el("button", "mbtn" + (full ? " full" : "")); b.innerHTML = `${l}<small>${s}</small>`; b.onclick = h; grid.appendChild(b); };
     mk("Take a Quest", "earn contribution", openQuests);
     mk("Attempt Promotion", "climb the ranks", () => runTimed(() => E.attemptPromotion(c, state.rng)));
-    mk("Grand Tournament", "duel for glory", () => runTimed(() => E.tournament(c, state.rng)));
+    mk("Grand Tournament", "interactive duels", doTournament);
     mk("Sect Store", "25 contrib → pills", () => runTimed(() => E.exchangeContribution(c, state.rng)));
     const leave = el("button", "mbtn full danger"); leave.innerHTML = "Leave the Sect<small>go rogue</small>"; leave.onclick = () => runTimed(() => E.leaveSect(c)); grid.appendChild(leave);
     body.appendChild(grid);
@@ -537,6 +537,56 @@ function doBossFight() {
   const boss = C.makeBoss(c, state.rng);
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
   startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
+}
+function doTournament() {
+  const c = state.c; if (!c.alive || !c.sectKey) return; closeOverlay();
+  c.age += 1;
+  state.tourney = { round: 1, max: 4, won: 0 };
+  logMessages([`⚑ The ${E.sectName(c)} grand tournament begins — 16 disciples enter the ring.`]);
+  tourneyRound();
+}
+function tourneyRound() {
+  const c = state.c, t = state.tourney;
+  const remaining = 16 / Math.pow(2, t.round - 1);
+  const label = ({ 16: "Round of 16", 8: "Quarter-final", 4: "Semi-final", 2: "Final" })[remaining] || `Round ${t.round}`;
+  const factor = 0.85 + t.round * 0.10;
+  const enemy = remaining === 2
+    ? C.makeBoss(c, state.rng, { name: "the Reigning Champion", factor: Math.max(1.2, factor + 0.25) })
+    : C.makeEnemy(c, state.rng, { kind: "rogue", name: `${E.npcName(state.rng)} (rival disciple)`, factor });
+  logMessages([`${label}: you step up against ${enemy.name}.`]);
+  startBattle(enemy, { title: `Tournament · ${label}`, nonLethal: true, noSpoils: true }, (outcome) => {
+    if (!state.c.alive) { renderProfile(); checkDeath(); return; }
+    if (outcome === "win") {
+      t.won++; t.round++;
+      if (t.round > t.max) tourneyEnd(1, t.won);
+      else { renderProfile(); save(); tourneyRound(); }
+    } else tourneyEnd(remaining, t.won);
+  });
+}
+function tourneyEnd(placement, won) {
+  const c = state.c, rng = state.rng;
+  const contribution = won * 40 + (placement === 1 ? 120 : 0);
+  const rep = won * 3 + (placement === 1 ? 20 : 0);
+  const stones = won * 15;
+  c.contribution += contribution; c.reputation += rep; c.spiritStones += stones;
+  let title = null;
+  for (const [cut, name] of D.TOURNAMENT_TITLES) if (placement <= cut) { title = name; break; }
+  const lines = [`The tournament ends — you place in the top ${Math.max(1, placement)}.`,
+    `Rewards: +${contribution} contribution, +${rep} reputation, +${stones} spirit stones.`];
+  if (placement === 1) { c.pills += 3; lines.push("As Champion you are awarded a Foundation Pill and 3 pills!"); }
+  if (title) {
+    const h = `Tournament ${title}`;
+    if (!c.titles.includes(h)) c.titles.push(h);
+    c.log.push([c.age, `Placed as ${title} in the ${E.sectName(c)} tournament.`]);
+    lines.push(`✦ You earn the title: ${title}!`);
+    if (placement <= 2 && !c.relationships.some(n => n.role === "companion" && n.alive) && rng.random() < 0.3 + c.charm / 400) {
+      const npc = { name: E.npcName(rng), role: "companion", affinity: 35, power: E.power(c) * rng.uniform(0.7, 1.3), alive: true };
+      c.relationships.push(npc); lines.push(`Your brilliance in the arena catches the eye of ${npc.name}, who seeks you out afterward...`);
+    }
+  }
+  logMessages(lines);
+  state.tourney = null;
+  endActivityYear();
 }
 function renderBattleScreen(B, onDone) {
   openOverlay(B.opts.title || "Battle", body => {

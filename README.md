@@ -74,6 +74,14 @@ born: an arrogant rival who taunts, ambushes and **cultivates in lockstep with
 you** across the years, until you finally hunt them down for a climactic boss
 showdown — the classic xianxia grudge, paid in full.
 
+The sect **Grand Tournament** is a four-round gauntlet of **interactive duels**
+against rival disciples, capped by a fight with the **Reigning Champion**, for
+contribution, renown, titles and a shot at catching an admirer's eye. Beyond the
+orthodox arts you can learn techniques with distinct combat mechanics — a
+**multi-hit** sword storm, a **reflecting parry** that turns a blow back on the
+foe, a **binding seal** that weakens and may stun, and a **recoil ultimate** that
+hits like a mountain but leaves you spent.
+
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,
 karma, tribulations and reincarnation) and wraps it in a life-sim layer of

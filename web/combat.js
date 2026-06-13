@@ -33,6 +33,10 @@ export const SKILLS = {
   nine_yang: { id: "yang_burst", tech: "nine_yang", name: "Nine-Yang Burst", qi: 20, dmg: 0.44, element: "Fire", target: { type: "burn", turns: 3, value: 0.05 }, desc: "Searing fire that burns over 3 turns." },
   moon_mirror: { id: "moon_calm", tech: "moon_mirror", name: "Moon-Mirror Calm", qi: 18, type: "heal", heal: 0.22, cleanse: true, qiRestore: 0.1, desc: "Soothe wounds and cleanse afflictions in moonlight." },
   great_void: { id: "void_rend", tech: "great_void", name: "Great Void Rend", qi: 30, dmg: 0.62, pierce: 0.5, desc: "Tear space itself; ignores half the foe's defense." },
+  sword_rain: { id: "sword_rain", tech: "sword_rain", name: "Myriad Sword Rain", qi: 24, dmg: 0.22, hits: 3, element: "Metal", desc: "Three flying-sword strikes; each can crit and exploit elements." },
+  mirror_parry: { id: "mirror_parry", tech: "mirror_parry", name: "Mirror-Light Parry", qi: 12, type: "defend", shield: 0.16, counter: 0.6, qiRestore: 0.15, desc: "Shield up and reflect 60% of the next blow back at the foe." },
+  spirit_bind: { id: "spirit_bind", tech: "spirit_bind", name: "Spirit-Binding Seal", qi: 18, dmg: 0.30, element: "Light", target: { type: "weaken", turns: 2, value: 0.30 }, target2: { type: "stun", turns: 1, value: 0, chance: 0.35 }, desc: "Shackle the foe: heavy weaken, with a chance to stun." },
+  heaven_slash: { id: "heaven_slash", tech: "heaven_slash", name: "Heaven-Splitting Slash", qi: 32, dmg: 0.95, pierce: 0.4, element: "Metal", self: { type: "weaken", turns: 1, value: 0.30 }, desc: "A colossal cut — but it leaves you spent (weakened) next turn." },
 };
 const SKILL_BY_TECH = {};
 for (const k in SKILLS) if (SKILLS[k].tech) SKILL_BY_TECH[SKILLS[k].tech] = SKILLS[k];
@@ -191,7 +195,12 @@ function resolveSkill(B, att, def, skill, lines) {
   const rng = B.rng;
   const mm = att.isPlayer ? masteryMultiplier(att.ref, skill) : 1;
   if (skill.qiRestore && att.isPlayer) att.qi = Math.min(att.maxQi, att.qi + att.maxQi * skill.qiRestore);
-  if (skill.type === "defend") { att.shield += att.maxHp * skill.shield * mm; lines.push(`${icon(att)} ${att.name} raises a qi shield.`); return; }
+  if (skill.type === "defend") {
+    att.shield += att.maxHp * skill.shield * mm;
+    if (skill.counter) addStatus(att, "counter", 2, skill.counter);
+    lines.push(`${icon(att)} ${att.name} — ${skill.name || "guards"}${skill.counter ? " (reflecting stance)" : ""}.`);
+    return;
+  }
   if (skill.type === "heal") {
     const heal = (att.maxHp * skill.heal + (att.ref ? att.ref.soul * 0.6 : 0)) * mm;
     att.hp = Math.min(att.maxHp, att.hp + heal);
@@ -206,23 +215,30 @@ function resolveSkill(B, att, def, skill, lines) {
   }
   if (skill.self) addStatus(att, skill.self.type, skill.self.turns + 1, skill.self.value);
   if (skill.karma && att.ref) att.ref.karma += skill.karma;
-  // Damage.
-  let base = att.atk * skill.dmg * statusAtkMult(att) * mm;
-  let mult = elementMult(skill.element || att.element, def.element);
-  let crit = rng.random() < att.crit;
-  if (crit) mult *= 2;
-  base *= mult * rng.uniform(0.9, 1.1);
-  if (rng.random() < def.dodge) { lines.push(`${icon(def)} ${def.name} flickers aside — dodged!`); return; }
-  let dmg = base * (1 - def.mitig * (1 - (skill.pierce || 0)));
-  if (def.shield > 0) { const a = Math.min(def.shield, dmg); def.shield -= a; dmg -= a; }
-  dmg = Math.max(0, Math.round(dmg));
-  def.hp -= dmg;
-  lines.push(`${icon(att)} ${att.name} — ${skill.name}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${Math.round(dmg)} dmg${mult > 1.05 ? " (element advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
-  if (skill.lifesteal) { const h = dmg * skill.lifesteal; att.hp = Math.min(att.maxHp, att.hp + h); if (h > 0) lines.push(`   ${att.name} drains ${Math.round(h)} HP.`); }
-  if (skill.target && def.hp > 0 && (skill.target.chance == null || rng.random() < skill.target.chance)) {
-    addStatus(def, skill.target.type, skill.target.turns + 1, skill.target.value);
-    lines.push(`   ${def.name} is afflicted: ${skill.target.type}!`);
+  // Damage (supports multi-hit; each hit rolls its own crit and element).
+  const hits = skill.hits || 1;
+  for (let h = 0; h < hits; h++) {
+    if (def.hp <= 0) break;
+    let base = att.atk * skill.dmg * statusAtkMult(att) * mm;
+    let mult = elementMult(skill.element || att.element, def.element);
+    const crit = rng.random() < att.crit;
+    if (crit) mult *= 2;
+    base *= mult * rng.uniform(0.9, 1.1);
+    if (rng.random() < def.dodge) { lines.push(`${icon(def)} ${def.name} evades${hits > 1 ? ` hit ${h + 1}` : ""} — dodged!`); continue; }
+    let dmg = base * (1 - def.mitig * (1 - (skill.pierce || 0)));
+    if (def.shield > 0) { const a = Math.min(def.shield, dmg); def.shield -= a; dmg -= a; }
+    dmg = Math.max(0, Math.round(dmg));
+    def.hp -= dmg;
+    lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
+    if (skill.lifesteal && dmg > 0) { const hh = dmg * skill.lifesteal; att.hp = Math.min(att.maxHp, att.hp + hh); lines.push(`   ${att.name} drains ${Math.round(hh)} HP.`); }
+    // Counter / reflect: a defender in a reflecting stance turns force back.
+    const cs = def.statuses.find(s => s.type === "counter");
+    if (cs && dmg > 0) { const refl = Math.round(dmg * cs.value); att.hp -= refl; def.statuses = def.statuses.filter(s => s !== cs); lines.push(`   ✦ ${def.name} reflects ${refl} damage back!`); }
   }
+  // Status afflictions (applied once, if the foe still stands).
+  const applyTarget = t => { if (t && def.hp > 0 && (t.chance == null || rng.random() < t.chance)) { addStatus(def, t.type, t.turns + 1, t.value); lines.push(`   ${def.name} is afflicted: ${t.type}!`); } };
+  applyTarget(skill.target);
+  applyTarget(skill.target2);
 }
 
 function enemyChoose(B) {
@@ -317,6 +333,7 @@ function finishBattle(B) {
 
   if (B.outcome === "win") {
     c.hp = Math.max(1, c.maxHp * Math.max(0.15, frac));
+    if (B.opts.noSpoils) { E.recomputeMaxHp(c); return [`You best ${En.name}!`]; }
     c.spiritStones += B.def.reward; c.reputation += En.boss ? 8 : 1;
     lines.push(`Victory! +${B.def.reward} spirit stones, +${En.boss ? 8 : 1} reputation.`);
     if (En.kind === "rogue" && (En.name.includes("Demonic") || En.name.includes("Corpse") || En.name.includes("Bandit") || rng.random() < 0.5)) { c.karma += 2; }

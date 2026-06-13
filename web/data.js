@@ -101,6 +101,10 @@ export const TECHNIQUES = {
   nine_yang: ["Nine-Yang Profound Art", 2, 0.30, 12, "A blazing yang scripture that pairs perfectly with a yang body."],
   moon_mirror: ["Moon-Mirror Heart Sutra", 2, 0.28, 8, "Stills the mind to a silver pool, sharpening the soul."],
   great_void: ["Great Void Immortal Canon", 3, 0.55, 22, "A near-mythical immortal canon said to lead all the way to ascension."],
+  sword_rain: ["Myriad Sword Rain Art", 2, 0.20, 14, "A storm of flying swords that strikes again and again."],
+  mirror_parry: ["Mirror-Light Body Art", 2, 0.18, 8, "A defensive art that turns a foe's own force back upon them."],
+  spirit_bind: ["Spirit-Binding Seal", 2, 0.16, 6, "Soul-script that shackles an enemy's qi and will."],
+  heaven_slash: ["Heaven-Splitting Sabre", 3, 0.42, 20, "A single annihilating cut that leaves you spent."],
 };
 
 // [key, display, charmBonus, blurb, weight]
