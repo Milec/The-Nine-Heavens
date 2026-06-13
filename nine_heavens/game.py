@@ -124,18 +124,23 @@ def print_birth(c: Character) -> None:
 
 
 def _birth_verdict(c: Character) -> None:
-    """A flavourful one-line read on how lucky this birth was."""
-    score = (c.root.multiplier * 18 + c.comprehension + c.luck +
-             c.reputation + (c.soul + c.constitution) / 2)
-    if c.physique_key not in ("ordinary",):
-        score += 30
-    if score > 170:
+    """A flavourful one-line read on how promising this birth was.
+
+    The spiritual root is the gate to cultivation, so it dominates the verdict;
+    a special physique can partly redeem a poor root (the body-cultivator's
+    road), while attributes are only a secondary nudge."""
+    special = c.physique_key not in ("ordinary",)
+    score = (c.root.multiplier * 45
+             + (c.comprehension + c.luck + (c.soul + c.constitution) / 2) / 3 * 0.5
+             + c.reputation * 0.3
+             + (35 if special else 0))
+    if score > 160:
         verdict = "The heavens have lavished gifts upon you. A dragon among men."
-    elif score > 120:
+    elif score > 108:
         verdict = "A genuinely blessed birth. Sects would war over you."
-    elif score > 85:
+    elif score > 68:
         verdict = "A solid hand of cards. Your fate is yours to make."
-    elif score > 55:
+    elif score > 40:
         verdict = "An unremarkable start. The climb will be steep but not closed."
     else:
         verdict = "The dao has dealt you ashes. Only sheer will could forge a legend from this."
