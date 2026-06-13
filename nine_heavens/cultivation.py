@@ -35,6 +35,9 @@ def cultivate(c: Character, rng: random.Random, years: int = 1,
         # Seclusion mends body and meridians -- HP recovers over a year or two.
         if c.hp < c.max_hp:
             c.hp = min(c.max_hp, c.hp + c.max_hp * 0.55 + c.constitution * 0.5)
+        # A sect disciple draws a yearly stipend of spirit stones by rank.
+        if c.sect_key:
+            c.spirit_stones += data.SECT_RANKS[c.sect_rank][4]
         _advance_age(c, rng, msgs)
         # Auto-fill stages until we hit a realm wall or run out of qi.
         while c.alive and c.qi >= c.qi_to_next and not _at_realm_wall(c):

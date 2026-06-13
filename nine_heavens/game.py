@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 import textwrap
 
-from . import cultivation, world
+from . import cultivation, data, sect, social, world
 from .character import Character, generate_character
 
 
@@ -39,11 +39,22 @@ def render_sheet(c: Character) -> str:
         DIVIDER,
         f"  Spiritual Root : {c.root.display}   [{elems}]",
         f"  Physique       : {c.physique_name}",
+        f"  Appearance     : {c.appearance_name}",
         f"  Birth Standing : {c.background_name}",
         DIVIDER,
         f"  Comprehension 悟性 {c.comprehension:>3}    Constitution 根骨 {c.constitution:>3}",
         f"  Soul Sense    神识 {c.soul:>3}    Fortune      气运 {c.luck:>3}",
         f"  Charm         魅力 {c.charm:>3}",
+        DIVIDER,
+        f"  Sect    : {c.sect_name}" + (f"  —  {c.rank_name}" if c.sect_key else ""),
+    ]
+    if c.sect_key:
+        lines.append(f"  Standing: {c.contribution} contribution")
+    if c.relationships:
+        lines.append(f"  Bonds   : {_relationship_summary(c)}")
+    if c.titles:
+        lines.append(f"  Titles  : {', '.join(c.titles)}")
+    lines += [
         DIVIDER,
         f"  Spirit Stones : {c.spirit_stones}      Qi-Gathering Pills : {c.pills}",
         f"  Techniques    : {', '.join(_tech_names(c))}",
@@ -51,6 +62,13 @@ def render_sheet(c: Character) -> str:
         DIVIDER,
     ]
     return "\n".join(lines)
+
+
+def _relationship_summary(c: Character) -> str:
+    living = [n for n in c.relationships if n.alive]
+    if not living:
+        return "(none)"
+    return "; ".join(f"{n.role_label} {n.name} ({n.status})" for n in living[:6])
 
 
 def _tech_names(c: Character):
@@ -81,6 +99,9 @@ def print_birth(c: Character) -> None:
     print(_wrap(f"Physique — {c.physique_name}"))
     print(_wrap(c.physique_blurb))
     print()
+    print(_wrap(f"Appearance — {c.appearance_name}"))
+    print(_wrap(c.appearance_blurb))
+    print()
     _birth_verdict(c)
     print(DIVIDER)
 
@@ -110,6 +131,7 @@ MENU = """
     [3] Use a pill & cultivate      [4] Wander the world (adventure)
     [5] Attempt a breakthrough      [6] View character sheet
     [7] View life chronicle         [8] Help / legend
+    [9] Sect affairs                [0] Relationships
     [q] Quit
 """
 
@@ -170,6 +192,10 @@ def play(seed=None) -> None:
             _print_chronicle(c)
         elif choice in ("8", "help", "h", "?"):
             _print_help()
+        elif choice == "9":
+            _sect_menu(c, rng)
+        elif choice == "0":
+            _social_menu(c, rng)
         else:
             print(_wrap("The heavens do not understand that command."))
 
@@ -208,6 +234,85 @@ def _print_chronicle(c: Character) -> None:
         print(_wrap(f"Age {age:>4} — {text}", indent="  "))
 
 
+def _ask(prompt: str) -> str:
+    try:
+        return input(prompt).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return "b"
+
+
+def _sect_menu(c: Character, rng: random.Random) -> None:
+    """Sect affairs: join, climb ranks, quests, tournaments, the sect store."""
+    print(DIVIDER)
+    if not c.sect_key:
+        print("  SECT HALLS — you are an unaffiliated rogue cultivator.")
+        print("  A sect grants cultivation resources, quests, and comrades.")
+        print(DIVIDER)
+        for i, s in enumerate(data.SECTS, 1):
+            chance = sect.join_chance(c, s)
+            gate = (f"{int(chance * 100)}% to be accepted" if c.realm >= s[5]
+                    else f"needs {data.REALMS[s[5]][0]}")
+            print(_wrap(f"[{i}] {s[1]}  ·  {s[2]}  ·  {gate}"))
+            print(_wrap(s[9], indent="      "))
+        choice = _ask("\n  Apply to which sect? (number, or [b] back) > ")
+        if choice.isdigit() and 1 <= int(choice) <= len(data.SECTS):
+            _print_msgs(sect.attempt_join(c, rng, data.SECTS[int(choice) - 1][0]))
+        return
+
+    # --- Already a member ---
+    print(f"  {c.sect_name}  —  {c.rank_name}")
+    print(f"  Contribution: {c.contribution}")
+    req = sect.next_rank_requirements(c)
+    if req:
+        name, mr, mc = req
+        ready = "READY" if sect.can_promote(c) else \
+            f"needs {data.REALMS[mr][0]} & {mc} contribution"
+        print(_wrap(f"  Next rank: {name}  ({ready})"))
+    print(DIVIDER)
+    print("""  [1] Take a contribution quest   [2] Attempt promotion
+  [3] Enter the grand tournament  [4] Visit the sect store (25 contrib)
+  [5] Leave the sect              [b] Back""")
+    choice = _ask("\n  > ")
+    if choice == "1":
+        quests = sect.available_quests(c)
+        print(DIVIDER)
+        for i, q in enumerate(quests, 1):
+            print(_wrap(f"[{i}] {q[0]}  (+{q[2]} contrib, +{q[3]} stones, "
+                        f"risk {int(q[4] * 100)}%)"))
+        pick = _ask("\n  Accept which quest? (number, or [b]) > ")
+        if pick.isdigit() and 1 <= int(pick) <= len(quests):
+            _print_msgs(sect.do_quest(c, rng, quests[int(pick) - 1]))
+    elif choice == "2":
+        _print_msgs(sect.attempt_promotion(c, rng))
+    elif choice == "3":
+        _print_msgs(sect.tournament(c, rng))
+    elif choice == "4":
+        _print_msgs(sect.exchange_contribution(c, rng))
+    elif choice == "5":
+        _print_msgs(sect.leave_sect(c))
+
+
+def _social_menu(c: Character, rng: random.Random) -> None:
+    """Relationships: spend time with the people in your life."""
+    print(DIVIDER)
+    print("  RELATIONSHIPS")
+    print(DIVIDER)
+    living = [n for n in c.relationships if n.alive]
+    if not living:
+        print(_wrap("You walk the dao alone -- no bonds, no burdens. Go out and "
+                    "meet someone."))
+    for i, n in enumerate(living, 1):
+        print(_wrap(f"[{i}] {n.role_label} {n.name}  ·  {n.status} "
+                    f"(affinity {n.affinity:+d})"))
+    print()
+    print("  [n] Go out and meet people      [b] Back")
+    choice = _ask("\n  Spend a year with whom? (number / n / b) > ")
+    if choice == "n":
+        _print_msgs(social.meet_new(c, rng))
+    elif choice.isdigit() and 1 <= int(choice) <= len(living):
+        _print_msgs(social.interact_with(c, living[int(choice) - 1], rng))
+
+
 def _print_help() -> None:
     from . import data
     print(DIVIDER)
@@ -226,6 +331,20 @@ def _print_help() -> None:
         "breakthrough (option 5) — risky, and from the Golden Core upward it "
         "summons a Heavenly Tribulation. Wandering (option 4) earns resources "
         "and danger. Fortune (气运) quietly improves every roll you make."))
+    print()
+    print(_wrap(
+        "Sect affairs (option 9): join one of the great sects — better sects "
+        "demand rarer spiritual roots — to gain a cultivation-speed bonus, a "
+        "yearly stipend, and a rank ladder from Outer Disciple to Sect Master. "
+        "Run contribution quests, spend contribution at the sect store, and "
+        "enter the grand tournament for renown and rewards."))
+    print()
+    print(_wrap(
+        "Relationships (option 0): spend years among people to forge bonds. A "
+        "Master sharpens your insight and gifts techniques; a Rival's sparring "
+        "drives you both; Friends bring gifts; a Dao Companion's dual "
+        "cultivation surges your qi; Enemies may one day draw their blades. "
+        "Charm and appearance decide who you draw to your side."))
 
 
 def _pause() -> None:

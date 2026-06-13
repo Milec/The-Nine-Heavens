@@ -12,7 +12,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nine_heavens import cultivation, data, world  # noqa: E402
+from nine_heavens import cultivation, data, sect, social, world  # noqa: E402
 from nine_heavens.character import generate_character  # noqa: E402
 from nine_heavens.game import render_sheet  # noqa: E402
 
@@ -102,10 +102,88 @@ def test_breakthrough_chance_bounded():
         assert 0.0 <= p <= 1.0
 
 
+def test_appearance_rolled_and_affects_charm():
+    """Every birth has a valid appearance, and looks correlate with charm."""
+    keys = set()
+    homely, lovely = [], []
+    for seed in range(600):
+        c = generate_character(random.Random(seed))
+        assert c.appearance_key in {a[0] for a in data.APPEARANCES}
+        keys.add(c.appearance_key)
+        if c.appearance_key in ("hideous", "plain"):
+            homely.append(c.charm)
+        if c.appearance_key in ("striking", "peerless", "immortal"):
+            lovely.append(c.charm)
+    assert len(keys) >= 4
+    if homely and lovely:
+        assert sum(lovely) / len(lovely) > sum(homely) / len(homely)
+
+
+def test_sect_join_rank_quest_tournament():
+    """Exercise the full sect lifecycle without crashing or going invalid."""
+    rng = random.Random(1)
+    c = generate_character(rng)
+    c.realm, c.stage = 3, 2
+    c.root.key = "heavenly"
+    c.root.multiplier = 2.6
+    c.recompute_max_hp()
+    c.hp = c.max_hp
+
+    # Joining must succeed eventually for a high realm + good root.
+    for s in data.SECTS:
+        if sect.join_chance(c, s) > 0:
+            sect.attempt_join(c, rng, s[0])
+            if c.sect_key:
+                break
+    assert c.sect_key is not None
+    assert c.sect_speed_bonus > 0
+
+    # Quests award contribution and never produce a negative balance.
+    quests = sect.available_quests(c)
+    assert quests
+    for _ in range(10):
+        if not c.alive:
+            break
+        sect.do_quest(c, rng, quests[0])
+    assert c.contribution >= 0
+
+    # Promotion respects requirements.
+    c.contribution = 100000
+    c.realm = 8
+    before = c.sect_rank
+    sect.attempt_promotion(c, rng)
+    assert c.sect_rank == before + 1
+
+    # Tournament resolves and bestows valid rewards.
+    c.hp = c.max_hp
+    sect.tournament(c, rng)
+    assert c.contribution >= 0
+
+
+def test_relationships_form_and_interact():
+    """Socialising creates NPCs and interacting stays within affinity bounds."""
+    rng = random.Random(5)
+    c = generate_character(rng)
+    c.realm = 2
+    for _ in range(20):
+        if not c.alive:
+            break
+        social.socialize(c, rng)
+    for n in c.relationships:
+        assert -100 <= n.affinity <= 100
+        assert n.role in data.ROLE_LABEL
+        assert n.status  # label always resolves
+    # Sheet must render with bonds present.
+    assert isinstance(render_sheet(c), str)
+
+
 if __name__ == "__main__":
     test_birth_is_well_formed()
     test_no_crashes_over_many_lives()
     test_birth_randomness_spreads_fates()
     test_talent_matters()
     test_breakthrough_chance_bounded()
+    test_appearance_rolled_and_affects_charm()
+    test_sect_join_rank_quest_tournament()
+    test_relationships_form_and_interact()
     print("All tests passed.")

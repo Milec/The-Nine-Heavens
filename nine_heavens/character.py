@@ -50,6 +50,9 @@ class Character:
     background_name: str = ""
     background_blurb: str = ""
     omen: str = ""
+    appearance_key: str = "ordinary"
+    appearance_name: str = "Ordinary (寻常)"
+    appearance_blurb: str = ""
 
     # Core attributes
     comprehension: int = 30   # 悟性 -- speed of insight & breakthrough chance
@@ -70,6 +73,15 @@ class Character:
     techniques: list = field(default_factory=lambda: ["basic_breathing"])
     inventory: list = field(default_factory=list)
     pills: int = 0            # generic "qi-gathering pills" you can pop to cultivate faster
+
+    # Sect membership
+    sect_key: Optional[str] = None
+    sect_rank: int = 0        # index into data.SECT_RANKS
+    contribution: int = 0     # sect contribution points
+    titles: list = field(default_factory=list)  # tournament honours, etc.
+
+    # Relationships -- a list of NPC objects (see social.py)
+    relationships: list = field(default_factory=list)
 
     # Combat-ish derived pools
     hp: float = 50.0
@@ -113,16 +125,38 @@ class Character:
         return sum(data.TECHNIQUES[t][3] for t in self.techniques if t in data.TECHNIQUES)
 
     @property
+    def sect(self):
+        """The sect tuple this cultivator belongs to, or None."""
+        return data.SECT_BY_KEY.get(self.sect_key) if self.sect_key else None
+
+    @property
+    def sect_name(self) -> str:
+        return self.sect[1] if self.sect else "Rogue Cultivator (散修)"
+
+    @property
+    def rank_name(self) -> str:
+        return data.SECT_RANKS[self.sect_rank][0] if self.sect else ""
+
+    @property
+    def sect_speed_bonus(self) -> float:
+        """Cultivation-speed bonus from the sect's arrays plus your rank."""
+        if not self.sect:
+            return 0.0
+        return self.sect[7] + data.SECT_RANKS[self.sect_rank][3]
+
+    @property
     def cultivation_speed(self) -> float:
         """How fast qi accumulates per year of seclusion.
 
         Crucially this scales with the realm so that the ever-steeper qi
         requirements stay reachable -- talent (root) and insight (comprehension)
-        then decide whether you outrun your lifespan."""
+        then decide whether you outrun your lifespan. Sect resources give a
+        further multiplier on top."""
         root_mult = self.root.multiplier if self.root else 0.1
         comp = 0.55 + self.comprehension / 70.0
         realm_factor = data.REALMS[self.realm][4] ** 0.5
-        return root_mult * comp * (1 + self.technique_qi_bonus) * realm_factor * 1.8
+        return (root_mult * comp * (1 + self.technique_qi_bonus)
+                * realm_factor * 1.8 * (1 + self.sect_speed_bonus))
 
     @property
     def power(self) -> float:
@@ -209,12 +243,17 @@ def generate_character(rng: Optional[random.Random] = None,
         rng, data.BIRTH_OMENS, 5)
     c.omen = omen
 
+    # 4b) Appearance -- its own roll, and a heavy thumb on the Charm scale.
+    ak, adisp, charm_bonus, ablurb, _w = _weighted_choice(
+        rng, data.APPEARANCES, 4)
+    c.appearance_key, c.appearance_name, c.appearance_blurb = ak, adisp, ablurb
+
     # 5) Core attributes, then layer on every modifier above.
     c.comprehension = _roll_attribute(rng) + c.root.comprehension_bonus + o_comp
     c.constitution = _roll_attribute(rng) + o_body
     c.soul = _roll_attribute(rng) + o_soul
     c.luck = _roll_attribute(rng) + luck_b + o_luck
-    c.charm = _roll_attribute(rng)
+    c.charm = _roll_attribute(rng) + charm_bonus
 
     # Physique scaling acts on the body/soul attributes.
     c.constitution = int(round(c.constitution * body_m))

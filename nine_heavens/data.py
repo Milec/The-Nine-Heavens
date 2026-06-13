@@ -238,3 +238,147 @@ TECHNIQUES = {
     "great_void": ("Great Void Immortal Canon", 3, 0.55, 22,
         "A near-mythical immortal canon said to lead all the way to ascension."),
 }
+
+
+# ---------------------------------------------------------------------------
+# Appearance (容貌) -- rolled at birth, and a quiet hand on every social fate.
+#
+# A face is its own kind of fortune in the cultivation world: it opens doors,
+# attracts dao companions, and softens elders. Appearance feeds into Charm.
+# ---------------------------------------------------------------------------
+
+# (key, display, charm_bonus, blurb, weight)
+APPEARANCES = [
+    ("hideous",  "Hideous (丑陋)",        -25,
+     "Scarred and misshapen; strangers flinch and look away.", 35),
+    ("plain",    "Plain (相貌平平)",       -8,
+     "An utterly forgettable face in any crowd.", 180),
+    ("ordinary", "Ordinary (寻常)",         0,
+     "Neither handsome nor homely -- simply unremarkable.", 320),
+    ("comely",   "Comely (清秀)",          10,
+     "Pleasant to look upon, with clear bright eyes.", 200),
+    ("striking", "Striking (俊美)",        22,
+     "Strikingly handsome; heads turn when you pass.", 110),
+    ("peerless", "Peerless Beauty (倾国倾城)", 38,
+     "A face from a master's painting -- a beauty to topple cities.", 35),
+    ("immortal", "Immortal Grace (谪仙之姿)", 55,
+     "An otherworldly presence that stills a room the moment you enter.", 12),
+]
+
+
+# ---------------------------------------------------------------------------
+# Sects (宗门) -- the great institutions of the cultivation world.
+#
+# Joining a sect grants cultivation resources (a speed bonus), a rank ladder to
+# climb, contribution quests, tournaments and comrades. Better sects demand
+# rarer talent; the demonic path is open to all but earns the world's enmity.
+# ---------------------------------------------------------------------------
+
+# (key, name, alignment, element, prestige, join_min_realm, join_tier, speed_bonus, rep_on_join, blurb)
+#   join_tier  -> minimum spiritual-root tier (see ROOT_TIER) the gate-keepers expect
+#   speed_bonus-> base cultivation-speed bonus from the sect's spirit arrays
+#   rep_on_join-> reputation swing in the wider world for wearing these robes
+SECTS = [
+    ("cloudmist", "Cloud Mist Sect (云雾宗)", "righteous", None, 1, 1, 0, 0.15, 5,
+     "A humble mountain sect that takes in nearly any youth with a flicker of "
+     "talent. A gentle first rung on the ladder."),
+    ("fiveelem", "Five Elements Pavilion (五行阁)", "neutral", None, 2, 1, 1, 0.25, 8,
+     "A pragmatic order that welcomes every spiritual root, prizing balance "
+     "over purity. Rich in resources, poor in glory."),
+    ("spiritbeast", "Spirit Beast Valley (灵兽谷)", "neutral", "Earth", 2, 1, 1, 0.30, 6,
+     "Beast-tamers who roam the wild ranges with monstrous companions at heel."),
+    ("azure", "Azure Cloud Sect (青云宗)", "righteous", "Wood", 3, 1, 3, 0.42, 18,
+     "One of the great orthodox sects; its azure robes open doors across ten "
+     "thousand li. It accepts only genuine talent."),
+    ("heavensword", "Heavenly Sword Sect (天剑宗)", "righteous", "Metal", 4, 2, 4, 0.58, 25,
+     "An elite sword sect of cold-eyed killers that admits only the very "
+     "sharpest blades. To wear its crest is to be feared."),
+    ("bloodcult", "Blood Demon Cult (血魔教)", "demonic", "Dark", 2, 1, 1, 0.55, -20,
+     "A hunted devil-path cult. Power comes fast and red, but every righteous "
+     "sect under heaven will want your head."),
+]
+
+SECT_BY_KEY = {s[0]: s for s in SECTS}
+
+# Spiritual-root talent tiers, used for sect-entry assessments.
+ROOT_TIER = {
+    "none": 0, "waste": 0, "quad": 1, "triple": 2,
+    "dual": 3, "heavenly": 4, "variant": 5, "chaos": 6,
+}
+
+
+# ---------------------------------------------------------------------------
+# Sect ranks (宗门职位) -- the ladder from sweeping disciple to Sect Master.
+# ---------------------------------------------------------------------------
+
+# (name, min_realm, min_contribution, speed_bonus, stipend_per_year)
+SECT_RANKS = [
+    ("Outer Disciple (外门弟子)", 0,    0, 0.00,   2),
+    ("Inner Disciple (内门弟子)", 2,   60, 0.10,   6),
+    ("Core Disciple (核心弟子)",  3,  220, 0.22,  16),
+    ("Elder (长老)",              4,  650, 0.38,  45),
+    ("Grand Elder (太上长老)",    6, 2200, 0.58, 120),
+    ("Sect Master (宗主)",        7, 6500, 0.85, 300),
+]
+
+
+# ---------------------------------------------------------------------------
+# Sect contribution quests (宗门任务).
+# ---------------------------------------------------------------------------
+
+# (name, min_rank, contribution, stones, danger, blurb)
+#   danger -> probability the quest erupts into a fight
+SECT_QUESTS = [
+    ("Tend the Spirit Herb Gardens",        0,   8,   4, 0.05,
+     "Quiet, patient work weeding the sect's spirit fields."),
+    ("Patrol the Outer Mountain",           0,  14,   8, 0.25,
+     "Walk the boundary wards and chase off stray beasts."),
+    ("Gather Frost Lotus on the Cold Peak",  0,  20,  12, 0.30,
+     "Climb the freezing summit for a rare alchemical bloom."),
+    ("Hunt a Rampaging Spirit Beast",       1,  38,  26, 0.55,
+     "A horned beast has been savaging the foothill villages."),
+    ("Subjugate a Rogue Cultivator",        1,  55,  42, 0.60,
+     "A masked rogue has been robbing the sect's outer disciples."),
+    ("Escort an Elder's Caravan",           2,  90,  64, 0.45,
+     "Guard a treasure caravan across bandit-haunted passes."),
+    ("Cleanse a Demonic Nest",              2, 150, 115, 0.72,
+     "Burn out a corpse-refiner's lair festering in the marsh."),
+    ("Chart a Secret Realm Rift",           3, 280, 210, 0.66,
+     "Enter a newly-opened ruin and map its perils for the sect."),
+]
+
+
+# ---------------------------------------------------------------------------
+# Relationships (人际关系) -- masters, rivals, friends, dao companions, foes.
+# ---------------------------------------------------------------------------
+
+# Affinity thresholds -> a label for how an NPC regards you.
+def relationship_label(affinity: int) -> str:
+    if affinity <= -60:
+        return "Sworn Enemy"
+    if affinity <= -25:
+        return "Hostile"
+    if affinity < 25:
+        return "Acquaintance"
+    if affinity < 55:
+        return "Friendly"
+    if affinity < 80:
+        return "Close"
+    return "Inseparable"
+
+# Display names for NPC roles.
+ROLE_LABEL = {
+    "master": "Master",
+    "rival": "Rival",
+    "friend": "Sworn Friend",
+    "companion": "Dao Companion",
+    "enemy": "Enemy",
+}
+
+# Tournament rank titles awarded for placing.
+TOURNAMENT_TITLES = [
+    (1, "Champion"),
+    (2, "Runner-up"),
+    (4, "Top Four"),
+    (8, "Top Eight"),
+]

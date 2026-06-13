@@ -44,6 +44,9 @@ Everything that defines your potential is rolled the instant you are born:
 - **Birth Standing (出身)** — from *Bond-Slave* and *Gutter Orphan* to *Noble
   Cultivation Clan* and *Imperial Bloodline*. This sets your starting reputation,
   spirit stones, and heirloom items.
+- **Appearance (容貌)** — from *Hideous* through *Comely* and *Peerless Beauty*
+  to *Immortal Grace*, rolled at birth and a heavy thumb on the Charm scale.
+  A striking face opens doors, sways elders, and draws dao companions.
 - **Birth Omen** — auspicious or ill portents that nudge your core attributes.
 - **Core attributes** — Comprehension (悟性), Constitution (根骨), Soul Sense
   (神识), Fortune (气运), and Charm (魅力), each rolled on a bell curve and then
@@ -83,6 +86,43 @@ Most cultivators wither at the lower realms — that is the genre. A blessed bir
 played with care can reach Mahayana, and only the rarest talent and fortune will
 ever **ascend to the Nine Heavens**.
 
+## Sects, ranks, quests & tournaments (option 9)
+
+Walking the dao alone is hard. Pledge yourself to one of the great **sects** —
+from the humble *Cloud Mist Sect*, which takes nearly anyone, up to the elite
+*Heavenly Sword Sect* and the hunted *Blood Demon Cult*. Better sects demand
+rarer spiritual roots and won't test a cultivator below a minimum realm; an
+element-matched root impresses an element-aligned sect.
+
+Membership grants:
+
+- a **cultivation-speed bonus** from the sect's spirit arrays,
+- a yearly **stipend** of spirit stones,
+- a **rank ladder** — Outer → Inner → Core Disciple → Elder → Grand Elder →
+  **Sect Master** — climbed by accruing contribution and reaching realm
+  thresholds,
+- **contribution quests** (tend gardens, hunt beasts, subjugate rogues, clear
+  demonic nests, chart secret realms) that pay contribution, stones and
+  reputation but can erupt into combat,
+- a **sect store** to exchange contribution for pills and the occasional manual,
+- the **grand tournament**: a single-elimination bracket of duels where placing
+  well brings renown, rewards, a lasting **title**, and sometimes admirers.
+
+## Relationships (option 0)
+
+People drift into your long life and change it. Spend years among them to forge
+bonds, each with an affinity that shifts from *Sworn Enemy* to *Inseparable*:
+
+- a **Master** sharpens your insight and passes down techniques,
+- a **Rival** drives you to greater heights through sparring,
+- **Sworn Friends** bring gifts and useful word of the world,
+- a **Dao Companion** doubles your progress through harmonised dual cultivation,
+- **Enemies** nurse grudges that may one day end in drawn blades.
+
+Charm and appearance decide who you draw to your side — and joining a sect or
+shining in a tournament is the surest way to meet a master, a rival, or a
+kindred spirit on the dao.
+
 ## Project layout
 
 ```
@@ -91,6 +131,8 @@ nine_heavens/
   character.py    # the cultivator + heavily-randomised birth generation
   cultivation.py  # qi, breakthroughs and the Heavenly Tribulation
   world.py        # adventures, encounters and combat
+  sect.py         # sects, ranks, contribution quests and tournaments
+  social.py       # relationships: masters, rivals, friends, dao companions
   game.py         # interactive menu loop and rendering
   __main__.py     # `python -m nine_heavens`
 play.py           # convenience launcher
