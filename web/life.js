@@ -178,9 +178,11 @@ export function ageUp(c, rng) {
   c.age += 1;
   const events = [];
 
-  // Passive background cultivation, once your root has awakened.
+  // A full natural year of background cultivation, once your root has awakened.
+  // This (scaled by your spiritual root) is the main driver of progress, so
+  // lifespan stays the binding constraint and talent decides how far you climb.
   if (c.awakened && c.root) {
-    const gain = E.cultivationSpeed(c) * 0.6 * rng.uniform(0.85, 1.15);
+    const gain = E.cultivationSpeed(c) * rng.uniform(0.85, 1.15);
     c.qi += gain;
     advanceStages(c);
     if (c.sectKey) c.spiritStones += D.SECT_RANKS[c.sectRank][4];

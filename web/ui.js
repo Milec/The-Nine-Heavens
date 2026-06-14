@@ -248,8 +248,8 @@ function openCultivate() {
     const mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
     if (E.canBreakthrough(c))
       mk("Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
-    mk("Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.cultivate(c, state.rng, 1)));
-    mk("Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.cultivate(c, state.rng, 1, true)), { disabled: c.pills <= 0 });
+    mk("Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15)));
+    mk("Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true)), { disabled: c.pills <= 0 });
     mk("Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
     mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : "adventure & battle", doWander, { disabled: c.age < AGE_MIN.wander });
     mk("Techniques & Mastery", "train your arts", openTechniques, { full: true });
