@@ -96,19 +96,22 @@ function renderProfile() {
   $("pf-bars").innerHTML = bars.join("");
 
   const chips = $("pf-chips"); chips.innerHTML = "";
-  const add = (label, val, warn) => chips.appendChild(el("span", "chip" + (warn ? " warn" : ""), `${label} <b>${val}</b>`));
+  const add = (label, val, cls) => chips.appendChild(el("span", "chip" + (cls ? " " + cls : ""), `${label} <b>${val}</b>`));
   add("Age", `${c.age}/${c.maxAge}`);
-  add("Deeds", `${deedsLeft()}/${ACTIONS_PER_YEAR}`, deedsLeft() <= 0);
+  const dl = deedsLeft();
+  add("Deeds", "●".repeat(dl) + "○".repeat(Math.max(0, ACTIONS_PER_YEAR - dl)), dl <= 0 ? "warn" : "good");
   if (c.awakened) add("✦", Math.floor(E.power(c)));
-  add("Fame", D.standingLabel(c.reputation));
-  add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`);
+  add("Fame", D.standingLabel(c.reputation), c.reputation >= 90 ? "good" : c.reputation <= -12 ? "bad" : "");
+  add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`, c.karma >= 40 ? "good" : c.karma <= -40 ? "bad" : "");
   add("💎", c.spiritStones);
   if (c.herbs) add("🌿", c.herbs);
   if (D.REGION_BY_KEY[c.region]) add("📍", D.REGION_BY_KEY[c.region][2]);
-  if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", true);
-  if (c.awakened && E.canBreakthrough(c)) add("Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, true);
+  if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", "bad");
+  if (c.awakened && E.canBreakthrough(c)) add("⚑ Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, "warn");
 
-  $("tabbar").querySelector(".tab-age").classList.toggle("ready", c.awakened && E.canBreakthrough(c));
+  const ageTab = $("tabbar").querySelector(".tab-age");
+  ageTab.classList.toggle("ready", c.awakened && E.canBreakthrough(c));
+  ageTab.classList.toggle("spent", dl <= 0 && c.alive);
   save();
   checkAchievements();
 }
@@ -956,6 +959,8 @@ function wanderFortune(c) {
 const TABS = { cultivate: openCultivate, people: openPeople, activities: openActivities, sect: openSect, age: doAgeUp };
 document.querySelectorAll("#tabbar .tab").forEach(btn => btn.addEventListener("click", () => { const t = btn.dataset.tab; if (TABS[t]) TABS[t](); }));
 $("pf-more").addEventListener("click", () => { if (state.c) openSheet(); });
+$("pf-avatar").addEventListener("click", () => { if (state.c) openSheet(); });
+$("pf-name").addEventListener("click", () => { if (state.c) openSheet(); });
 $("overlay-close").addEventListener("click", () => { if (state.overlayClosable) closeOverlay(); });
 $("overlay").addEventListener("click", e => { if (e.target === $("overlay") && state.overlayClosable) closeOverlay(); });
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));

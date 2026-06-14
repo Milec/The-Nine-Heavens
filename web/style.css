@@ -171,3 +171,71 @@ body {
 .brew-band { position: absolute; top: 0; bottom: 0; background: rgba(111,214,179,.30); border-left: 2px solid var(--jade); border-right: 2px solid var(--jade); }
 .brew-needle { position: absolute; top: -3px; bottom: -3px; width: 4px; margin-left: -2px; background: var(--gold); box-shadow: 0 0 8px var(--gold); border-radius: 2px; transition: left .2s ease; }
 .brew-stats { display: flex; justify-content: space-between; font-size: .74rem; color: var(--muted); margin-top: 8px; }
+
+/* ============================ polish pass ============================== */
+/* color-coded status chips */
+.chip.good { color: var(--jade); border-color: #2f6f55; }
+.chip.bad { color: var(--red); border-color: #7a3a3a; }
+.chip b { letter-spacing: .04em; }
+
+/* Age-Up button nudges you when the year's deeds are spent */
+.tab-age.spent { border-color: var(--gold); animation: deedpulse 1.5s ease-in-out infinite; }
+@keyframes deedpulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(232,200,122,.35); }
+  50% { box-shadow: 0 0 22px rgba(232,200,122,.85); }
+}
+.tab-age::after { content: ""; }
+
+/* tab bar: clearer pressed/active feel + larger tap glyphs */
+.tab { transition: background .15s ease, color .15s ease; }
+.tab:active { color: var(--ink); }
+
+/* nicer scrollbars (WebKit) */
+#log::-webkit-scrollbar, #overlay-body::-webkit-scrollbar, .cbt-feed::-webkit-scrollbar { width: 6px; }
+#log::-webkit-scrollbar-thumb, #overlay-body::-webkit-scrollbar-thumb, .cbt-feed::-webkit-scrollbar-thumb { background: #2c3354; border-radius: 3px; }
+
+/* life feed: a touch more breathing room and clearer turn separation */
+.turn { padding: 10px 2px; }
+.line { line-height: 1.5; }
+.line.epic { text-shadow: 0 0 10px rgba(232,200,122,.25); }
+.year-tag {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  background: #1b2138; border: 1px solid var(--line); color: var(--gold);
+  letter-spacing: .14em; margin: 12px 0 4px;
+}
+.banner {
+  position: relative; margin: 6px 0; padding: 8px 6px; font-size: .95rem;
+}
+.banner::before, .banner::after {
+  content: ""; position: absolute; top: 50%; width: 18%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold2));
+}
+.banner::before { left: 4%; }
+.banner::after { right: 4%; transform: scaleX(-1); }
+
+/* buttons: smoother feedback, primary gets a left accent bar */
+.mbtn { transition: transform .08s ease, background .15s ease, border-color .15s ease; position: relative; }
+.mbtn.primary::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--gold);
+}
+.mbtn.primary { padding-left: 18px; }
+.listrow { transition: background .15s ease, transform .08s ease; }
+.listrow:active { transform: scale(.99); }
+
+/* profile: subtle depth on the avatar + name shadow */
+#pf-name { text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.pf-avatar { transition: transform .2s ease; }
+.pf-avatar:active { transform: scale(.94); }
+
+/* vital bars: a hair taller and a soft inner highlight for legibility */
+.vbar .vb-track { height: 9px; }
+.vbar .vb-fill { box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
+
+/* event modal card: bigger emoji, softer glow */
+.event-card { box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+.event-card .ev-emoji { font-size: 2.4rem; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
+
+/* combat skill buttons: clearer affordance */
+.cbt-skill { transition: transform .08s ease, background .15s ease; }
+.cbt-skill:not(.off):active { transform: scale(.96); background: #2b3556; }
