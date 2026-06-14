@@ -144,7 +144,11 @@ Everything that defines your potential is rolled the instant you are born:
   the near-mythical *Chaos Root*. It multiplies every scrap of qi you ever
   absorb. A *Mortal Veins* roll means no spiritual root at all.
 - **Physique (体质)** — usually an ordinary body, but rarely a destiny-altering
-  constitution like the *Nine-Yang Divine Body* or *Innate Dao Embryo*.
+  constitution like the *Nine-Yang Divine Body* (faster cultivation, immune to
+  burning, lethal to demons) or the *Innate Dao Embryo* (much faster cultivation
+  and Dao insight, easier breakthroughs). Special physiques grant **lasting
+  bonuses** to cultivation, combat, healing or survival — not just birth stats.
+  Tap any stat (or the **ⓘ Glossary** in your character sheet) to learn what it does.
 - **Birth Standing (出身)** — from *Bond-Slave* and *Gutter Orphan* to *Noble
   Cultivation Clan* and *Imperial Bloodline*. This sets your starting reputation,
   spirit stones, and heirloom items.

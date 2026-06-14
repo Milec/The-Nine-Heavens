@@ -319,3 +319,16 @@ export const REGIONS = [
   ["starfall", "Starfall Frontier", "星陨之地", 2.0, "A shattered immortal battlefield at the edge of the map. Death and fortune in equal measure."],
 ];
 export const REGION_BY_KEY = Object.fromEntries(REGIONS.map(r => [r[0], r]));
+
+/* Ongoing physique (体质) effects, beyond the birth-stat multipliers. These bite
+ * throughout life — cultivation speed, breakthroughs, Dao insight, and combat. */
+export const PHYSIQUE_EFFECTS = {
+  ordinary: { desc: "An ordinary frame — no special boons." },
+  sturdy:   { mitig: 0.10, hp: 0.25, desc: "Iron bones: +10% combat damage-reduction and +25% battle stamina." },
+  spirit:   { dodge: 0.10, qiPool: 0.30, dao: 0.25, desc: "Keen spirit sense: +10% dodge, +30% combat qi, and far faster Dao insight." },
+  yang:     { cultivate: 0.15, burnImmune: true, vsDemon: 0.30, element: "Fire", desc: "Nine-Yang body: +15% cultivation, immune to burning, +30% damage vs demons, innate Fire." },
+  yin:      { cultivate: 0.10, healBonus: 0.6, element: "Ice", desc: "Grand-Yin body: +10% cultivation, +60% to healing arts, innate Ice." },
+  dao:      { cultivate: 0.30, breakthrough: 0.08, dao: 0.45, desc: "Innate Dao Embryo: +30% cultivation, +8% breakthrough odds, greatly faster Dao insight." },
+  immortal: { mitig: 0.18, hp: 0.50, deathSave: 0.25, desc: "Undying Golden Body: heavy damage-reduction, +50% battle stamina, and a chance to cheat death." },
+};
+export const physEffect = c => PHYSIQUE_EFFECTS[c.physiqueKey] || PHYSIQUE_EFFECTS.ordinary;

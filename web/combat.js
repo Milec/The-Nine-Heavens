@@ -130,16 +130,18 @@ export function makeTribulation(c, rng) {
 /* ----------------------------- the battle -------------------------------- */
 export function createBattle(c, enemyDef, rng, opts = {}) {
   const P = E.power(c);
-  const pMax = P * 1.9;
+  const ph = D.physEffect(c);                       // ongoing physique effects
+  const pMax = P * 1.9 * (1 + (ph.hp || 0));
   const player = {
     isPlayer: true, ref: c, name: c.name,
     maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),
-    maxQi: 40 + c.soul * 0.4 + c.realm * 6, qi: 40 + c.soul * 0.4 + c.realm * 6,
+    maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)),
     atk: P - E.beastPower(c),
-    mitig: clampN(c.constitution / 300 + c.realm * 0.012, 0, 0.5),
+    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0), 0, 0.6),
     crit: clampN(c.luck / 400 + 0.05, 0, 0.6),
-    dodge: clampN(c.luck / 600 + c.soul / 900 + (c.equippedArtifact === "cloud_boots" ? 0.1 : 0), 0, 0.45),
-    element: (c.awakened && c.root.elements.length) ? c.root.elements[0] : null,
+    dodge: clampN(c.luck / 600 + c.soul / 900 + (c.equippedArtifact === "cloud_boots" ? 0.1 : 0) + (ph.dodge || 0), 0, 0.5),
+    healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,
+    element: (c.awakened && c.root.elements.length) ? c.root.elements[0] : (ph.element || null),
     shield: 0, statuses: [], beast: E.beastPower(c),
   };
   const ep = enemyDef.power;
@@ -185,6 +187,7 @@ function addStatus(u, type, turns, value) { u.statuses.push({ type, turns, value
 function tickStart(B, u, lines) {
   // Damage-over-time and regen apply at the start of the unit's turn.
   for (const s of u.statuses) {
+    if (s.type === "burn" && u.burnImmune) continue;  // Nine-Yang body shrugs off flame
     if (s.type === "burn" || s.type === "bleed") { const d = u.maxHp * s.value; u.hp -= d; lines.push(`${icon(u)} ${u.name} suffers ${Math.round(d)} ${s.type} damage.`); }
     if (s.type === "regen") { u.hp = Math.min(u.maxHp, u.hp + u.maxHp * s.value); }
   }
@@ -208,7 +211,7 @@ function resolveSkill(B, att, def, skill, lines) {
     return;
   }
   if (skill.type === "heal") {
-    const heal = (att.maxHp * skill.heal + (att.ref ? att.ref.soul * 0.6 : 0)) * mm;
+    const heal = (att.maxHp * skill.heal + (att.ref ? att.ref.soul * 0.6 : 0)) * mm * (1 + (att.healBonus || 0));
     att.hp = Math.min(att.maxHp, att.hp + heal);
     if (skill.cleanse) att.statuses = att.statuses.filter(s => !["burn", "bleed", "weaken"].includes(s.type));
     lines.push(`${icon(att)} ${att.name} — ${skill.name || "heals"}: +${Math.round(heal)} HP${skill.cleanse ? ", cleansed" : ""}.`);
@@ -223,9 +226,11 @@ function resolveSkill(B, att, def, skill, lines) {
   if (skill.karma && att.ref) att.ref.karma += skill.karma;
   // Damage (supports multi-hit; each hit rolls its own crit and element).
   const hits = skill.hits || 1;
+  const demonFoe = !att.isPlayer ? false : (def.element === "Dark" || /demon|corpse|blood|ghost|devil|fiend|abyss/i.test(def.name || ""));
+  const demonBonus = (att.vsDemon && demonFoe) ? (1 + att.vsDemon) : 1;
   for (let h = 0; h < hits; h++) {
     if (def.hp <= 0) break;
-    let base = att.atk * skill.dmg * statusAtkMult(att) * mm;
+    let base = att.atk * skill.dmg * statusAtkMult(att) * mm * demonBonus;
     let mult = elementMult(skill.element || att.element, def.element);
     const crit = rng.random() < att.crit;
     if (crit) mult *= 2;
@@ -242,7 +247,7 @@ function resolveSkill(B, att, def, skill, lines) {
     if (cs && dmg > 0) { const refl = Math.round(dmg * cs.value); att.hp -= refl; def.statuses = def.statuses.filter(s => s !== cs); lines.push(`   ✦ ${def.name} reflects ${refl} damage back!`); }
   }
   // Status afflictions (applied once, if the foe still stands).
-  const applyTarget = t => { if (t && def.hp > 0 && (t.chance == null || rng.random() < t.chance)) { addStatus(def, t.type, t.turns + 1, t.value); lines.push(`   ${def.name} is afflicted: ${t.type}!`); } };
+  const applyTarget = t => { if (t && def.hp > 0 && !(t.type === "burn" && def.burnImmune) && (t.chance == null || rng.random() < t.chance)) { addStatus(def, t.type, t.turns + 1, t.value); lines.push(`   ${def.name} is afflicted: ${t.type}!`); } };
   applyTarget(skill.target);
   applyTarget(skill.target2);
 }
@@ -343,7 +348,7 @@ function finishBattle(B) {
       c.qi += E.qiToNext(c) * 0.3;
       lines.push("⚡ You weather the Heavenly Tribulation! The clouds disperse and your new realm settles, unshakable.");
     } else {
-      if (rng.random() < c.luck / 320) { c.hp = c.maxHp * 0.1; lines.push("⚡ The final bolt should have ended you — a hidden fortune drags you back from oblivion!"); }
+      if (rng.random() < c.luck / 320 + (D.physEffect(c).deathSave || 0)) { c.hp = c.maxHp * 0.1; lines.push("⚡ The final bolt should have ended you — but your undying flesh drags you back from oblivion!"); }
       else { c.alive = false; c.causeOfDeath = `struck down by the ${E.realmName(c)} tribulation`; c.hp = 0; c.log.push([c.age, "Died crossing the Heavenly Tribulation."]); lines.push("☠ The tribulation lightning scatters your soul. You die crossing the heavens."); }
     }
     E.recomputeMaxHp(c);
@@ -377,7 +382,7 @@ function finishBattle(B) {
     c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac));
     lines.push("You live to cultivate another day — but win no spoils.");
   } else { // lose
-    if (rng.random() < c.luck / 300) { c.hp = c.maxHp * 0.12; lines.push("At death's door, blind fortune lets you crawl away alive!"); }
+    if (rng.random() < c.luck / 300 + (D.physEffect(c).deathSave || 0)) { c.hp = c.maxHp * 0.12; lines.push("At death's door, fortune (or undying flesh) lets you crawl away alive!"); }
     else { c.alive = false; c.causeOfDeath = `slain by a ${En.name}`; c.hp = 0; c.log.push([c.age, `Killed in battle by a ${En.name}.`]); lines.push(`☠ The ${En.name} strikes you down. Your journey ends here.`); }
   }
   E.recomputeMaxHp(c);

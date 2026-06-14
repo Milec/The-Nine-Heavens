@@ -239,3 +239,24 @@ body {
 /* combat skill buttons: clearer affordance */
 .cbt-skill { transition: transform .08s ease, background .15s ease; }
 .cbt-skill:not(.off):active { transform: scale(.96); background: #2b3556; }
+
+/* ---- stat hint bubble + tappable affordances ---- */
+#tip {
+  position: fixed; left: 10px; right: 10px; bottom: calc(86px + var(--safe-b));
+  z-index: 60; max-width: 700px; margin: 0 auto;
+  background: linear-gradient(180deg, #262e4d, #1b2138);
+  border: 1px solid var(--gold2); border-radius: 14px; padding: 12px 14px;
+  color: var(--ink); font-size: .86rem; line-height: 1.45;
+  box-shadow: 0 10px 30px rgba(0,0,0,.55);
+  opacity: 0; transform: translateY(12px); pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+#tip.show { opacity: 1; transform: none; pointer-events: auto; }
+#tip b { color: var(--gold); }
+#tip .tip-x { margin-top: 7px; font-size: .68rem; color: var(--muted); text-align: right; }
+.chip.tappable { cursor: pointer; }
+.chip.tappable b { border-bottom: 1px dotted var(--gold2); }
+.vbar.tappable { cursor: pointer; }
+.kv.tappable { cursor: pointer; }
+.kv.tappable:active { background: rgba(255,255,255,.03); }
+.kv .info-i { color: var(--gold2); font-size: .82em; margin-left: 3px; }
