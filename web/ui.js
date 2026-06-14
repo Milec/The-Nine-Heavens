@@ -28,6 +28,7 @@ const GLOSSARY = {
   root: ["Spiritual Root 灵根", "Your innate talent for cultivation — the single biggest factor in how far you can ever climb. Revealed at the age-6 Awakening."],
   physique: ["Physique 体质", "Your body's nature. Special physiques grant lasting boons to cultivation, combat, healing or survival (see your sheet)."],
   realm: ["Realm 境界", "Your cultivation stage — from Mortal up the eleven realms to Immortal Ascension. Each realm lengthens your lifespan."],
+  abode: ["Cave Abode 洞府", "A home base staked on a spirit vein. Each year it yields spirit herbs and stones and quickens your cultivation; you can also seal yourself inside for a deep seclusion. Build and upgrade it from Activities."],
 };
 function showTip(key) {
   const g = GLOSSARY[key]; if (!g) return;
@@ -434,8 +435,57 @@ function openActivities() {
     mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
     mk("Refine Pills", sub("alchemy", `alchemy · ${c.herbs} herbs`), openAlchemy, { disabled: young("alchemy") });
     mk("Travel the World", young("travel") ? `from age ${AGE_MIN.travel}` : (D.REGION_BY_KEY[c.region] ? D.REGION_BY_KEY[c.region][1] : "regions"), openTravel, { disabled: young("travel") });
+    const ab = D.abodeAt(c.abode || 0);
+    mk("Your Cave Abode", ab ? `${ab[2]} · home base` : "establish a home base", openAbode, { full: true });
     mk("Treasures & Beast", "your assets", openAssets);
     body.appendChild(grid);
+  });
+}
+function openAbode() {
+  const c = state.c;
+  openOverlay("Cave Abode 洞府", body => {
+    const cur = D.abodeAt(c.abode || 0);
+    const next = D.abodeNext(c.abode || 0);
+    if (cur) {
+      body.appendChild(el("div", "section-h", `${cur[1]} · ${cur[2]}`));
+      body.appendChild(el("p", "note", cur[8]));
+      body.appendChild(infoRows([
+        ["Cultivation bonus", `+${Math.round(cur[4] * 100)}%`, "abode"],
+        ["Spirit herbs / year", `+${cur[5]} 🌿`],
+        ["Spirit stones / year", `+${cur[6]} 💎`],
+        ["Seclusion strength", `${cur[7].toFixed(2)}× (vs 0.15 normal)`],
+      ]));
+      const sec = el("button", "mbtn full primary");
+      sec.innerHTML = `Cultivate in Seclusion<small>a deed · seal yourself in for a deep cultivation</small>`;
+      sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng));
+      body.appendChild(sec);
+      if (c.pills > 0) {
+        const secp = el("button", "mbtn full");
+        secp.innerHTML = `Seclusion + Qi Pill<small>a deed · ${c.pills} pill(s) left</small>`;
+        secp.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng, true));
+        body.appendChild(secp);
+      }
+    } else {
+      body.appendChild(el("p", "note", "You have no cave abode yet — only the open road and borrowed corners. Stake a claim on a spirit vein to build a home that cultivates while you live, yielding herbs and stones each year."));
+    }
+    if (next) {
+      const canAfford = c.spiritStones >= next[3];
+      body.appendChild(el("div", "section-h", cur ? "Upgrade" : "Establish an Abode"));
+      body.appendChild(el("p", "note", `${next[1]} (${next[2]}) — ${next[8]}`));
+      body.appendChild(infoRows([
+        ["Cost", `${next[3]} 💎 (you have ${c.spiritStones})`],
+        ["Cultivation", `+${Math.round(next[4] * 100)}%`],
+        ["Yield / year", `+${next[5]} 🌿  +${next[6]} 💎`],
+      ]));
+      const up = el("button", "mbtn full" + (canAfford ? " primary" : ""));
+      up.innerHTML = `${cur ? "Upgrade to" : "Establish"} ${escapeHtml(next[1])}<small>${canAfford ? "free · spend " + next[3] + " stones" : "need " + next[3] + " stones"}</small>`;
+      if (canAfford) up.onclick = () => runFree(() => L.upgradeAbode(c));
+      else up.disabled = true;
+      body.appendChild(up);
+    } else if (cur) {
+      body.appendChild(el("p", "note", "Your abode is a Cave Heaven — the very pinnacle. There is nothing higher to build."));
+    }
+    backBtn(body, openActivities);
   });
 }
 function openAlchemy() {
@@ -582,7 +632,9 @@ function openSheet() {
       ["Soul Sense 神识", c.soul, "soul"], ["Fortune 气运", c.luck, "fortune"], ["Charm 魅力", c.charm, "charm"],
     ]));
     body.appendChild(el("div", "section-h", "Path"));
+    const ab = D.abodeAt(c.abode || 0);
     const rows = [["Sect", c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
+      ["Abode", ab ? `${ab[1]} (${ab[2]})` : "None", "abode"],
       ["Treasure", c.equippedArtifact ? E.describeArtifact(c.equippedArtifact) : "(none)"]];
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);

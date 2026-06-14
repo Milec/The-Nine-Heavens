@@ -19,6 +19,7 @@ function augment(c, rng, sex) {
   c.firedEvents = [];
   c.mastery = c.mastery || {};
   c.region = c.region || "azuredomain";
+  if (c.abode == null) c.abode = 0;
   generateFamily(c, rng);
   return c;
 }
@@ -188,6 +189,10 @@ export function ageUp(c, rng) {
     if (c.sectKey) c.spiritStones += D.SECT_RANKS[c.sectRank][4];
     if (c.hp < c.maxHp) c.hp = Math.min(c.maxHp, c.hp + c.maxHp * 0.5);
   }
+
+  // Your cave abode yields spirit herbs and stones from its fields and vein.
+  const abode = D.abodeAt(c.abode || 0);
+  if (abode) { c.herbs += abode[5]; c.spiritStones += abode[6]; }
 
   // Your nemesis cultivates too, always shadowing your strength.
   const nem = getNemesis(c);
@@ -389,6 +394,30 @@ export function teachTo(c, npc, techKey) {
   c.karma += 1;
   note(c, `Taught ${name} to ${npc.name}.`);
   return [`You pass on ${name} to ${npc.name}. They train day and night to honour the gift. (+Happiness, +Karma)`];
+}
+
+/* ----------------------------- cave abode -------------------------------- */
+// Establish a new abode or upgrade your existing one (administrative — no year,
+// no deed; you simply spend the stones). Returns narration lines.
+export function upgradeAbode(c) {
+  const next = D.abodeNext(c.abode || 0);
+  if (!next) return ["Your abode is already a Cave Heaven — the very pinnacle. There is nothing higher to build."];
+  if (c.spiritStones < next[3]) return [`You need ${next[3]} spirit stones to ${c.abode ? "expand your abode into" : "establish"} the ${next[1]}. (You have ${c.spiritStones}.)`];
+  const was = c.abode || 0;
+  c.spiritStones -= next[3];
+  c.abode = next[0];
+  note(c, `${was ? "Upgraded your abode to" : "Established"} the ${next[1]} (${next[2]}).`);
+  return [`${was ? "You pour resources into the works, and your abode rises into" : "You stake your claim on a spirit vein and raise"} the ${next[1]} (${next[2]})! Each year it now yields ${next[5]} spirit herbs and ${next[6]} stones, and quickens your cultivation by +${Math.round(next[4] * 100)}%.`];
+}
+
+// Seclude yourself in your abode for a stronger bout of cultivation (a deed; the
+// burst is ageless, like Focused Cultivation, but its intensity scales with the
+// abode's grade). Uses a Qi-Gathering Pill if available and asked.
+export function secludeInAbode(c, rng, usePill = false) {
+  const abode = D.abodeAt(c.abode || 0);
+  if (!abode) return ["You have no abode to seclude yourself in. Establish one first."];
+  const msgs = [`You seal the entrance of your ${abode[1]} and sink into deep seclusion.`];
+  return msgs.concat(E.gainQi(c, rng, abode[7], usePill));
 }
 
 /* ------------------------------ queries ---------------------------------- */

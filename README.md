@@ -113,6 +113,11 @@ Three more systems round out a cultivator's life:
   tournament champion, your nemesis) **enter a second phase at half health** and
   **telegraph a devastating element-themed ultimate** — guard, heal, or be
   shattered when it lands.
+- **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
+  home base, from a Humble Cave Dwelling all the way to a legendary **Cave
+  Heaven**. Each year it **yields spirit herbs and stones** and **quickens your
+  cultivation**, and you can **seal yourself in for a deep seclusion** — a steady
+  long-term sink for the fortune you gather and a home that grows with you.
 - **Achievements & Legacy** — feats persist across **every reincarnation and new
   soul**. Each achievement earns **Heavenly Favor** that blesses the innate
   Comprehension and Fortune of all your future lives — true meta-progression.

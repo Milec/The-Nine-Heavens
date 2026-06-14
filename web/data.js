@@ -335,6 +335,24 @@ export const REGIONS = [
 ];
 export const REGION_BY_KEY = Object.fromEntries(REGIONS.map(r => [r[0], r]));
 
+/* Cave Abode (洞府): a personal home-base staked on a spirit vein. You establish
+ * one and upgrade it across a lifetime; each year it yields spirit herbs and
+ * spirit stones and quickens your cultivation, and you can seclude in it for a
+ * stronger bout of cultivation. Level 0 means you have no abode yet. */
+// [level, name, cn, cost, qiBonus, herbsPerYear, stonesPerYear, seclusion, blurb]
+export const ABODES = [
+  [1, "Humble Cave Dwelling", "石洞",     50,    0.04,  1,   2, 0.16, "A dry cave with a crude qi-gathering array scratched into the stone."],
+  [2, "Mountain Spirit Cottage", "山居",  180,   0.08,  2,   6, 0.18, "A tidy cottage on a thin spirit vein, with a small herb plot out back."],
+  [3, "Spirit-Gathering Abode", "聚灵洞府", 600,  0.12,  4,  16, 0.21, "A true cave-abode astride a living spirit vein; arrays hum day and night."],
+  [4, "Cloud-Veined Estate", "云脉别业",  2000,  0.16,  7,  40, 0.24, "A walled estate over a rich vein — herb fields, spirit ponds, a guardian array."],
+  [5, "Earthly Blessed Land", "洞天福地", 7000,  0.20, 12,  95, 0.28, "A blessed land where qi falls like rain and rare herbs grow wild."],
+  [6, "Cave Heaven", "大洞天",          24000,  0.25, 20, 240, 0.33, "A pocket paradise folded out of the world itself, where immortals are forged."],
+];
+// abodeAt(level): the row for your current level (null if none).
+export const abodeAt = lvl => (lvl > 0 && lvl <= ABODES.length) ? ABODES[lvl - 1] : null;
+// abodeNext(level): the row for the next tier up (null if already at the peak).
+export const abodeNext = lvl => (lvl || 0) < ABODES.length ? ABODES[lvl || 0] : null;
+
 /* Ongoing physique (体质) effects, beyond the birth-stat multipliers. These bite
  * throughout life — cultivation speed, breakthroughs, Dao insight, and combat. */
 export const PHYSIQUE_EFFECTS = {

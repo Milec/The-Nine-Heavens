@@ -64,6 +64,7 @@ const artifactQiBonus = c => artifactOf(c) ? artifactOf(c)[4] : 0;
 export const daoPowerBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][2] : 0), 0);
 export const daoBreakthroughBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][3] : 0), 0);
 export const beastPower = c => (c.beast && c.beast.alive) ? c.beast.power : 0;
+export const abodeQiBonus = c => { const a = D.abodeAt(c.abode || 0); return a ? a[4] : 0; };
 
 export function cultivationSpeed(c) {
   const rootMult = c.root ? c.root.multiplier : 0.1;
@@ -72,7 +73,7 @@ export function cultivationSpeed(c) {
   const timeDao = c.daos.includes("time") ? 0.25 : 0.0;
   const phys = D.physEffect(c).cultivate || 0;
   return rootMult * comp * (1 + techQiBonus(c)) * realmFactor * 1.8 *
-    (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao + phys);
+    (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao + phys + abodeQiBonus(c));
 }
 export function basePower(c) {
   const rf = c.realm * 10 + c.stage + 1;
@@ -131,7 +132,7 @@ function newCharacter() {
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, titles: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0,
-    artifacts: [], equippedArtifact: null, beast: null,
+    artifacts: [], equippedArtifact: null, beast: null, abode: 0,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
