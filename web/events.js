@@ -765,6 +765,50 @@ export const EVENTS = [
     cond: c => c.realm >= 1,
     auto: (c, rng, A) => { A.karma(4); c.reputation += 2; A.happy(4); return "A drought withers a region of mortal farms. With a flick of qi you call down a gentle rain over the cracked fields. The peasants build you a little shrine. (+Karma, +Reputation)"; },
   },
+
+  /* ===================== your cave abode, in the world =============== */
+  {
+    id: "abode_raid", weight: 5, awakened: true, cond: c => (c.abode || 0) >= 2,
+    text: c => { const a = D.abodeAt(c.abode); return `Raiders covet the spirit vein beneath your ${a ? a[1] : "abode"} and descend in force to plunder it!`; },
+    choices: [
+      { label: "Rally your home and fight them off", result: (c, rng, A) => {
+        const reg = D.REGION_BY_KEY[c.abodeRegion || c.region || "azuredomain"];
+        const danger = reg ? reg[3] : 1;
+        const disciples = c.relationships.filter(n => n.alive && n.resides && n.role === "disciple").length;
+        // The guardian array (abode grade), a war-beast and resident disciples all blunt the assault.
+        const defense = Math.min(0.55, (c.abode || 0) * 0.05 + (c.beast && c.beast.alive ? 0.12 : 0) + disciples * 0.08);
+        const pre = [];
+        if ((c.abode || 0) >= 3) pre.push("Your guardian array roars to life, walls of light snapping up around the abode.");
+        if (disciples) pre.push(`Your ${disciples} resident disciple${disciples > 1 ? "s" : ""} take up arms at your side.`);
+        if (c.beast && c.beast.alive) pre.push(`${c.beast.name} bares its fangs beside you.`);
+        const ePower = A.power() * rng.uniform(1.0, 1.4) * danger * (1 - defense);
+        const res = A.fight(["Abode Raiders", ePower, (c.realm + 1) * 8, "rogue"]);
+        if (c.alive) { c.reputation += 4; A.karma(2); res.push("The raiders break and flee; your home stands unbroken. Word spreads that your abode is not to be trifled with. (+Reputation)"); }
+        return pre.concat(res);
+      } },
+      { label: "Loose the array and slip away", result: (c, rng, A) => {
+        const hasArray = (c.abode || 0) >= 3;
+        const lostH = Math.min(c.herbs, Math.floor(c.herbs * (hasArray ? 0.2 : 0.4)));
+        const lostS = Math.min(c.spiritStones, Math.floor(c.spiritStones * (hasArray ? 0.15 : 0.3)));
+        A.herbs(-lostH); A.stones(-lostS); A.happy(-4);
+        return hasArray
+          ? `You loose the guardian array to cover your retreat. The raiders strip ${lostH} herbs and ${lostS} stones from the outer fields, but you and your people slip away unharmed.`
+          : `With no proper array to hold them, you grab your people and flee. The raiders plunder ${lostH} herbs and ${lostS} stones before melting back into the wilds.`;
+      } },
+    ],
+  },
+  {
+    id: "abode_bloom", weight: 4, awakened: true, cond: c => (c.abode || 0) >= 3,
+    auto: (c, rng, A) => { const h = rng.randint(3, 8) + (c.abode || 0); A.herbs(h); if (rng.random() < 0.3) { c.pills += 1; return `A rare spirit herb blooms in your abode's fields, potent enough to refine on the spot. (+${h} herbs, +1 pill)`; } return `The spirit vein beneath your abode surges; your herb fields run riot with growth. (+${h} herbs)`; },
+  },
+  {
+    id: "abode_guest", weight: 4, awakened: true, cond: c => (c.abode || 0) >= 3 && c.reputation >= 30,
+    text: c => { const a = D.abodeAt(c.abode); return `A travelling cultivator, having heard of your ${a ? a[1] : "abode"}, asks leave to rest a night beneath your roof.`; },
+    choices: [
+      { label: "Welcome them as a guest", result: (c, rng, A) => { A.karma(2); if (rng.random() < 0.4) { const f = A.meet("friend", { affinity: 22 }); return `You share wine and dao-talk late into the night. ${f.name} leaves a firm friend, and your hospitality's renown grows.`; } A.happy(4); cap(c, "comprehension", 1); return "Your guest repays the kindness with a rare insight gleaned in distant lands before departing at dawn. (+Comprehension)"; } },
+      { label: "Turn them away", result: (c, rng, A) => { A.karma(-1); return "You value your seclusion over a stranger's comfort. They bow stiffly and walk on into the night."; } },
+    ],
+  },
 ];
 
 /* ----------------------- eligibility & rolling --------------------------- */

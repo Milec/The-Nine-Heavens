@@ -20,6 +20,7 @@ function augment(c, rng, sex) {
   c.mastery = c.mastery || {};
   c.region = c.region || "azuredomain";
   if (c.abode == null) c.abode = 0;
+  if (c.abodeRegion == null) c.abodeRegion = null;
   generateFamily(c, rng);
   return c;
 }
@@ -190,9 +191,9 @@ export function ageUp(c, rng) {
     if (c.hp < c.maxHp) c.hp = Math.min(c.maxHp, c.hp + c.maxHp * 0.5);
   }
 
-  // Your cave abode yields spirit herbs and stones from its fields and vein.
-  const abode = D.abodeAt(c.abode || 0);
-  if (abode) { c.herbs += abode[5]; c.spiritStones += abode[6]; }
+  // Your cave abode yields herbs and stones — scaled by its region's wildness,
+  // its resident disciples (who tend the fields) and a foraging spirit beast.
+  abodeYearly(c, rng, events);
 
   // Your nemesis cultivates too, always shadowing your strength.
   const nem = getNemesis(c);
@@ -329,6 +330,8 @@ export function relationActions(c, npc) {
   if (npc.role === "family" && (c.backgroundKey === "noble" || c.backgroundKey === "royal")) acts.push({ id: "askhelp", label: "Ask for resources" });
   if (npc.role === "rival" || npc.role === "friend") acts.push({ id: "spar", label: "Spar" });
   if (npc.role === "companion") acts.push({ id: "dual", label: "Dual cultivate" });
+  if ((npc.role === "companion" || npc.role === "disciple") && (c.abode || 0) > 0)
+    acts.push(npc.resides ? { id: "sendaway", label: "Have them leave your abode" } : { id: "invite", label: "Invite to live at your abode" });
   if (npc.role === "enemy") { acts.push({ id: "insult", label: "Threaten them" }); acts.push({ id: "reconcile", label: "Make peace" }); acts.push({ id: "duel", label: "Challenge to a duel" }); }
   return acts;
 }
@@ -357,6 +360,8 @@ export function doRelationAction(c, npc, action, rng) {
       return [win ? `You best ${npc.name} in a friendly bout; they respect you for it.` : `${npc.name} gets the better of you. Humbling, but instructive.`];
     }
     case "dual": adj(rng.randint(3, 7)); happy(4); return [`You and ${npc.name} share a tender, quiet hour. Your bond deepens. (${E.npcStatus(npc)})`];
+    case "invite": npc.resides = true; adj(rng.randint(4, 8)); happy(3); return [`${npc.name} moves into your cave abode. ${npc.role === "disciple" ? "They will tend its spirit fields and grow in its dense qi." : "It feels far more like a home now."}`];
+    case "sendaway": npc.resides = false; adj(-rng.randint(1, 3)); return [`${npc.name} packs their things and leaves your abode.`];
     case "insult": adj(-rng.randint(4, 10)); happy(1); return [`You hurl threats at ${npc.name}. The feud festers.`];
     case "reconcile":
       if (rng.random() < 0.35 + c.charm / 300) { npc.role = "friend"; npc.affinity = 15; return [`Against all odds, ${npc.name} accepts your olive branch. Enemy becomes friend.`]; }
@@ -397,6 +402,31 @@ export function teachTo(c, npc, techKey) {
 }
 
 /* ----------------------------- cave abode -------------------------------- */
+// Who lives at your abode — a dao companion, taken-in disciples — found via the
+// `resides` flag on a relationship, so it all lives inside c.relationships.
+export const abodeResidents = c => c.relationships.filter(n => n.alive && n.resides);
+export const abodeRegionKey = c => c.abodeRegion || c.region || "azuredomain";
+
+// The abode's yearly bounty, drawn from its grade, its region's wildness, the
+// disciples who tend its fields and a foraging spirit beast.
+function abodeYearly(c, rng, events) {
+  const abode = D.abodeAt(c.abode || 0);
+  if (!abode) return;
+  const reg = D.REGION_BY_KEY[abodeRegionKey(c)];
+  const danger = reg ? reg[3] : 1;                       // wilder veins yield more
+  let herbs = abode[5], stones = abode[6];
+  const residents = abodeResidents(c);
+  const tenders = residents.filter(n => n.role === "disciple").length;
+  if (tenders) herbs += tenders * Math.max(1, Math.round(abode[5] * 0.3));   // disciples tend the herb fields
+  if (c.beast && c.beast.alive) { herbs += 1 + Math.floor((c.abode || 0) / 2); stones += Math.floor(c.abode || 0); }  // beast forages
+  c.herbs += Math.round(herbs * danger);
+  c.spiritStones += Math.round(stones * danger);
+  // Living among your own spirit vein steadies the heart; resident disciples
+  // grow stronger in the abode's dense qi.
+  if (residents.some(n => n.role === "companion")) c.happiness = clampN(c.happiness + 1, 0, 100);
+  for (const d of residents) if (d.role === "disciple") d.power = (d.power || 1) * 1.015;
+}
+
 // Establish a new abode or upgrade your existing one (administrative — no year,
 // no deed; you simply spend the stones). Returns narration lines.
 export function upgradeAbode(c) {
@@ -406,18 +436,27 @@ export function upgradeAbode(c) {
   const was = c.abode || 0;
   c.spiritStones -= next[3];
   c.abode = next[0];
+  if (!was) c.abodeRegion = c.region || "azuredomain";   // an abode is rooted where you raise it
   note(c, `${was ? "Upgraded your abode to" : "Established"} the ${next[1]} (${next[2]}).`);
-  return [`${was ? "You pour resources into the works, and your abode rises into" : "You stake your claim on a spirit vein and raise"} the ${next[1]} (${next[2]})! Each year it now yields ${next[5]} spirit herbs and ${next[6]} stones, and quickens your cultivation by +${Math.round(next[4] * 100)}%.`];
+  const reg = D.REGION_BY_KEY[abodeRegionKey(c)];
+  const where = was ? "" : ` in the ${reg ? reg[1] : "wilds"}`;
+  return [`${was ? "You pour resources into the works, and your abode rises into" : "You stake your claim on a spirit vein" + where + " and raise"} the ${next[1]} (${next[2]})! Each year it now yields ${next[5]} spirit herbs and ${next[6]} stones${reg && reg[3] > 1 ? ` (×${reg[3]} for the wild region)` : ""}, and quickens your cultivation by +${Math.round(next[4] * 100)}%.`];
 }
 
 // Seclude yourself in your abode for a stronger bout of cultivation (a deed; the
 // burst is ageless, like Focused Cultivation, but its intensity scales with the
-// abode's grade). Uses a Qi-Gathering Pill if available and asked.
+// abode's grade). A resident dao companion makes it dual cultivation. Uses a
+// Qi-Gathering Pill if available and asked.
 export function secludeInAbode(c, rng, usePill = false) {
   const abode = D.abodeAt(c.abode || 0);
   if (!abode) return ["You have no abode to seclude yourself in. Establish one first."];
-  const msgs = [`You seal the entrance of your ${abode[1]} and sink into deep seclusion.`];
-  return msgs.concat(E.gainQi(c, rng, abode[7], usePill));
+  const mate = abodeResidents(c).find(n => n.role === "companion");
+  const intensity = abode[7] * (mate ? 1.15 : 1);
+  const msgs = [mate
+    ? `You and ${mate.name} seal yourselves within your ${abode[1]} and cultivate as one, qi entwined.`
+    : `You seal the entrance of your ${abode[1]} and sink into deep seclusion.`];
+  if (mate) { c.happiness = clampN(c.happiness + 3, 0, 100); mate.affinity = clampN(mate.affinity + 2, -100, 100); }
+  return msgs.concat(E.gainQi(c, rng, intensity, usePill));
 }
 
 /* ------------------------------ queries ---------------------------------- */

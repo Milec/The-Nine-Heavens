@@ -65,6 +65,9 @@ export const daoPowerBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ?
 export const daoBreakthroughBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][3] : 0), 0);
 export const beastPower = c => (c.beast && c.beast.alive) ? c.beast.power : 0;
 export const abodeQiBonus = c => { const a = D.abodeAt(c.abode || 0); return a ? a[4] : 0; };
+// A proper pill room appears at the Spirit-Gathering Abode (tier 3) and up,
+// steadying the furnace — a small alchemy success/quality bonus.
+export const abodeAlchemyBonus = c => Math.max(0, (c.abode || 0) - 2) * 0.04;
 
 export function cultivationSpeed(c) {
   const rootMult = c.root ? c.root.multiplier : 0.1;
@@ -132,7 +135,7 @@ function newCharacter() {
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, titles: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0,
-    artifacts: [], equippedArtifact: null, beast: null, abode: 0,
+    artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
@@ -577,7 +580,7 @@ function beastGrow(c, rng) {
 
 /* ------------------------------ alchemy ---------------------------------- */
 export function alchemySuccess(c, recipe) {
-  return clamp(recipe[3] + (c.soul + c.comprehension) / 600.0 + c.alchemySkill * 0.006, 0.05, 0.97);
+  return clamp(recipe[3] + (c.soul + c.comprehension) / 600.0 + c.alchemySkill * 0.006 + abodeAlchemyBonus(c), 0.05, 0.97);
 }
 export function refine(c, rng, recipeKey) {
   const recipe = D.PILL_BY_KEY[recipeKey]; if (!recipe) return ["No such recipe."];

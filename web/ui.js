@@ -447,14 +447,23 @@ function openAbode() {
     const cur = D.abodeAt(c.abode || 0);
     const next = D.abodeNext(c.abode || 0);
     if (cur) {
+      const reg = D.REGION_BY_KEY[L.abodeRegionKey(c)];
+      const danger = reg ? reg[3] : 1;
+      const residents = L.abodeResidents(c);
+      const tenders = residents.filter(n => n.role === "disciple");
+      const mate = residents.find(n => n.role === "companion");
       body.appendChild(el("div", "section-h", `${cur[1]} · ${cur[2]}`));
       body.appendChild(el("p", "note", cur[8]));
       body.appendChild(infoRows([
+        ["Location", `${reg ? reg[1] : "—"}${danger !== 1 ? ` (×${danger} yield)` : ""}`, "region"],
         ["Cultivation bonus", `+${Math.round(cur[4] * 100)}%`, "abode"],
-        ["Spirit herbs / year", `+${cur[5]} 🌿`],
-        ["Spirit stones / year", `+${cur[6]} 💎`],
-        ["Seclusion strength", `${cur[7].toFixed(2)}× (vs 0.15 normal)`],
+        ["Spirit herbs / year", `+${Math.round((cur[5] + tenders.length * Math.max(1, Math.round(cur[5] * 0.3)) + (c.beast && c.beast.alive ? 1 + Math.floor(c.abode / 2) : 0)) * danger)} 🌿`],
+        ["Spirit stones / year", `+${Math.round((cur[6] + (c.beast && c.beast.alive ? Math.floor(c.abode) : 0)) * danger)} 💎`],
+        ["Guardian array", (c.abode >= 3 ? `active (−${Math.round(Math.min(0.55, c.abode * 0.05 + (c.beast && c.beast.alive ? 0.12 : 0) + tenders.length * 0.08) * 100)}% raid threat)` : "none (tier 3+)")],
+        ["Seclusion strength", `${cur[7].toFixed(2)}× (vs 0.15 normal)${mate ? " · ×1.15 dual" : ""}`],
       ]));
+      const who = [mate && `${mate.name} (companion)`, tenders.length && `${tenders.length} disciple${tenders.length > 1 ? "s" : ""}`, c.beast && c.beast.alive && `${c.beast.name} the ${c.beast.species}`].filter(Boolean);
+      body.appendChild(el("p", "note", who.length ? `Residents: ${who.join(", ")}. Invite a dao companion or disciples from Relationships to tend the fields and defend your home.` : "No one lives here yet. Invite a dao companion or disciples (from Relationships) to share your home, tend its fields, and help defend it."));
       const sec = el("button", "mbtn full primary");
       sec.innerHTML = `Cultivate in Seclusion<small>a deed · seal yourself in for a deep cultivation</small>`;
       sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng));
@@ -492,6 +501,7 @@ function openAlchemy() {
   const c = state.c;
   openOverlay("Alchemy 炼丹", body => {
     body.appendChild(el("p", "note", `Spirit Herbs: ${c.herbs} · Skill: ${c.alchemySkill}. Refining costs a year; failures salvage some herbs.`));
+    if (E.abodeAlchemyBonus(c) > 0) body.appendChild(el("p", "note", `✦ Your abode's pill room steadies the furnace (+${Math.round(E.abodeAlchemyBonus(c) * 100)}% success, a wider jade band).`));
     for (const r of D.PILL_RECIPES) {
       const can = c.herbs >= r[2];
       const row = el("div", "listrow" + (can ? "" : " disabled"));
@@ -506,11 +516,13 @@ function openTravel() {
   const c = state.c;
   openOverlay("Travel the World", body => {
     body.appendChild(el("p", "note", "Distant regions hold deadlier foes and far richer spoils. Where the danger is greater, so is the reward."));
+    if (c.abode) { const ar = D.REGION_BY_KEY[L.abodeRegionKey(c)]; if (ar) body.appendChild(el("p", "note", `🏠 Your abode is rooted in the ${ar[1]} — it stays put wherever you roam, and its wild vein yields ×${ar[3]} each year.`)); }
     for (const r of D.REGIONS) {
       const here = r[0] === c.region;
+      const abodeHere = c.abode && r[0] === L.abodeRegionKey(c);
       const row = el("div", "listrow" + (here ? " bound" : ""));
       const tier = r[3] <= 0.9 ? "safe" : r[3] <= 1.1 ? "moderate" : r[3] <= 1.35 ? "dangerous" : r[3] <= 1.7 ? "perilous" : "deadly";
-      row.innerHTML = `<div class="lr-ava">📍</div><div class="lr-main"><div class="lr-title">${here ? "★ " : ""}${r[1]} <span class="lr-sub" style="display:inline">(${r[2]})</span></div><div class="lr-sub">${tier} · danger ×${r[3]}<br>${r[4]}</div></div>`;
+      row.innerHTML = `<div class="lr-ava">${abodeHere ? "🏠" : "📍"}</div><div class="lr-main"><div class="lr-title">${here ? "★ " : ""}${r[1]} <span class="lr-sub" style="display:inline">(${r[2]})</span></div><div class="lr-sub">${tier} · danger ×${r[3]}<br>${r[4]}</div></div>`;
       if (!here) row.onclick = () => {
         if (!ageAllows("travel") || !useAction()) return;
         c.region = r[0]; closeOverlay();
@@ -917,7 +929,7 @@ function doBossFight() {
 /* ----------------------- alchemy furnace minigame ------------------------ */
 // Keep the heat needle inside the drifting target band over several phases to
 // build pill quality; stray too far and instability risks an explosion.
-function brewZone(c) { return Math.round(Math.min(46, 18 + c.soul / 8 + c.comprehension / 14 + c.alchemySkill * 0.4)); }
+function brewZone(c) { return Math.round(Math.min(52, 18 + c.soul / 8 + c.comprehension / 14 + c.alchemySkill * 0.4 + E.abodeAlchemyBonus(c) * 90)); }
 function startBrew(recipe) {
   const c = state.c; if (c.herbs < recipe[2]) return;
   if (!useAction()) return;

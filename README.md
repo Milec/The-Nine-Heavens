@@ -115,9 +115,14 @@ Three more systems round out a cultivator's life:
   shattered when it lands.
 - **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
   home base, from a Humble Cave Dwelling all the way to a legendary **Cave
-  Heaven**. Each year it **yields spirit herbs and stones** and **quickens your
-  cultivation**, and you can **seal yourself in for a deep seclusion** — a steady
-  long-term sink for the fortune you gather and a home that grows with you.
+  Heaven**. The abode is the **hub that ties the world together**: it is **rooted
+  in the region** where you raise it (wilder lands yield richer veins — but draw
+  **raiders** you must fight off), your **dao companion and disciples can live
+  there** (disciples tend the fields and grow in its dense qi; a companion makes
+  seclusion *dual cultivation*), your **spirit beast forages and guards** it, and
+  from the Spirit-Gathering tier up a **pill room steadies your alchemy furnace**.
+  Each year it **yields herbs and stones** and **quickens your cultivation**, and
+  you can **seal yourself in for a deep seclusion** — a home that grows with you.
 - **Achievements & Legacy** — feats persist across **every reincarnation and new
   soul**. Each achievement earns **Heavenly Favor** that blesses the innate
   Comprehension and Fortune of all your future lives — true meta-progression.
