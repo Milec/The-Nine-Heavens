@@ -56,7 +56,8 @@ export function reincarnateLife(old, rng, name) {
 export function mingle(c, rng) {
   const pull = c.charm + (["striking", "peerless", "immortal"].includes(c.appearanceKey) ? 20 : 0);
   const roll = rng.random();
-  if (roll < 0.22 + pull / 500 && !c.relationships.some(n => n.role === "companion" && n.alive)) {
+  // Romance only blooms once you've come of age.
+  if (c.age >= 16 && roll < 0.22 + pull / 500 && !c.relationships.some(n => n.role === "companion" && n.alive)) {
     const n = meetPerson(c, rng, "companion", { affinity: 18 + Math.floor(pull / 7) });
     c.happiness = clampN(c.happiness + 6, 0, 100);
     return [`✦ You cross paths with ${n.name}, and a spark kindles. A potential dao companion.`];
