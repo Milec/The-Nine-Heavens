@@ -104,7 +104,13 @@ export const TECHNIQUES = {
   sword_rain: ["Myriad Sword Rain Art", 2, 0.20, 14, "A storm of flying swords that strikes again and again."],
   mirror_parry: ["Mirror-Light Body Art", 2, 0.18, 8, "A defensive art that turns a foe's own force back upon them."],
   spirit_bind: ["Spirit-Binding Seal", 2, 0.16, 6, "Soul-script that shackles an enemy's qi and will."],
+  frost_lotus: ["Frost Lotus Palm", 2, 0.22, 11, "A blossoming palm of killing frost that can freeze a foe mid-step."],
+  thunder_step: ["Nine-Heaven Thunder Step", 2, 0.24, 13, "Blink between thunderclaps, striking twice and quickening your own movements."],
+  vajra_body: ["Vajra Indestructible Body", 2, 0.10, 6, "A Buddhist body-art of golden, unbreakable flesh that regenerates wounds."],
+  tide_palm: ["Tide-Calling Palm", 2, 0.22, 12, "A surging Water art whose drowning pressure saps a foe's strength."],
+  mountain_seal: ["Mountain-Bearing Seal", 2, 0.20, 14, "An Earth art that drops a mountain's weight on a foe, crushing and pinning them."],
   heaven_slash: ["Heaven-Splitting Sabre", 3, 0.42, 20, "A single annihilating cut that leaves you spent."],
+  samsara_palm: ["Samsara Heaven-Turning Palm", 3, 0.50, 18, "Turn the wheel of life and death; void force that rends the foe and mends you."],
 };
 
 // [key, display, charmBonus, blurb, weight]
@@ -182,16 +188,22 @@ export const ARTIFACTS = [
   ["cloud_boots", "Cloud-Striding Boots", "Spirit", 0.12, 0.03, "Tread the wind itself; foes struggle to pin you down."],
   ["flame_gourd", "Crimson Flame Gourd", "Earth", 0.30, 0.05, "Belches a torrent of spirit-fire that melts iron and beast alike."],
   ["element_pagoda", "Five Elements Pagoda", "Earth", 0.28, 0.10, "A layered treasure-pagoda that grinds enemies between the five elements."],
+  ["frost_mirror", "Frost-Moon Mirror", "Spirit", 0.14, 0.06, "A cold silver disc that drinks moonlight and turns a foe's spells back as ice."],
+  ["bone_banner", "Ten-Thousand Ghost Banner", "Earth", 0.30, 0.08, "A demonic banner that looses a howling tide of vengeful spirits."],
+  ["thunder_drum", "Nine-Heaven Thunder Drum", "Earth", 0.34, 0.06, "One beat looses the wrath of heaven; thunder rolls across the field."],
   ["dragon_cauldron", "Nine Dragon Cauldron", "Heaven", 0.55, 0.16, "Nine dragons coil its rim; it can smelt mountains and refine pills."],
   ["stars_banner", "River-of-Stars Banner", "Heaven", 0.50, 0.20, "Unfurls a galaxy of killing starlight across the battlefield."],
+  ["phoenix_plume", "Vermilion Phoenix Plume", "Heaven", 0.52, 0.18, "A single undying feather wreathed in nirvanic flame that burns and reblooms."],
   ["chaos_bell", "Primordial Chaos Bell", "Immortal", 0.95, 0.32, "A bell from the dawn of the world; one toll unmakes ten thousand spells."],
+  ["samsara_disk", "Wheel-of-Samsara Disk", "Immortal", 0.88, 0.34, "An immortal artifact that turns the wheel of rebirth, grinding all things back to dust."],
 ];
 export const ARTIFACT_BY_KEY = Object.fromEntries(ARTIFACTS.map(a => [a[0], a]));
 
 export const SPIRIT_BEASTS = [
   "Spirit Fox","Cloud Leopard","Crimson Fire Python","Thunder Hawk","Jade-Maned Lion",
   "Frost Wolf","Black Tortoise","Six-Eared Macaque","Azure Dragonling","Golden-Winged Roc",
-  "Nine-Tailed Fox","Qilin Calf",
+  "Nine-Tailed Fox","Qilin Calf","White Tiger Cub","Vermilion Sparrow","Moonlight Jade Hare",
+  "Stone Qilin","Abyssal Serpent","Wind-Roc Fledgling","Three-Eyed Spirit Ape","Bone-Crown Lizard",
 ];
 
 // [key, name, herbCost, baseSuccess, blurb]
@@ -215,6 +227,9 @@ export const DAOS = [
   ["slaughter", "Dao of Slaughter (杀戮)", 0.22, 0.02, "A blood-soaked law of killing intent that terrifies the heavens."],
   ["karma", "Dao of Karma (因果)", 0.12, 0.07, "Perceive the threads of cause and effect; tribulation reads you kindly."],
   ["void", "Dao of the Void (虚无)", 0.16, 0.05, "The empty law underlying all; the foundation of true immortality."],
+  ["thunder", "Dao of Thunder (雷道)", 0.20, 0.03, "The punishing law of heaven's judgment; your strikes carry the sky's own wrath."],
+  ["devour", "Dao of Devouring (吞噬)", 0.20, 0.02, "A ravenous law that swallows qi, spells and life alike to feed your own."],
+  ["dream", "Dao of Dreams (幻梦)", 0.12, 0.06, "The law of illusion and mind; reality bends, and the heavens lose sight of you."],
 ];
 export const DAO_BY_KEY = Object.fromEntries(DAOS.map(d => [d[0], d]));
 
@@ -319,6 +334,52 @@ export const REGIONS = [
   ["starfall", "Starfall Frontier", "星陨之地", 2.0, "A shattered immortal battlefield at the edge of the map. Death and fortune in equal measure."],
 ];
 export const REGION_BY_KEY = Object.fromEntries(REGIONS.map(r => [r[0], r]));
+
+/* Cave Abode (洞府): a personal home-base staked on a spirit vein. You establish
+ * one and upgrade it across a lifetime; each year it yields spirit herbs and
+ * spirit stones and quickens your cultivation, and you can seclude in it for a
+ * stronger bout of cultivation. Level 0 means you have no abode yet. */
+// [level, name, cn, cost, qiBonus, herbsPerYear, stonesPerYear, seclusion, blurb]
+export const ABODES = [
+  [1, "Humble Cave Dwelling", "石洞",     50,    0.04,  1,   2, 0.16, "A dry cave with a crude qi-gathering array scratched into the stone."],
+  [2, "Mountain Spirit Cottage", "山居",  180,   0.08,  2,   6, 0.18, "A tidy cottage on a thin spirit vein, with a small herb plot out back."],
+  [3, "Spirit-Gathering Abode", "聚灵洞府", 600,  0.12,  4,  16, 0.21, "A true cave-abode astride a living spirit vein; arrays hum day and night."],
+  [4, "Cloud-Veined Estate", "云脉别业",  2000,  0.16,  7,  40, 0.24, "A walled estate over a rich vein — herb fields, spirit ponds, a guardian array."],
+  [5, "Earthly Blessed Land", "洞天福地", 7000,  0.20, 12,  95, 0.28, "A blessed land where qi falls like rain and rare herbs grow wild."],
+  [6, "Cave Heaven", "大洞天",          24000,  0.25, 20, 240, 0.33, "A pocket paradise folded out of the world itself, where immortals are forged."],
+];
+// abodeAt(level): the row for your current level (null if none).
+export const abodeAt = lvl => (lvl > 0 && lvl <= ABODES.length) ? ABODES[lvl - 1] : null;
+// abodeNext(level): the row for the next tier up (null if already at the peak).
+export const abodeNext = lvl => (lvl || 0) < ABODES.length ? ABODES[lvl || 0] : null;
+
+/* Founding your own sect (开宗立派): once you are a recognized power with a
+ * worthy abode to serve as its mountain seat, you may raise your own sect. It
+ * gathers members and prestige over the years, spreading your name and feeding
+ * you a stipend. The abode's grade caps how large the sect can grow. */
+// [minPrestige, name, cn, speedBonus, repPerYear]
+export const SECT_TIERS = [
+  [0,    "Fledgling Sect",  "新立小宗", 0.05, 1],
+  [40,   "Minor Sect",      "三流宗门", 0.10, 2],
+  [120,  "Established Sect", "二流宗门", 0.16, 3],
+  [300,  "Great Sect",      "一流大宗", 0.24, 5],
+  [700,  "Dominant Sect",   "超然巨擘", 0.34, 8],
+  [1600, "Holy Land",       "圣地",     0.48, 12],
+];
+export function sectTier(prestige) {
+  let t = SECT_TIERS[0];
+  for (const s of SECT_TIERS) if (prestige >= s[0]) t = s;
+  return t;
+}
+export function sectTierNext(prestige) {
+  for (const s of SECT_TIERS) if (prestige < s[0]) return s;
+  return null;
+}
+// How many followers an abode-seat of each grade can house (index by abode tier 0..6).
+export const SECT_CAPACITY = [0, 30, 80, 200, 500, 1200, 3000];
+// Parts for auto-generating a sect name when the founder leaves it to fate.
+export const SECT_NAME_ADJ = ["Azure", "Cloud", "Heaven", "Nine-Heaven", "Profound", "Jade", "Golden", "Mystic", "Boundless", "Crimson", "Spirit", "Void", "Thousand-Star", "Purple", "Divine", "Immortal", "Eternal", "Cangming"];
+export const SECT_NAME_NOUN = ["Cloud Sect", "Sword Sect", "Sky Pavilion", "Heaven Palace", "Dao Sect", "Spirit Hall", "Mystic Gate", "Origin Sect", "Star Pavilion", "Sacred Hall", "Profound Sect", "Cloud Pavilion", "Sword Pavilion"];
 
 /* Ongoing physique (体质) effects, beyond the birth-stat multipliers. These bite
  * throughout life — cultivation speed, breakthroughs, Dao insight, and combat. */

@@ -113,6 +113,26 @@ Three more systems round out a cultivator's life:
   tournament champion, your nemesis) **enter a second phase at half health** and
   **telegraph a devastating element-themed ultimate** — guard, heal, or be
   shattered when it lands.
+- **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
+  home base, from a Humble Cave Dwelling all the way to a legendary **Cave
+  Heaven**. The abode is the **hub that ties the world together**: it is **rooted
+  in the region** where you raise it (wilder lands yield richer veins — but draw
+  **raiders** you must fight off), your **dao companion and disciples can live
+  there** (disciples tend the fields and grow in its dense qi; a companion makes
+  seclusion *dual cultivation*), your **spirit beast forages and guards** it, and
+  from the Spirit-Gathering tier up a **pill room steadies your alchemy furnace**.
+  Each year it **yields herbs and stones** and **quickens your cultivation**, and
+  you can **seal yourself in for a deep seclusion** — a home that grows with you.
+- **Found your own sect (开宗立派)** — once you are a recognized power (Nascent
+  Soul) with a worthy abode for a seat, **raise your own banner**. Name your sect;
+  it gathers **members and prestige** over the years (Fledgling Sect → … → **Holy
+  Land**), **spreads your fame**, **quickens your dao**, and pays a **stipend** from
+  its treasury. Your **abode is its mountain seat** — a grander abode houses more
+  disciples — **resident disciples become your founding core**, and when raiders
+  come, your **whole sect rushes to its defense**. A thriving sect even **outlives
+  you**: it endures under a steward disciple, and your **reincarnated soul can
+  return to reclaim it** — its prestige and disciples a lifetime's head-start —
+  or watch it slowly fade across the generations if you never come back.
 - **Achievements & Legacy** — feats persist across **every reincarnation and new
   soul**. Each achievement earns **Heavenly Favor** that blesses the innate
   Comprehension and Fortune of all your future lives — true meta-progression.
@@ -120,7 +140,7 @@ Three more systems round out a cultivator's life:
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,
 karma, tribulations and reincarnation) and wraps it in a life-sim layer of
-family, life stages, vitals, ~30 branching life events and interactive combat.
+family, life stages, vitals, 95+ branching life events and interactive combat.
 
 ### In a terminal (desktop)
 

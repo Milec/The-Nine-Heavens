@@ -28,6 +28,7 @@ const GLOSSARY = {
   root: ["Spiritual Root 灵根", "Your innate talent for cultivation — the single biggest factor in how far you can ever climb. Revealed at the age-6 Awakening."],
   physique: ["Physique 体质", "Your body's nature. Special physiques grant lasting boons to cultivation, combat, healing or survival (see your sheet)."],
   realm: ["Realm 境界", "Your cultivation stage — from Mortal up the eleven realms to Immortal Ascension. Each realm lengthens your lifespan."],
+  abode: ["Cave Abode 洞府", "A home base staked on a spirit vein. Each year it yields spirit herbs and stones and quickens your cultivation; you can also seal yourself inside for a deep seclusion. Build and upgrade it from Activities."],
 };
 function showTip(key) {
   const g = GLOSSARY[key]; if (!g) return;
@@ -434,14 +435,75 @@ function openActivities() {
     mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
     mk("Refine Pills", sub("alchemy", `alchemy · ${c.herbs} herbs`), openAlchemy, { disabled: young("alchemy") });
     mk("Travel the World", young("travel") ? `from age ${AGE_MIN.travel}` : (D.REGION_BY_KEY[c.region] ? D.REGION_BY_KEY[c.region][1] : "regions"), openTravel, { disabled: young("travel") });
+    const ab = D.abodeAt(c.abode || 0);
+    mk("Your Cave Abode", ab ? `${ab[2]} · home base` : "establish a home base", openAbode, { full: true });
     mk("Treasures & Beast", "your assets", openAssets);
     body.appendChild(grid);
+  });
+}
+function openAbode() {
+  const c = state.c;
+  openOverlay("Cave Abode 洞府", body => {
+    const cur = D.abodeAt(c.abode || 0);
+    const next = D.abodeNext(c.abode || 0);
+    if (cur) {
+      const reg = D.REGION_BY_KEY[L.abodeRegionKey(c)];
+      const danger = reg ? reg[3] : 1;
+      const residents = L.abodeResidents(c);
+      const tenders = residents.filter(n => n.role === "disciple");
+      const mate = residents.find(n => n.role === "companion");
+      body.appendChild(el("div", "section-h", `${cur[1]} · ${cur[2]}`));
+      body.appendChild(el("p", "note", cur[8]));
+      body.appendChild(infoRows([
+        ["Location", `${reg ? reg[1] : "—"}${danger !== 1 ? ` (×${danger} yield)` : ""}`, "region"],
+        ["Cultivation bonus", `+${Math.round(cur[4] * 100)}%`, "abode"],
+        ["Spirit herbs / year", `+${Math.round((cur[5] + tenders.length * Math.max(1, Math.round(cur[5] * 0.3)) + (c.beast && c.beast.alive ? 1 + Math.floor(c.abode / 2) : 0)) * danger)} 🌿`],
+        ["Spirit stones / year", `+${Math.round((cur[6] + (c.beast && c.beast.alive ? Math.floor(c.abode) : 0)) * danger)} 💎`],
+        ["Guardian array", (c.abode >= 3 ? `active (−${Math.round(Math.min(0.55, c.abode * 0.05 + (c.beast && c.beast.alive ? 0.12 : 0) + tenders.length * 0.08) * 100)}% raid threat)` : "none (tier 3+)")],
+        ["Seclusion strength", `${cur[7].toFixed(2)}× (vs 0.15 normal)${mate ? " · ×1.15 dual" : ""}`],
+      ]));
+      const who = [mate && `${mate.name} (companion)`, tenders.length && `${tenders.length} disciple${tenders.length > 1 ? "s" : ""}`, c.beast && c.beast.alive && `${c.beast.name} the ${c.beast.species}`].filter(Boolean);
+      body.appendChild(el("p", "note", who.length ? `Residents: ${who.join(", ")}. Invite a dao companion or disciples from Relationships to tend the fields and defend your home.` : "No one lives here yet. Invite a dao companion or disciples (from Relationships) to share your home, tend its fields, and help defend it."));
+      if (c.ownSect) body.appendChild(el("p", "note", `🏯 This abode is the mountain seat of your sect, the ${c.ownSect.name} (${D.sectTier(c.ownSect.prestige)[1]}). A grander seat houses more disciples.`));
+      else if (L.canFoundSect(c)) body.appendChild(el("p", "note", "🏯 Your abode is now grand enough to serve as the seat of your own sect — found one from the Sect tab."));
+      const sec = el("button", "mbtn full primary");
+      sec.innerHTML = `Cultivate in Seclusion<small>a deed · seal yourself in for a deep cultivation</small>`;
+      sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng));
+      body.appendChild(sec);
+      if (c.pills > 0) {
+        const secp = el("button", "mbtn full");
+        secp.innerHTML = `Seclusion + Qi Pill<small>a deed · ${c.pills} pill(s) left</small>`;
+        secp.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng, true));
+        body.appendChild(secp);
+      }
+    } else {
+      body.appendChild(el("p", "note", "You have no cave abode yet — only the open road and borrowed corners. Stake a claim on a spirit vein to build a home that cultivates while you live, yielding herbs and stones each year."));
+    }
+    if (next) {
+      const canAfford = c.spiritStones >= next[3];
+      body.appendChild(el("div", "section-h", cur ? "Upgrade" : "Establish an Abode"));
+      body.appendChild(el("p", "note", `${next[1]} (${next[2]}) — ${next[8]}`));
+      body.appendChild(infoRows([
+        ["Cost", `${next[3]} 💎 (you have ${c.spiritStones})`],
+        ["Cultivation", `+${Math.round(next[4] * 100)}%`],
+        ["Yield / year", `+${next[5]} 🌿  +${next[6]} 💎`],
+      ]));
+      const up = el("button", "mbtn full" + (canAfford ? " primary" : ""));
+      up.innerHTML = `${cur ? "Upgrade to" : "Establish"} ${escapeHtml(next[1])}<small>${canAfford ? "free · spend " + next[3] + " stones" : "need " + next[3] + " stones"}</small>`;
+      if (canAfford) up.onclick = () => runFree(() => L.upgradeAbode(c));
+      else up.disabled = true;
+      body.appendChild(up);
+    } else if (cur) {
+      body.appendChild(el("p", "note", "Your abode is a Cave Heaven — the very pinnacle. There is nothing higher to build."));
+    }
+    backBtn(body, openActivities);
   });
 }
 function openAlchemy() {
   const c = state.c;
   openOverlay("Alchemy 炼丹", body => {
     body.appendChild(el("p", "note", `Spirit Herbs: ${c.herbs} · Skill: ${c.alchemySkill}. Refining costs a year; failures salvage some herbs.`));
+    if (E.abodeAlchemyBonus(c) > 0) body.appendChild(el("p", "note", `✦ Your abode's pill room steadies the furnace (+${Math.round(E.abodeAlchemyBonus(c) * 100)}% success, a wider jade band).`));
     for (const r of D.PILL_RECIPES) {
       const can = c.herbs >= r[2];
       const row = el("div", "listrow" + (can ? "" : " disabled"));
@@ -456,11 +518,13 @@ function openTravel() {
   const c = state.c;
   openOverlay("Travel the World", body => {
     body.appendChild(el("p", "note", "Distant regions hold deadlier foes and far richer spoils. Where the danger is greater, so is the reward."));
+    if (c.abode) { const ar = D.REGION_BY_KEY[L.abodeRegionKey(c)]; if (ar) body.appendChild(el("p", "note", `🏠 Your abode is rooted in the ${ar[1]} — it stays put wherever you roam, and its wild vein yields ×${ar[3]} each year.`)); }
     for (const r of D.REGIONS) {
       const here = r[0] === c.region;
+      const abodeHere = c.abode && r[0] === L.abodeRegionKey(c);
       const row = el("div", "listrow" + (here ? " bound" : ""));
       const tier = r[3] <= 0.9 ? "safe" : r[3] <= 1.1 ? "moderate" : r[3] <= 1.35 ? "dangerous" : r[3] <= 1.7 ? "perilous" : "deadly";
-      row.innerHTML = `<div class="lr-ava">📍</div><div class="lr-main"><div class="lr-title">${here ? "★ " : ""}${r[1]} <span class="lr-sub" style="display:inline">(${r[2]})</span></div><div class="lr-sub">${tier} · danger ×${r[3]}<br>${r[4]}</div></div>`;
+      row.innerHTML = `<div class="lr-ava">${abodeHere ? "🏠" : "📍"}</div><div class="lr-main"><div class="lr-title">${here ? "★ " : ""}${r[1]} <span class="lr-sub" style="display:inline">(${r[2]})</span></div><div class="lr-sub">${tier} · danger ×${r[3]}<br>${r[4]}</div></div>`;
       if (!here) row.onclick = () => {
         if (!ageAllows("travel") || !useAction()) return;
         c.region = r[0]; closeOverlay();
@@ -507,6 +571,7 @@ function openSect() {
   const c = state.c;
   openOverlay("Sect Affairs", body => {
     if (!c.awakened) { body.appendChild(el("p", "note", "You cannot join a sect before your spiritual root awakens.")); return; }
+    if (c.ownSect) { renderOwnSect(c, body); return; }
     if (!c.sectKey) {
       body.appendChild(el("p", "note", "Join a sect for a cultivation bonus, a yearly stipend, a rank ladder, quests and tournaments. Better sects demand rarer talent."));
       for (const s of D.SECTS) {
@@ -516,6 +581,26 @@ function openSect() {
         row.innerHTML = `<div class="lr-ava">🏯</div><div class="lr-main"><div class="lr-title">${s[1]}</div><div class="lr-sub">${s[2]} · ${gate}<br>${s[9]}</div></div>`;
         if (ok) row.onclick = () => runFree(() => E.attemptJoin(c, state.rng, s[0]));
         body.appendChild(row);
+      }
+      body.appendChild(el("div", "section-h", "开宗立派 · Your Own Sect"));
+      if (c.legacySect) {
+        const lg = c.legacySect, t = D.sectTier(lg.prestige);
+        body.appendChild(el("p", "note", `A sect from a past life awaits the founder's return: the ${lg.name} — ${t[1]} (${t[2]}), ~${lg.members} disciples${lg.steward ? `, held in trust by ${lg.steward}` : ""}, ${lg.generations} life${lg.generations > 1 ? "-times" : ""} ago.`));
+        if (L.canReclaimSect(c)) {
+          const rb = el("button", "mbtn full primary");
+          rb.innerHTML = `Reclaim the ${escapeHtml(lg.name)}<small>${L.RECLAIM_SECT_COST} stones · restore its ${t[1]} prestige</small>`;
+          rb.onclick = () => { runFree(() => L.reclaimSect(c)); if (c.ownSect) award("reborn_founder"); };
+          body.appendChild(rb);
+        } else {
+          body.appendChild(el("p", "note", L.reclaimSectReason(c) || ""));
+        }
+      } else if (L.canFoundSect(c)) {
+        const fb = el("button", "mbtn full primary");
+        fb.innerHTML = `Found Your Own Sect<small>${L.FOUND_SECT_COST} stones · your abode becomes its seat</small>`;
+        fb.onclick = () => openFoundSect();
+        body.appendChild(fb);
+      } else {
+        body.appendChild(el("p", "note", "Why bow to another's banner forever? " + (L.foundSectReason(c) || "")));
       }
       return;
     }
@@ -530,6 +615,41 @@ function openSect() {
     mk("Sect Store", "25 contrib → pills", () => runFree(() => E.exchangeContribution(c, state.rng)));
     const leave = el("button", "mbtn full danger"); leave.innerHTML = "Leave the Sect<small>go rogue</small>"; leave.onclick = () => runFree(() => E.leaveSect(c)); grid.appendChild(leave);
     body.appendChild(grid);
+  });
+}
+function renderOwnSect(c, body) {
+  const s = c.ownSect;
+  const tier = D.sectTier(s.prestige), next = D.sectTierNext(s.prestige);
+  const cap = L.sectCapacity(c);
+  const align = { righteous: "Righteous", neutral: "Neutral", demonic: "Demonic" }[s.alignment] || "Neutral";
+  body.appendChild(el("div", "section-h", `${s.name}`));
+  body.appendChild(el("p", "note", `You are the Founder and Sect Master of the ${s.name}, a ${align}-path sect seated at your ${(D.abodeAt(c.abode || 0) || [, "abode"])[1]}.`));
+  body.appendChild(infoRows([
+    ["Standing", `${tier[1]} (${tier[2]})`],
+    ["Prestige", next ? `${Math.floor(s.prestige)} / ${next[0]} → ${next[1]}` : `${Math.floor(s.prestige)} (peak)`],
+    ["Members", `${s.members} / ${cap}`],
+    ["Cultivation bonus", `+${Math.round(tier[3] * 100)}%`, "abode"],
+    ["Founded", `age ${s.founded}`],
+  ]));
+  body.appendChild(el("p", "note", `Each year your sect spreads your name (+${tier[4]} fame), pays a stipend from its treasury, and quickens your dao. Expand your cave abode to raise the members cap. Invite disciples (in Relationships) to settle them as your core.`));
+  const grid = el("div", "menu-grid");
+  const mk = (l, sub, h, full, primary) => { const b = el("button", "mbtn" + (full ? " full" : "") + (primary ? " primary" : "")); b.innerHTML = `${l}<small>${sub}</small>`; b.onclick = h; grid.appendChild(b); };
+  mk("Hold a Recruitment", s.members < cap ? "a deed · draw new disciples" : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng)), true, s.members < cap);
+  if (c.realm >= 4 && L.getDisciples(c).length < 4)
+    mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction()) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
+  body.appendChild(grid);
+  const dis = el("button", "mbtn full danger"); dis.innerHTML = "Disband the Sect<small>lower your banner</small>"; dis.onclick = () => runFree(() => L.disbandSect(c)); body.appendChild(dis);
+}
+function openFoundSect() {
+  const c = state.c;
+  openOverlay("Found a Sect 开宗立派", body => {
+    body.appendChild(el("p", "note", `Raise your own banner with your cave abode as its mountain seat. It will gather disciples and prestige over the years, spread your name, quicken your dao, and pay you a stipend. Founding costs ${L.FOUND_SECT_COST} spirit stones.`));
+    const input = el("input", "txtfield"); input.type = "text"; input.placeholder = "Name your sect (or leave it to fate)"; input.maxLength = 28;
+    body.appendChild(input);
+    const found = el("button", "mbtn full primary"); found.innerHTML = `Raise the Banner<small>${L.FOUND_SECT_COST} stones · you have ${c.spiritStones}</small>`;
+    found.onclick = () => { runFree(() => L.foundSect(c, state.rng, input.value.trim() || null)); if (c.ownSect) award("founder"); };
+    body.appendChild(found);
+    backBtn(body, openSect);
   });
 }
 function openQuests() {
@@ -582,9 +702,12 @@ function openSheet() {
       ["Soul Sense 神识", c.soul, "soul"], ["Fortune 气运", c.luck, "fortune"], ["Charm 魅力", c.charm, "charm"],
     ]));
     body.appendChild(el("div", "section-h", "Path"));
-    const rows = [["Sect", c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
+    const ab = D.abodeAt(c.abode || 0);
+    const rows = [["Sect", c.ownSect ? `${c.ownSect.name} — Founder (${D.sectTier(c.ownSect.prestige)[1]})` : c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
+      ["Abode", ab ? `${ab[1]} (${ab[2]})${c.ownSect ? " · sect seat" : ""}` : "None", "abode"],
       ["Treasure", c.equippedArtifact ? E.describeArtifact(c.equippedArtifact) : "(none)"]];
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
+    if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);
     if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
     body.appendChild(infoRows(rows));
@@ -630,7 +753,9 @@ function deathScreen() {
     rein.onclick = () => {
       state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.actionsLeft = ACTIONS_PER_YEAR; state.deadHandled = false; closeOverlay();
       logBanner("☯ THE WHEEL OF REBIRTH TURNS ☯");
-      logMessages([`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), dimly recalling a former life.`, "Age up to live this new life. Your past climb has sharpened your innate talent."]);
+      const msgs = [`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), dimly recalling a former life.`, "Age up to live this new life. Your past climb has sharpened your innate talent."];
+      if (state.c.legacySect) msgs.push(`Far away, the ${state.c.legacySect.name} you founded in a past life still keeps your banner — reach the Nascent Soul realm with a worthy abode, and you may reclaim it.`);
+      logMessages(msgs);
       renderProfile();
     };
     body.appendChild(rein);
@@ -865,7 +990,7 @@ function doBossFight() {
 /* ----------------------- alchemy furnace minigame ------------------------ */
 // Keep the heat needle inside the drifting target band over several phases to
 // build pill quality; stray too far and instability risks an explosion.
-function brewZone(c) { return Math.round(Math.min(46, 18 + c.soul / 8 + c.comprehension / 14 + c.alchemySkill * 0.4)); }
+function brewZone(c) { return Math.round(Math.min(52, 18 + c.soul / 8 + c.comprehension / 14 + c.alchemySkill * 0.4 + E.abodeAlchemyBonus(c) * 90)); }
 function startBrew(recipe) {
   const c = state.c; if (c.herbs < recipe[2]) return;
   if (!useAction()) return;
@@ -1063,7 +1188,9 @@ function renderBattleScreen(B, onDone) {
       const grid = el("div", "cbt-actions");
       for (const a of B.actions()) {
         const b = el("button", "cbt-skill" + (a.disabled ? " off" : "") + (a.id === "flee" ? " flee" : ""));
-        b.innerHTML = `<span class="cs-name">${a.element ? C.elementIcon(a.element) + " " : ""}${escapeHtml(a.name)}</span><span class="cs-cost">${a.qi ? "⊙" + a.qi : "free"}</span>`;
+        b.innerHTML = `<span class="cs-name">${a.element ? C.elementIcon(a.element) + " " : ""}${escapeHtml(a.name)}</span>`
+          + (a.desc ? `<span class="cs-desc">${escapeHtml(a.desc)}</span>` : "")
+          + `<span class="cs-cost">${a.qi ? "⊙" + a.qi + " qi" : "free"}</span>`;
         if (!a.disabled) b.onclick = () => { const r = B.act(a.id); (B.feed = B.feed || []).push(...r.lines); renderBattleScreen(B, onDone); };
         grid.appendChild(b);
       }

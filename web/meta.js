@@ -25,6 +25,8 @@ export const ACHIEVEMENTS = [
   ["devil", "Heaven-Defying Devil", "Sink to the deepest sin."],
   ["saint", "Living Saint", "Attain the heights of merit."],
   ["patriarch", "Patriarch of a Lineage", "Teach 5 techniques to your students."],
+  ["founder", "Open a Mountain Gate", "Found your own sect."],
+  ["reborn_founder", "The Founder Returns", "Reclaim a sect you founded in a past life."],
   ["eternal", "Eternal Soul", "Live a fifth reincarnation."],
 ];
 const BY_ID = Object.fromEntries(ACHIEVEMENTS.map(a => [a[0], a]));
