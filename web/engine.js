@@ -203,6 +203,26 @@ export function reincarnate(old, rng, name) {
 /* --------------------------- cultivation --------------------------------- */
 const atRealmWall = c => c.stage >= realmStages(c) - 1;
 
+// Ageless burst of cultivation (used by the web "deed" model): gain a fraction
+// of a year's qi with no passage of time. `intensity` is in year-equivalents.
+export function gainQi(c, rng, intensity = 0.5, usePill = false) {
+  const msgs = [];
+  if (!c.alive) return msgs;
+  let pillMult = 1.0;
+  if (usePill && c.pills > 0) { c.pills -= 1; pillMult = 2.5; msgs.push("You swallow a Qi-Gathering Pill; warmth floods your meridians."); }
+  const epiphany = rng.random() < (c.luck / 1500.0 + c.comprehension / 4000.0);
+  let gain = cultivationSpeed(c) * intensity * pillMult * rng.uniform(0.85, 1.2);
+  if (epiphany) { gain *= rng.uniform(2.5, 5.0); msgs.push("✦ A sudden epiphany! Heavenly insight pours into you."); }
+  c.qi += gain;
+  if (c.hp < c.maxHp) c.hp = Math.min(c.maxHp, c.hp + c.maxHp * 0.3);
+  while (c.alive && c.qi >= qiToNext(c) && !atRealmWall(c)) {
+    c.qi -= qiToNext(c); c.stage += 1; recomputeMaxHp(c);
+    msgs.push(`⮝ Advanced to ${realmLabel(c)}.`);
+  }
+  if (!msgs.length) msgs.push(`You cultivate in seclusion. (Qi ${Math.floor(c.qi)}/${Math.floor(qiToNext(c))})`);
+  return msgs;
+}
+
 export function cultivate(c, rng, years = 1, usePill = false) {
   const msgs = [];
   if (!c.alive) return ["You are dead. The dao is closed to you."];

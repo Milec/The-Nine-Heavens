@@ -130,6 +130,23 @@ function closeOverlay() { $("overlay").classList.add("hidden"); }
 const ACTIONS_PER_YEAR = 3;
 const deedsLeft = () => (state.actionsLeft == null ? ACTIONS_PER_YEAR : state.actionsLeft);
 
+/* Reasonable minimum ages for certain endeavours (a 6-year-old shouldn't be
+ * raiding Secret Realms or travelling the world alone). */
+const AGE_MIN = {
+  train: 4, study: 5, oddjobs: 10, alchemy: 10, wander: 12, hunt: 12, arena: 12,
+  duel: 12, quest: 12, mingle: 12, travel: 14, tournament: 14, romance: 16,
+  boss: 16, secret: 16, disciple: 18,
+};
+// True if old enough; otherwise emits a note and returns false.
+function ageAllows(key) {
+  const min = AGE_MIN[key] || 0;
+  if (state.c.age >= min) return true;
+  closeOverlay();
+  logMessages([`You are too young for that yet — you must be at least ${min}.`]);
+  renderProfile();
+  return false;
+}
+
 function useAction() {
   if (!state.c || !state.c.alive) return false;
   if (deedsLeft() <= 0) {
@@ -232,10 +249,10 @@ function openCultivate() {
     const mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
     if (E.canBreakthrough(c))
       mk("Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
-    mk("Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.cultivate(c, state.rng, 1)));
-    mk("Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.cultivate(c, state.rng, 1, true)), { disabled: c.pills <= 0 });
+    mk("Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15)));
+    mk("Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true)), { disabled: c.pills <= 0 });
     mk("Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
-    mk("Wander the World", "adventure & battle", doWander);
+    mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : "adventure & battle", doWander, { disabled: c.age < AGE_MIN.wander });
     mk("Techniques & Mastery", "train your arts", openTechniques, { full: true });
     body.appendChild(grid);
   });
@@ -250,11 +267,11 @@ function openPeople() {
     if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or companions yet."));
     bonds.forEach(n => body.appendChild(personRow(n)));
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
-    b.onclick = () => { if (!useAction()) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
+    b.onclick = () => { if (!ageAllows("mingle") || !useAction()) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
     body.appendChild(b);
     if (c.realm >= 4 && L.getDisciples(c).length < 3) {
       const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>a deed · pass on your arts</small>";
-      d.onclick = () => { if (!useAction()) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
+      d.onclick = () => { if (!ageAllows("disciple") || !useAction()) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
       body.appendChild(d);
     }
   });
@@ -305,6 +322,7 @@ function openPerson(n) {
       b.onclick = () => {
         if (act.id === "teach") { openTeachPicker(n); return; }
         if (act.id === "duel") {  // an interactive duel to the finish
+          if (!ageAllows("duel")) return;
           const isNemesis = n.role === "nemesis";
           const enemy = isNemesis
             ? C.makeBoss(c, state.rng, { name: n.name, power: n.power, element: n.element })
@@ -365,18 +383,21 @@ function openActivities() {
   openOverlay("Activities", body => {
     const grid = el("div", "menu-grid");
     const mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
-    mk("Train the Body", "build constitution", () => runTimed(() => L.trainBody(c, state.rng)));
-    mk("Study Scriptures", "build comprehension", () => runTimed(() => L.studyScriptures(c, state.rng)));
+    // young: below the action's minimum age
+    const young = key => c.age < (AGE_MIN[key] || 0);
+    const sub = (key, normal) => young(key) ? `from age ${AGE_MIN[key]}` : normal;
+    mk("Train the Body", sub("train", "build constitution"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng)); }, { disabled: young("train") });
+    mk("Study Scriptures", sub("study", "build comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng)); }, { disabled: young("study") });
     mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
-    mk("Take Odd Jobs", "earn spirit stones", () => runTimed(() => L.oddJobs(c, state.rng)));
+    mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
     const canHunt = c.awakened && c.root.key !== "none";
     const canBoss = canHunt && c.realm >= 2;
-    mk("Hunt Spirit Beasts", canHunt ? "battle · tameable" : "needs cultivation", canHunt ? doHunt : null, { disabled: !canHunt });
-    mk("Spar in the Arena", canHunt ? "train · non-lethal" : "needs cultivation", canHunt ? doArena : null, { disabled: !canHunt });
-    mk("Seek a Worthy Foe", canBoss ? "BOSS · great rewards" : "needs Foundation+", canBoss ? doBossFight : null, { disabled: !canBoss });
-    mk("Enter a Secret Realm", canBoss ? "delve · escalating loot" : "needs Foundation+", canBoss ? doSecretRealm : null, { disabled: !canBoss });
-    mk("Refine Pills", `alchemy · ${c.herbs} herbs`, openAlchemy);
-    mk("Travel the World", D.REGION_BY_KEY[c.region] ? D.REGION_BY_KEY[c.region][1] : "regions", openTravel);
+    mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
+    mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
+    mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
+    mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
+    mk("Refine Pills", sub("alchemy", `alchemy · ${c.herbs} herbs`), openAlchemy, { disabled: young("alchemy") });
+    mk("Travel the World", young("travel") ? `from age ${AGE_MIN.travel}` : (D.REGION_BY_KEY[c.region] ? D.REGION_BY_KEY[c.region][1] : "regions"), openTravel, { disabled: young("travel") });
     mk("Treasures & Beast", "your assets", openAssets);
     body.appendChild(grid);
   });
@@ -405,7 +426,7 @@ function openTravel() {
       const tier = r[3] <= 0.9 ? "safe" : r[3] <= 1.1 ? "moderate" : r[3] <= 1.35 ? "dangerous" : r[3] <= 1.7 ? "perilous" : "deadly";
       row.innerHTML = `<div class="lr-ava">📍</div><div class="lr-main"><div class="lr-title">${here ? "★ " : ""}${r[1]} <span class="lr-sub" style="display:inline">(${r[2]})</span></div><div class="lr-sub">${tier} · danger ×${r[3]}<br>${r[4]}</div></div>`;
       if (!here) row.onclick = () => {
-        if (!useAction()) return;
+        if (!ageAllows("travel") || !useAction()) return;
         c.region = r[0]; closeOverlay();
         logMessages([`You journey to the ${r[1]} (${r[2]}). The dangers here scale ×${r[3]}.`]);
         endActivityYear();
@@ -481,7 +502,7 @@ function openQuests() {
     for (const q of E.availableQuests(c)) {
       const row = el("div", "listrow");
       row.innerHTML = `<div class="lr-ava">📜</div><div class="lr-main"><div class="lr-title">${q[0]}</div><div class="lr-sub">+${q[2]} contrib · +${q[3]} stones · risk ${Math.floor(q[4] * 100)}%<br>${q[5]}</div></div>`;
-      row.onclick = () => runTimed(() => E.doQuest(c, state.rng, q));
+      row.onclick = () => { if (!ageAllows("quest")) return; runTimed(() => E.doQuest(c, state.rng, q)); };
       body.appendChild(row);
     }
     backBtn(body, openSect);
@@ -624,6 +645,7 @@ function resumeFrom(sv) {
   if (typeof c.health !== "number") c.health = 60;
   if (typeof c.awakened !== "boolean") c.awakened = true;
   if (!c.firedEvents) c.firedEvents = [];
+  if (!c.eventCooldowns) c.eventCooldowns = {};
   if (!c.sex) c.sex = "male";
   if (!c.mastery) c.mastery = {};
   if (!c.region) c.region = "azuredomain";
@@ -669,7 +691,7 @@ function doBreakthrough() {
   } else { renderProfile(); save(); checkDeath(); }
 }
 function doBossFight() {
-  if (!useAction()) return;
+  if (!ageAllows("boss") || !useAction()) return;
   const c = state.c; closeOverlay();
   const boss = C.makeBoss(c, state.rng, { factorMult: regionMult(c) });
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
@@ -738,7 +760,7 @@ function applyBrew() {
 
 /* --- Secret Realm: a multi-stage delve with carried wounds and a guardian --- */
 function doSecretRealm() {
-  if (!useAction()) return;
+  if (!ageAllows("secret") || !useAction()) return;
   const c = state.c; closeOverlay();
   const depth = 3 + Math.floor(state.rng.random() * 3); // 3-5 stages incl. guardian
   state.realmRun = { depth, idx: 0, hpFrac: 1 };
@@ -810,7 +832,7 @@ function realmComplete() {
 function realmEnd() { state.realmRun = null; endActivityYear(); }
 function doTournament() {
   const c = state.c; if (!c.alive || !c.sectKey) return;
-  if (!useAction()) return;
+  if (!ageAllows("tournament") || !useAction()) return;
   closeOverlay();
   state.tourney = { round: 1, max: 4, won: 0 };
   logMessages([`⚑ The ${E.sectName(c)} grand tournament begins — 16 disciples enter the ring.`]);
@@ -891,7 +913,7 @@ function endActivityYear() {   // an action concluded -- no time passes
   renderProfile(); save(); checkDeath();
 }
 function doWander() {
-  if (!useAction()) return;
+  if (!ageAllows("wander") || !useAction()) return;
   const c = state.c; closeOverlay();
   if (c.awakened && c.root.key !== "none" && state.rng.random() < 0.58) {
     const enemy = C.makeEnemy(c, state.rng, { factorMult: regionMult(c) });
@@ -902,14 +924,14 @@ function doWander() {
   }
 }
 function doHunt() {
-  if (!useAction()) return;
+  if (!ageAllows("hunt") || !useAction()) return;
   const c = state.c; closeOverlay();
   const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]), factorMult: regionMult(c) });
   logMessages([`You track a ${enemy.name} through the spirit-wilds and corner it.`]);
   startBattle(enemy, { title: "Beast Hunt" }, () => endActivityYear());
 }
 function doArena() {
-  if (!useAction()) return;
+  if (!ageAllows("arena") || !useAction()) return;
   const c = state.c; closeOverlay();
   const enemy = C.makeEnemy(c, state.rng, { kind: "rogue", name: "Sparring Partner", factor: state.rng.uniform(0.8, 1.1), element: null });
   logMessages(["You step into the sect sparring ring. (non-lethal)"]);

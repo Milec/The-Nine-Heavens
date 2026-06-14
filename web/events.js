@@ -321,9 +321,191 @@ export const EVENTS = [
       { label: "Drown it in cultivation", result: (c, rng, A) => { A.qi(0.3); A.happy(-3); return "You bury the whisper under relentless work. It quiets — for now. But it is not gone."; } },
     ],
   },
+
+  /* ===================== additional childhood (ages 1-10) ============== */
+  {
+    id: "child_firstword", weight: 5, minAge: 1, maxAge: 3, awakened: false, once: true,
+    auto: (c, rng, A) => { cap(c, "comprehension", 1); return rng.choice([`Your first word isn't "mama" or "papa" — it's "dao." Your parents exchange a worried glance.`, `You babble a string of nonsense that the village monk swears is an ancient mantra.`]); },
+  },
+  {
+    id: "child_flyby", weight: 6, minAge: 3, maxAge: 11, awakened: false,
+    auto: (c, rng, A) => { A.happy(5); A.qi(0.1); return "A sword-riding cultivator streaks across the sky, robes snapping in the wind. You stare upward for hours, a longing kindling in your small chest."; },
+  },
+  {
+    id: "child_storyteller", weight: 6, minAge: 4, maxAge: 10, awakened: false,
+    auto: (c, rng, A) => { cap(c, "comprehension", rng.randint(1, 2)); return "A blind storyteller spins tales of immortals and demon-kings by the well. You hang on every word and remember them all."; },
+  },
+  {
+    id: "child_nightmare", weight: 4, minAge: 2, maxAge: 9, awakened: false,
+    auto: (c, rng, A) => { if (rng.random() < 0.5) { cap(c, "soul", 1); return "You wake screaming from a dream of a thousand eyes in the dark — but in facing it, your spirit toughens."; } A.happy(-4); return "Night terrors plague you for a week; you cling to your mother's sleeve."; },
+  },
+  {
+    id: "child_lost", weight: 5, minAge: 3, maxAge: 8, awakened: false,
+    text: () => "You wander off chasing a butterfly and find yourself lost and alone as dusk falls.",
+    choices: [
+      { label: "Stay calm and retrace your steps", result: (c, rng, A) => { cap(c, "comprehension", 1); A.happy(2); return "You keep your head, follow the stream home, and stride in just after dark — quietly proud."; } },
+      { label: "Cry for help", result: (c, rng, A) => { const f = A.meet("friend", { affinity: 16 }); return `A kindly older child, ${f.name}, finds you and walks you home. A friendship begins.`; } },
+    ],
+  },
+  {
+    id: "child_festival", weight: 6, minAge: 4, maxAge: 11, awakened: false,
+    text: () => "The harvest festival fills the village with lanterns, sweets and stilt-walkers.",
+    choices: [
+      { label: "Watch the fireworks, wide-eyed", result: (c, rng, A) => { A.happy(7); return "You gorge on candied hawthorn and gape at the fireworks until you fall asleep on your father's shoulders."; } },
+      { label: "Pocket a vendor's coins", result: (c, rng, A) => { if (rng.random() < 0.5) { A.stones(rng.randint(1, 4)); A.karma(-2); return "Small fingers, quick work. You're a few coins richer and no one the wiser."; } A.happy(-5); return "A meaty hand seizes your wrist. You earn a thrashing and a scolding in front of everyone."; } },
+    ],
+  },
+  {
+    id: "child_river", weight: 4, minAge: 5, maxAge: 10, awakened: false,
+    text: () => "The older children dare you to swim across the swift summer river.",
+    choices: [
+      { label: "Take the dare", result: (c, rng, A) => { if (rng.random() < 0.55 + c.constitution / 300) { cap(c, "constitution", 2); A.happy(5); return "You fight the current and haul yourself up the far bank, gasping and triumphant. (+Constitution)"; } A.heal(-12); A.happy(-4); return "The current drags you under; a farmer fishes you out half-drowned. You cough up river-water for days."; } },
+      { label: "Refuse", result: (c, rng, A) => { A.happy(-2); return "They jeer and call you a coward, but you keep your dry skin and your good sense."; } },
+    ],
+  },
+  {
+    id: "child_temple", weight: 5, minAge: 4, maxAge: 11, awakened: false,
+    text: () => "At the mountain temple, a wrinkled monk studies your face a moment too long.",
+    choices: [
+      { label: "Bow and ask his blessing", result: (c, rng, A) => { cap(c, "comprehension", 2); A.happy(3); A.karma(2); return `The monk presses a thumb to your brow. "A curious fate," he murmurs, and gives you a prayer-bead. (+Comprehension)`; } },
+      { label: "Hide behind your mother", result: () => "You shy away. The monk only smiles and returns to his sweeping." },
+    ],
+  },
+  {
+    id: "child_stray", weight: 5, minAge: 3, maxAge: 9, awakened: false,
+    auto: (c, rng, A) => { A.happy(6); cap(c, "charm", 1); return "A scrawny stray dog adopts you, trailing you everywhere. You share your scraps and name it after a hero from the storyteller's tales."; },
+  },
+  {
+    id: "child_lean_year", weight: 4, minAge: 2, maxAge: 9, awakened: false,
+    cond: c => ["slave", "beggar", "peasant", "hunter"].includes(c.backgroundKey),
+    text: () => "Drought withers the crops and the whole household goes hungry through a long, grey winter.",
+    choices: [
+      { label: "Give your share to a sibling", result: (c, rng, A) => { A.karma(3); A.heal(-8); A.kinAdjust("brother", 5); A.kinAdjust("sister", 5); return "You go to bed with an empty belly so the little ones can eat. It marks you — gaunt, but good."; } },
+      { label: "Forage in the hills", result: (c, rng, A) => { if (rng.random() < 0.6) { A.herbs(rng.randint(1, 3)); return "You learn which roots and berries are safe, and bring home what you can. The hills become your larder."; } A.heal(-6); return "You eat the wrong mushrooms and spend two days violently ill."; } },
+    ],
+  },
+
+  /* ===================== additional youth (ages 6-17) ================== */
+  {
+    id: "youth_competition", weight: 6, minAge: 8, maxAge: 16,
+    text: () => "A village contest of wits and strength is held; children from miles around compete for a silver tael.",
+    choices: [
+      { label: "Compete with all your heart", result: (c, rng, A) => { if (rng.random() < 0.35 + (c.constitution + c.comprehension) / 500) { A.stones(rng.randint(3, 8)); c.reputation += 2; A.happy(6); return "You win! The silver is yours, and the village remembers your name."; } A.happy(-2); cap(c, "constitution", 1); return "You don't place, but you give a good showing and learn from those who beat you."; } },
+      { label: "Watch from the sidelines", result: (c, rng, A) => { cap(c, "comprehension", 1); return "You study every match instead, learning more about people than any prize could teach."; } },
+    ],
+  },
+  {
+    id: "youth_streetfight", weight: 5, minAge: 9, maxAge: 16,
+    text: () => "A gang of older toughs corners you in an alley, demanding your coin.",
+    choices: [
+      { label: "Fight your way out", result: (c, rng, A) => { if (rng.random() < 0.4 + c.constitution / 250) { cap(c, "constitution", 2); c.reputation += 1; A.happy(4); return "You bloody two of them and bolt. Word spreads that you're not to be trifled with. (+Constitution)"; } A.heal(-12); A.stones(-Math.min(c.spiritStones, 3)); return "They beat you down and take what little you have. You limp home nursing your pride."; } },
+      { label: "Talk fast", result: (c, rng, A) => { if (rng.random() < 0.4 + c.charm / 250) { cap(c, "charm", 1); return "A clever line and a confident grin — somehow they laugh and let you pass."; } A.stones(-Math.min(c.spiritStones, 3)); return "Your words fail; they take your coin and shove you in a puddle."; } },
+    ],
+  },
+  {
+    id: "youth_oddmentor", weight: 4, minAge: 8, maxAge: 16, once: true,
+    text: () => "A one-armed veteran sharpening knives by the gate offers to teach you 'something useful.'",
+    choices: [
+      { label: "Accept the lesson", result: (c, rng, A) => { cap(c, "constitution", 2); cap(c, "comprehension", 1); return "For a season he drills you in footwork, breathing and the reading of an opponent's eyes. It sticks with you for life."; } },
+      { label: "Politely decline", result: () => "You bow and move on. He shrugs and returns to his whetstone." },
+    ],
+  },
+  {
+    id: "youth_firstcrush", weight: 5, minAge: 13, maxAge: 17,
+    cond: c => !c.relationships.some(n => n.role === "companion" && n.alive),
+    text: () => "Your heart does something strange and new whenever a certain someone from the next village passes by.",
+    choices: [
+      { label: "Work up the courage to talk to them", result: (c, rng, A) => { if (rng.random() < 0.4 + c.charm / 200) { const n = A.meet("friend", { affinity: 22 }); A.happy(8); return `You stammer out a greeting and ${n.name} smiles back. A sweet, awkward friendship blooms.`; } A.happy(-5); return "You freeze, say something idiotic, and flee crimson-faced. Mortifying."; } },
+      { label: "Admire from afar", result: (c, rng, A) => { A.happy(2); return "You compose terrible poetry in secret and never send it. Such is youth."; } },
+    ],
+  },
+  {
+    id: "youth_forbidden_book", weight: 4, minAge: 10, maxAge: 16, once: true,
+    text: () => "You find a water-stained manual hidden under a loose floorboard in an abandoned house.",
+    choices: [
+      { label: "Study it in secret", result: (c, rng, A) => { const t = A.learnTech(); cap(c, "comprehension", 1); return t ? `The crabbed script slowly yields its secrets: you teach yourself ${t}!` : "The pages are too damaged to decipher, but puzzling over them sharpens your mind."; } },
+      { label: "Hand it to the elders", result: (c, rng, A) => { c.reputation += 3; A.karma(2); return "You turn the dangerous text over to the village elders, who commend your honesty."; } },
+    ],
+  },
+
+  /* ===================== additional adult / any (16+) ================== */
+  {
+    id: "wandering_monk_riddle", weight: 5, minAge: 12, maxAge: 9000,
+    text: () => `A travelling monk bars the road with a riddle: "What grows the heavier the more you take from it?"`,
+    choices: [
+      { label: '"A grave."', result: (c, rng, A) => { cap(c, "comprehension", 2); A.happy(3); A.karma(1); return "The monk's eyes crinkle. 'Just so.' He gifts you a pearl of insight before walking on. (+Comprehension)"; } },
+      { label: '"A debt."', result: (c, rng, A) => { cap(c, "comprehension", 1); return "'A worldly answer, but not a wrong one,' he allows, and shares a smaller wisdom."; } },
+      { label: "Push past, impatient", result: (c, rng, A) => { A.happy(-2); return "You shoulder past. The monk sighs at the back of your head, disappointed."; } },
+    ],
+  },
+  {
+    id: "meteor_shower", weight: 4, minAge: 10, maxAge: 9000, awakened: true,
+    auto: (c, rng, A) => { A.qi(rng.uniform(0.2, 0.5)); cap(c, "comprehension", 1); return "You cultivate beneath a sky raining silver fire. The cosmos feels close enough to touch, and your dao-heart drinks it in."; },
+  },
+  {
+    id: "beggar_immortal", weight: 4, minAge: 12, maxAge: 9000,
+    cond: c => c.spiritStones > 0,
+    text: () => "A filthy beggar with strangely clear eyes holds out a cracked bowl as you pass.",
+    choices: [
+      { label: "Give freely", result: (c, rng, A) => { A.stones(-1); A.karma(4); if (rng.random() < 0.3) { return [...A.giveArtifact()].concat("The 'beggar' presses something into your hand, winks, and is simply... gone."); } A.happy(3); return "You drop in a coin without a second thought. The beggar murmurs a blessing that lingers warm in your chest."; } },
+      { label: "Ignore them", result: (c, rng, A) => { A.karma(-1); return "You walk past. When you glance back, the beggar — and the alley — are empty."; } },
+    ],
+  },
+  {
+    id: "traveling_merchant", weight: 5, minAge: 12, maxAge: 9000,
+    cond: c => c.spiritStones >= 15,
+    text: () => "A grinning merchant unrolls a cloth of curios: 'For you, friend, a special price on a sealed mystery box!'",
+    choices: [
+      { label: "Buy the mystery box (15 stones)", result: (c, rng, A) => { A.stones(-15); const r = rng.random(); if (r < 0.35) return [...A.giveArtifact()]; if (r < 0.6) { A.herbs(rng.randint(3, 8)); return "Inside: a fragrant bundle of spirit herbs."; } if (r < 0.8) { c.pills += rng.randint(1, 2); return "Inside: a small jar of pills."; } A.happy(-3); return "Inside: sawdust and a rude note. Swindled!"; } },
+      { label: "Haggle, then decline", result: (c, rng, A) => { cap(c, "charm", 1); return "You talk him in circles for sport, buy nothing, and leave him scratching his head."; } },
+    ],
+  },
+  {
+    id: "drinking_contest", weight: 4, minAge: 16, maxAge: 9000,
+    text: () => "At a roadside tavern, a red-faced cultivator slams down a jug and challenges you to drink him under the table.",
+    choices: [
+      { label: "Accept the challenge", result: (c, rng, A) => { if (rng.random() < 0.4 + c.constitution / 250) { c.reputation += 2; A.happy(6); const f = A.meet("friend", { affinity: 20 }); return `You drink the braggart senseless. The whole tavern toasts you, and ${f.name} becomes a fast friend.`; } A.heal(-6); A.happy(-3); return "You wake in a ditch the next morning with no memory and no coin-purse."; } },
+      { label: "Decline graciously", result: (c, rng, A) => { cap(c, "soul", 1); return "You raise a cup of tea instead. Clear-headed, you watch the fool drink himself into a stupor."; } },
+    ],
+  },
+  {
+    id: "old_friend", weight: 4, minAge: 18, maxAge: 9000,
+    cond: c => c.relationships.some(n => n.role === "friend" && n.alive),
+    auto: (c, rng, A) => { const f = c.relationships.find(n => n.role === "friend" && n.alive); A.happy(7); if (f) f.affinity = Math.min(100, f.affinity + 8); return `You cross paths with your old friend ${f ? f.name : ""} in a faraway city. You talk until dawn of all the roads you've walked apart.`; },
+  },
+  {
+    id: "poison_plot", weight: 3, minAge: 16, maxAge: 9000, awakened: true,
+    cond: c => c.reputation >= 20 || c.spiritStones >= 50,
+    text: () => "At a banquet, you notice your wine-cup smells faintly of bitter almonds — poison.",
+    choices: [
+      { label: "Feign a drink, then expose the poisoner", result: (c, rng, A) => { if (rng.random() < 0.4 + c.soul / 250) { c.reputation += 4; A.karma(2); const n = A.meet("enemy", { affinity: -45 }); return `You pretend to sip, catch the culprit's eager glance, and denounce ${n.name} before the whole hall. A new enemy, and a sharpened reputation.`; } A.heal(-15); return "You misjudge the timing and swallow a mouthful. You survive, but spend a feverish month purging the toxin."; } },
+      { label: "Quietly pour it out and leave", result: (c, rng, A) => { A.happy(-3); return "You tip the wine into a potted plant and slip away. Someone wants you dead — but who?"; } },
+    ],
+  },
+  {
+    id: "spirit_storm", weight: 4, minAge: 10, maxAge: 9000, awakened: true,
+    cond: c => c.root.key !== "none",
+    text: () => "The sky turns violet and a storm of wild, dense spirit-qi rolls over the land.",
+    choices: [
+      { label: "Cultivate within the storm", result: (c, rng, A) => { if (rng.random() < 0.6) { A.qi(rng.uniform(0.4, 0.9)); return "You open your meridians to the raging qi and ride the storm to a surge of progress."; } A.heal(-14); A.happy(-3); return "The qi proves too violent; it savages your meridians and you cough blood for days."; } },
+      { label: "Shelter and wait it out", result: (c, rng, A) => { A.qi(0.1); return "You hunker in a cave until the storm passes. Safe, if unspectacular."; } },
+    ],
+  },
+  {
+    id: "lantern_festival", weight: 5, minAge: 14, maxAge: 9000,
+    text: () => "A great lantern festival lights the river with a thousand floating flames.",
+    choices: [
+      { label: "Float a lantern with a wish", result: (c, rng, A) => { A.happy(8); if (!c.relationships.some(n => n.role === "companion" && n.alive) && c.age >= 16 && rng.random() < 0.25) { const n = A.meet("companion", { affinity: 24 }); return `As your lantern drifts off, your hand brushes another's at the rail — ${n.name}. Fate, perhaps.`; } return "You whisper a wish and watch your light join the river of stars. Your heart eases."; } },
+      { label: "Sell trinkets to the crowd", result: (c, rng, A) => { A.stones(rng.randint(4, 12)); return "You hawk paper charms to lovers and families, turning a tidy profit on the festival mood."; } },
+    ],
+  },
 ];
 
 /* ----------------------- eligibility & rolling --------------------------- */
+// Years a repeatable event must wait before it can fire again (overridable per
+// event via `cooldown`). Keeps the same card from showing up over and over.
+const DEFAULT_COOLDOWN = 8;
+
 function eligible(c, e) {
   if (!c.alive) return false;
   if (e.minAge != null && c.age < e.minAge) return false;
@@ -332,13 +514,18 @@ function eligible(c, e) {
   if (e.maxRealm != null && c.realm > e.maxRealm) return false;
   if (e.awakened === true && !c.awakened) return false;
   if (e.awakened === false && c.awakened) return false;
-  if (e.once !== false && (c.firedEvents || []).includes(e.id) && (e.once === true)) return false;
+  if (e.once === true && (c.firedEvents || []).includes(e.id)) return false;
+  // Cooldown: don't refire until enough years have passed.
+  const last = (c.eventCooldowns || {})[e.id];
+  if (last != null && c.age - last < (e.cooldown != null ? e.cooldown : DEFAULT_COOLDOWN)) return false;
   if (e.cond && !e.cond(c)) return false;
   return true;
 }
 
 function instantiate(c, rng, A, e) {
   if (!c.firedEvents) c.firedEvents = [];
+  if (!c.eventCooldowns) c.eventCooldowns = {};
+  c.eventCooldowns[e.id] = c.age;
   if (e.once === true && !c.firedEvents.includes(e.id)) c.firedEvents.push(e.id);
   const text = typeof e.text === "function" ? e.text(c) : e.text;
   if (e.choices) {
