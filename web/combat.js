@@ -36,7 +36,11 @@ export const SKILLS = {
   sword_rain: { id: "sword_rain", tech: "sword_rain", name: "Myriad Sword Rain", qi: 24, dmg: 0.22, hits: 3, element: "Metal", desc: "Three flying-sword strikes; each can crit and exploit elements." },
   mirror_parry: { id: "mirror_parry", tech: "mirror_parry", name: "Mirror-Light Parry", qi: 12, type: "defend", shield: 0.16, counter: 0.6, qiRestore: 0.15, desc: "Shield up and reflect 60% of the next blow back at the foe." },
   spirit_bind: { id: "spirit_bind", tech: "spirit_bind", name: "Spirit-Binding Seal", qi: 18, dmg: 0.30, element: "Light", target: { type: "weaken", turns: 2, value: 0.30 }, target2: { type: "stun", turns: 1, value: 0, chance: 0.35 }, desc: "Shackle the foe: heavy weaken, with a chance to stun." },
+  frost_lotus: { id: "frost_lotus", tech: "frost_lotus", name: "Frost Lotus Palm", qi: 19, dmg: 0.46, element: "Ice", target: { type: "stun", turns: 1, value: 0, chance: 0.40 }, desc: "A blossom of killing frost; may freeze the foe solid for a turn." },
+  thunder_step: { id: "thunder_step", tech: "thunder_step", name: "Nine-Heaven Thunder Step", qi: 22, dmg: 0.27, hits: 2, element: "Lightning", self: { type: "empower", turns: 2, value: 0.15 }, desc: "Blink and strike twice; the speed lingers (+15% damage, 2 turns)." },
+  vajra_body: { id: "vajra_body", tech: "vajra_body", name: "Vajra Indestructible Body", qi: 16, type: "defend", shield: 0.20, self: { type: "regen", turns: 3, value: 0.06 }, desc: "Golden flesh: a strong qi shield and steady regeneration for 3 turns." },
   heaven_slash: { id: "heaven_slash", tech: "heaven_slash", name: "Heaven-Splitting Slash", qi: 32, dmg: 0.95, pierce: 0.4, element: "Metal", self: { type: "weaken", turns: 1, value: 0.30 }, desc: "A colossal cut — but it leaves you spent (weakened) next turn." },
+  samsara_palm: { id: "samsara_palm", tech: "samsara_palm", name: "Samsara Heaven-Turning Palm", qi: 30, dmg: 0.72, element: "Void", lifesteal: 0.35, desc: "Turn the wheel of life and death: heavy void damage that mends you." },
 };
 const SKILL_BY_TECH = {};
 for (const k in SKILLS) if (SKILLS[k].tech) SKILL_BY_TECH[SKILLS[k].tech] = SKILLS[k];
@@ -207,7 +211,8 @@ function resolveSkill(B, att, def, skill, lines) {
   if (skill.type === "defend") {
     att.shield += att.maxHp * skill.shield * mm;
     if (skill.counter) addStatus(att, "counter", 2, skill.counter);
-    lines.push(`${icon(att)} ${att.name} — ${skill.name || "guards"}${skill.counter ? " (reflecting stance)" : ""}.`);
+    if (skill.self) addStatus(att, skill.self.type, skill.self.turns + 1, skill.self.value);
+    lines.push(`${icon(att)} ${att.name} — ${skill.name || "guards"}${skill.counter ? " (reflecting stance)" : skill.self ? ` (${skill.self.type})` : ""}.`);
     return;
   }
   if (skill.type === "heal") {

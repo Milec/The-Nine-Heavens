@@ -1063,7 +1063,9 @@ function renderBattleScreen(B, onDone) {
       const grid = el("div", "cbt-actions");
       for (const a of B.actions()) {
         const b = el("button", "cbt-skill" + (a.disabled ? " off" : "") + (a.id === "flee" ? " flee" : ""));
-        b.innerHTML = `<span class="cs-name">${a.element ? C.elementIcon(a.element) + " " : ""}${escapeHtml(a.name)}</span><span class="cs-cost">${a.qi ? "⊙" + a.qi : "free"}</span>`;
+        b.innerHTML = `<span class="cs-name">${a.element ? C.elementIcon(a.element) + " " : ""}${escapeHtml(a.name)}</span>`
+          + (a.desc ? `<span class="cs-desc">${escapeHtml(a.desc)}</span>` : "")
+          + `<span class="cs-cost">${a.qi ? "⊙" + a.qi + " qi" : "free"}</span>`;
         if (!a.disabled) b.onclick = () => { const r = B.act(a.id); (B.feed = B.feed || []).push(...r.lines); renderBattleScreen(B, onDone); };
         grid.appendChild(b);
       }

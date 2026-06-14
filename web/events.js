@@ -266,13 +266,13 @@ export const EVENTS = [
     text: c => { const n = c.relationships.find(x => x.role === "nemesis" && x.alive); return `${n ? n.name : "Your nemesis"} struts past with a retinue, loudly mocking your "pitiful" cultivation for all to hear.`; },
     choices: [
       { label: "Redouble your training", result: (c, rng, A) => { cap(c, "comprehension", 2); A.happy(-3); return "You answer with silence and sweat. Their scorn becomes fuel. (+Comprehension)"; } },
-      { label: "Answer their challenge now", result: (c, rng, A) => { const n = A.nemesis(); return ["Blood rushes to your head — you call them out on the spot!"].concat(A.fight([n.name, n.power, (c.realm + 1) * 6, "rogue"])); } },
+      { label: "Answer their challenge now", result: (c, rng, A) => { const n = A.nemesis(); if (!n) return "You spin to answer — but they have already melted back into the crowd."; return ["Blood rushes to your head — you call them out on the spot!"].concat(A.fight([n.name, n.power, (c.realm + 1) * 6, "rogue"])); } },
     ],
   },
   {
     id: "nemesis_ambush", weight: 4, minRealm: 2, awakened: true,
     cond: c => c.relationships.some(n => n.role === "nemesis" && n.alive),
-    auto: (c, rng, A) => { const n = A.nemesis(); return ["Your nemesis " + n.name + " ambushes you on a lonely mountain road!"].concat(A.fight([n.name, n.power, (c.realm + 1) * 7, "rogue"])); },
+    auto: (c, rng, A) => { const n = A.nemesis(); if (!n) return "You sense a hostile gaze on the road, but it fades before you can place it."; return ["Your nemesis " + n.name + " ambushes you on a lonely mountain road!"].concat(A.fight([n.name, n.power, (c.realm + 1) * 7, "rogue"])); },
   },
   /* ----------------------- reputation & world standing ------------------ */
   {
@@ -497,6 +497,153 @@ export const EVENTS = [
     choices: [
       { label: "Float a lantern with a wish", result: (c, rng, A) => { A.happy(8); if (!c.relationships.some(n => n.role === "companion" && n.alive) && c.age >= 16 && rng.random() < 0.25) { const n = A.meet("companion", { affinity: 24 }); return `As your lantern drifts off, your hand brushes another's at the rail — ${n.name}. Fate, perhaps.`; } return "You whisper a wish and watch your light join the river of stars. Your heart eases."; } },
       { label: "Sell trinkets to the crowd", result: (c, rng, A) => { A.stones(rng.randint(4, 12)); return "You hawk paper charms to lovers and families, turning a tidy profit on the festival mood."; } },
+    ],
+  },
+
+  /* ===================== high-realm trials (Golden Core+) ============== */
+  {
+    id: "closed_door_seclusion", weight: 5, minRealm: 4, awakened: true,
+    text: () => "You feel a breakthrough trembling just out of reach. The temptation to seal yourself in seclusion for a long retreat is strong.",
+    choices: [
+      { label: "Enter closed-door seclusion", result: (c, rng, A) => { if (rng.random() < 0.55 + c.comprehension / 300) { A.qi(rng.uniform(0.8, 1.5)); cap(c, "comprehension", 2); return "Months blur into one breath. You emerge gaunt, hollow-eyed — and far stronger. The wall is gone."; } A.heal(-10); A.happy(-5); return "You sit and sit, but the dao will not come. You emerge stiff, frustrated, and no closer."; } },
+      { label: "Keep walking the world", result: (c, rng, A) => { cap(c, "soul", 1); A.happy(3); return "The dao is found in living, not hiding, you decide. You stay among the dust of the mortal road."; } },
+    ],
+  },
+  {
+    id: "tribulation_omen", weight: 4, minRealm: 4, awakened: true, cooldown: 12,
+    auto: (c, rng, A) => { A.happy(-3); cap(c, "soul", 1); return "Black clouds gather unseasonably whenever your qi surges. The heavens have taken note of you; a tribulation waits somewhere down your road. You steel your dao-heart. (+Soul)"; },
+  },
+  {
+    id: "enlightenment_tree", weight: 4, minRealm: 5, awakened: true, once: true,
+    text: () => "Deep in an ancient forest you find a withered tree under which, legend says, a long-dead immortal once attained the dao.",
+    choices: [
+      { label: "Sit beneath it and meditate", result: (c, rng, A) => { A.qi(rng.uniform(1.0, 2.0)); cap(c, "comprehension", 4); cap(c, "soul", 2); return "Echoes of an ancient enlightenment seep into you across the centuries. You rise with the world made suddenly, terribly clear. (+Comprehension, +Soul)"; } },
+      { label: "Leave the sacred ground undisturbed", result: (c, rng, A) => { A.karma(5); return "Some places are not yours to take from. You bow, leave an offering, and walk on lighter for it. (+Karma)"; } },
+    ],
+  },
+  {
+    id: "immortal_inheritance", weight: 3, minRealm: 5, awakened: true, once: true,
+    cond: c => c.comprehension >= 30,
+    text: () => "A drifting fragment of an immortal's memory-jade finds you, recognizing a kindred dao. It offers its inheritance — but the trial will scour your very soul.",
+    choices: [
+      { label: "Accept the soul-trial", result: (c, rng, A) => { if (rng.random() < 0.4 + c.soul / 300) { const t = A.learnTech(); A.qi(1.5); cap(c, "comprehension", 3); const a = A.giveArtifact("Heaven"); return ["You endure the searing trial and claim the inheritance — knowledge, power, and a treasure across the ages.", t ? `You comprehend ${t}.` : "Ancient insight floods your meridians."].concat(a); } A.heal(-25); A.happy(-10); return "The trial is too much; the memory-jade shatters and the backlash leaves you bleeding from the eyes. You barely cling to sanity."; } },
+      { label: "Refuse — it is not your dao", result: (c, rng, A) => { cap(c, "soul", 2); return "You will reach immortality on your own road or not at all. The jade dims, almost approving, and crumbles to dust. (+Soul)"; } },
+    ],
+  },
+  {
+    id: "demon_invasion", weight: 4, minRealm: 4, awakened: true,
+    cond: c => c.karma > -40,
+    text: () => "A tide of corpse-fiends and devil-path cultivators pours out of a torn rift, swarming toward a city of mortals and weak cultivators.",
+    choices: [
+      { label: "Stand against the tide", result: (c, rng, A) => { const res = A.fight(["a Devil-Path Vanguard", A.power() * rng.uniform(1.0, 1.4), (c.realm + 1) * 8, "rogue"]); if (c.alive) { A.karma(15); c.reputation += 8; res.push("You hold the line until reinforcements come. The city erects a shrine in your name. (+Karma, +Reputation)"); } return ["You plant your feet between the fiends and the fleeing thousands."].concat(res); } },
+      { label: "Evacuate who you can", result: (c, rng, A) => { A.karma(6); A.happy(-4); A.stones(-Math.min(c.spiritStones, 10)); return "You can't beat the horde, but you spend yourself shepherding mortals out the eastern gate. Not glory — but lives. (+Karma)"; } },
+    ],
+  },
+  {
+    id: "dao_debate", weight: 5, minRealm: 3, awakened: true,
+    text: () => "At a convocation of cultivators, an arrogant elder challenges all comers to a debate on the nature of the dao.",
+    choices: [
+      { label: "Cross words with the elder", result: (c, rng, A) => { if (rng.random() < 0.35 + c.comprehension / 250) { cap(c, "comprehension", 3); c.reputation += 4; A.happy(6); return "Your insight cuts cleaner than his centuries of dogma. The hall murmurs your name. (+Comprehension, +Reputation)"; } A.happy(-4); cap(c, "comprehension", 1); return "He runs verbal circles around you, but you learn from the loss. (+Comprehension)"; } },
+      { label: "Listen and refine your own dao", result: (c, rng, A) => { cap(c, "comprehension", 2); return "You stay silent, absorbing every argument, sharpening your private understanding. (+Comprehension)"; } },
+    ],
+  },
+  {
+    id: "ascension_call", weight: 3, minRealm: 8, awakened: true, cooldown: 15,
+    auto: (c, rng, A) => { A.qi(rng.uniform(0.5, 1.0)); cap(c, "soul", 2); return "On still nights you hear it now: a faint bell tolling from beyond the sky, where the true immortals dwell. The Nine Heavens are calling you home. (+Soul)"; },
+  },
+
+  /* ===================== relationships, deepened ====================== */
+  {
+    id: "child_awakens", weight: 6, awakened: true, once: false, cooldown: 20,
+    cond: c => c.relationships.some(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 6 && !n._awakened),
+    text: c => { const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 6 && !n._awakened); return `Your child ${k ? k.name : ""} reaches the age of awakening. The testing-stone is brought out before the family.`; },
+    choices: [
+      { label: "Watch with bated breath", result: (c, rng, A) => { const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && !n._awakened); if (!k) return "The moment passes."; k._awakened = true; const lucky = rng.random() < 0.35 + c.luck / 300; if (lucky) { k.power = A.power() * 0.3; k.affinity = Math.min(100, k.affinity + 10); A.happy(15); c.reputation += 3; return `The stone blazes bright — ${k.name} has inherited a true spiritual root! Your bloodline's dao will carry on. (+Happiness)`; } k.affinity = Math.min(100, k.affinity + 5); A.happy(2); return `The stone glows only faintly. ${k.name} has a humble root — but you vow to give them every chance you never had.`; } },
+    ],
+  },
+  {
+    id: "disciple_breakthrough", weight: 5, awakened: true, cooldown: 6,
+    cond: c => c.relationships.some(n => n.role === "disciple" && n.alive),
+    auto: (c, rng, A) => { const d = c.relationships.find(n => n.role === "disciple" && n.alive); if (d) { d.power = (d.power || A.power() * 0.3) * rng.uniform(1.15, 1.35); d.affinity = Math.min(100, d.affinity + 6); } A.happy(8); c.reputation += 2; return `Your disciple ${d ? d.name : ""} pushes through a hard bottleneck and advances. They kneel to thank you, and your name shines a little brighter. (+Reputation)`; },
+  },
+  {
+    id: "disciple_strays", weight: 3, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "disciple" && n.alive),
+    text: c => { const d = c.relationships.find(n => n.role === "disciple" && n.alive); return `You discover your disciple ${d ? d.name : ""} has been secretly studying a forbidden demonic art, hungry for faster power.`; },
+    choices: [
+      { label: "Discipline them sternly", result: (c, rng, A) => { const d = c.relationships.find(n => n.role === "disciple" && n.alive); if (d) { if (rng.random() < 0.6) { d.affinity = Math.min(100, d.affinity + 8); A.karma(3); return `${d.name} weeps, burns the manual, and rededicates themselves to the orthodox path. You have saved them. (+Karma)`; } d.role = "enemy"; d.affinity = -40; A.happy(-8); return `${d.name} sneers at your "weakness," abandons you, and flees into the night. A master's bitterest failure.`; } return "The matter resolves itself."; } },
+      { label: "Look the other way", result: (c, rng, A) => { A.karma(-6); A.happy(-3); return "Power is power, you tell yourself. But a seed of darkness now grows in your lineage, and you know it."; } },
+    ],
+  },
+  {
+    id: "companion_peril", weight: 4, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "companion" && n.alive),
+    text: c => { const n = c.relationships.find(x => x.role === "companion" && x.alive); return `Word comes that your dao companion ${n ? n.name : ""} has been gravely wounded and taken captive by enemies.`; },
+    choices: [
+      { label: "Storm the enemy stronghold", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive); const res = A.fight(["the Captor's Champion", A.power() * rng.uniform(0.9, 1.3), (c.realm + 1) * 7, "rogue"]); if (c.alive) { if (n) n.affinity = Math.min(100, n.affinity + 15); A.happy(12); res.push(`You carry ${n ? n.name : "your beloved"} out of the smoke. Some bonds are worth any war.`); } return ["You go alone, against everyone's counsel, blade drawn."].concat(res); } },
+      { label: "Pay the ransom", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive); const cost = Math.min(c.spiritStones, 40 + c.realm * 15); A.stones(-cost); if (n) n.affinity = Math.max(-100, n.affinity - 5); A.happy(-2); return `You empty your reserves — ${cost} stones — to buy ${n ? n.name : "them"} back. They live, but the helplessness gnaws at you both.`; } },
+    ],
+  },
+  {
+    id: "master_legacy", weight: 4, awakened: true, once: true,
+    cond: c => c.relationships.some(n => n.role === "master" && n.alive),
+    text: c => { const m = c.relationships.find(n => n.role === "master" && n.alive); return `Your old master ${m ? m.name : ""}, nearing the end of a long life, summons you to pass on a final legacy.`; },
+    choices: [
+      { label: "Kneel and receive their dao", result: (c, rng, A) => { const m = c.relationships.find(n => n.role === "master" && n.alive); const t = A.learnTech(); cap(c, "comprehension", 3); A.happy(-4); if (m) { m.alive = false; A.note(`${m.name}, your master, passed on their legacy and died.`); } return [`${m ? m.name : "Your master"} pours decades of insight into you with their dying breath, then passes with a peaceful smile.`, t ? `Their final gift: ${t}.` : "Their final gift is wordless understanding. (+Comprehension)"]; } },
+    ],
+  },
+  {
+    id: "sibling_reunion", weight: 4, minAge: 16, maxAge: 9000,
+    cond: c => c.relationships.some(n => (n.kin === "Brother" || n.kin === "Sister") && n.alive),
+    text: c => { const s = c.relationships.find(n => (n.kin === "Brother" || n.kin === "Sister") && n.alive); return `Your ${s ? s.kin.toLowerCase() : "sibling"} ${s ? s.name : ""}, long parted from you, appears at your door — older, wearier, but family still.`; },
+    choices: [
+      { label: "Welcome them warmly", result: (c, rng, A) => { const s = c.relationships.find(n => (n.kin === "Brother" || n.kin === "Sister") && n.alive); if (s) s.affinity = Math.min(100, s.affinity + 20); A.happy(10); return `You share wine and old memories late into the night. Blood endures where so much else is washed away by the years.`; } },
+      { label: "Help them onto the path", result: (c, rng, A) => { const s = c.relationships.find(n => (n.kin === "Brother" || n.kin === "Sister") && n.alive); const cost = Math.min(c.spiritStones, 20); A.stones(-cost); if (s) { s.affinity = Math.min(100, s.affinity + 12); s.power = (s.power || 1) * 1.2 + 3; } A.karma(3); return `You gift ${s ? s.name : "them"} resources and a manual to start their own cultivation. (+Karma)`; } },
+    ],
+  },
+  {
+    id: "rival_reconcile", weight: 3, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "nemesis" && n.alive),
+    text: c => { const n = c.relationships.find(x => x.role === "nemesis" && x.alive); return `You and your nemesis ${n ? n.name : ""} are stranded together in a deadly ruin, each the other's only chance of survival.`; },
+    choices: [
+      { label: "Fight side by side to survive", result: (c, rng, A) => { const n = A.nemesis(); const res = A.fight(["the Ruin's Guardian", A.power() * rng.uniform(1.0, 1.4), (c.realm + 1) * 8, "rogue"]); if (c.alive && n) { if (rng.random() < 0.5) { n.role = "rival"; n.affinity = 20; n.kin = "Old Rival"; res.push(`In the firelight afterward, ${n.name} grunts a grudging respect. The hatred between you finally cools into something almost like friendship.`); } else { res.push(`${n.name} nods once, and you part ways — the rivalry intact, but tempered by a debt of survival.`); } } return ["Back to back, old enemies, against the dark."].concat(res); } },
+      { label: "Use them as a shield and flee", result: (c, rng, A) => { const n = A.nemesis(); if (n) n.power *= 1.15; A.karma(-8); A.happy(-3); return `You shove ${n ? n.name : "them"} into danger and bolt. They survive — and now their hatred has no bottom at all.`; } },
+    ],
+  },
+
+  /* ===================== more world variety ========================== */
+  {
+    id: "chess_immortal", weight: 4, minAge: 14, maxAge: 9000,
+    text: () => "A white-bearded ancient sits at a weiqi board on a mountain ledge, a single seat empty across from him. 'A game?' he asks, without looking up.",
+    choices: [
+      { label: "Sit and play", result: (c, rng, A) => { if (rng.random() < 0.3 + c.comprehension / 250) { cap(c, "comprehension", 3); A.qi(0.3); return "Stone by stone, he teaches you to see the whole board — the whole world — at once. You leave changed. (+Comprehension)"; } A.happy(3); cap(c, "comprehension", 1); return "He thrashes you in nineteen moves, chuckling, then shares a cup of cloud-tea and a small wisdom."; } },
+      { label: "Bow and walk on", result: () => "You sense you are out of your depth and politely decline. He smiles and replaces the stones, waiting for another." },
+    ],
+  },
+  {
+    id: "fox_spirit", weight: 4, minAge: 16, maxAge: 9000, awakened: true,
+    text: () => "A breathtaking stranger with eyes like amber lures you toward a moonlit pavilion. Something about them is not quite... human.",
+    choices: [
+      { label: "See through the glamour", result: (c, rng, A) => { if (rng.random() < 0.4 + c.soul / 250) { cap(c, "soul", 2); A.stones(rng.randint(5, 20)); return "You pierce the illusion; a fox-spirit, caught, laughs in delight and rewards your clear sight before vanishing. (+Soul)"; } A.heal(-10); A.happy(-4); return "The glamour holds. You wake in a graveyard at dawn, drained and dizzy, a day of your life simply gone."; } },
+      { label: "Refuse the temptation", result: (c, rng, A) => { cap(c, "soul", 1); return "You avert your eyes and recite a calming mantra. The amber-eyed stranger pouts, and is gone. (+Soul)"; } },
+    ],
+  },
+  {
+    id: "alchemy_windfall", weight: 4, minAge: 14, maxAge: 9000,
+    cond: c => c.herbs >= 4,
+    text: () => "You stumble on the abandoned cauldron of a fled alchemist, its furnace still warm, rare reagents scattered about.",
+    choices: [
+      { label: "Attempt to finish the brew", result: (c, rng, A) => { if (rng.random() < 0.45 + c.comprehension / 300) { c.pills += rng.randint(1, 3); A.herbs(rng.randint(2, 5)); return "You read the half-finished formula and bring it home — a flurry of fragrant pills tumble from the cauldron!"; } A.heal(-10); A.happy(-3); return "The unstable mixture detonates in your face. Singed eyebrows and a hard lesson in alchemy."; } },
+      { label: "Salvage the materials", result: (c, rng, A) => { A.herbs(rng.randint(3, 7)); A.stones(rng.randint(3, 10)); return "You pack up the precious reagents and rare tools to sell or use later. A tidy haul."; } },
+    ],
+  },
+  {
+    id: "wandering_swordsman", weight: 4, minAge: 14, maxAge: 9000, awakened: true,
+    cond: c => c.root.key !== "none",
+    text: () => "A silent wandering swordsman crosses your path, bows, and wordlessly draws a line in the dust between you — a challenge, friendly but earnest.",
+    choices: [
+      { label: "Accept the bout", result: (c, rng, A) => ["You set your stance and answer steel with steel."].concat(A.fight(["a Wandering Swordsman", A.power() * rng.uniform(0.85, 1.15), (c.realm + 1) * 6, "rogue"])) },
+      { label: "Bow and decline", result: (c, rng, A) => { cap(c, "soul", 1); return "You bow back and step around the line. The swordsman nods, neither pleased nor displeased, and walks on into the mist."; } },
     ],
   },
 ];

@@ -104,7 +104,11 @@ export const TECHNIQUES = {
   sword_rain: ["Myriad Sword Rain Art", 2, 0.20, 14, "A storm of flying swords that strikes again and again."],
   mirror_parry: ["Mirror-Light Body Art", 2, 0.18, 8, "A defensive art that turns a foe's own force back upon them."],
   spirit_bind: ["Spirit-Binding Seal", 2, 0.16, 6, "Soul-script that shackles an enemy's qi and will."],
+  frost_lotus: ["Frost Lotus Palm", 2, 0.22, 11, "A blossoming palm of killing frost that can freeze a foe mid-step."],
+  thunder_step: ["Nine-Heaven Thunder Step", 2, 0.24, 13, "Blink between thunderclaps, striking twice and quickening your own movements."],
+  vajra_body: ["Vajra Indestructible Body", 2, 0.10, 6, "A Buddhist body-art of golden, unbreakable flesh that regenerates wounds."],
   heaven_slash: ["Heaven-Splitting Sabre", 3, 0.42, 20, "A single annihilating cut that leaves you spent."],
+  samsara_palm: ["Samsara Heaven-Turning Palm", 3, 0.50, 18, "Turn the wheel of life and death; void force that rends the foe and mends you."],
 };
 
 // [key, display, charmBonus, blurb, weight]
