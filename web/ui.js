@@ -645,6 +645,7 @@ function resumeFrom(sv) {
   if (typeof c.health !== "number") c.health = 60;
   if (typeof c.awakened !== "boolean") c.awakened = true;
   if (!c.firedEvents) c.firedEvents = [];
+  if (!c.eventCooldowns) c.eventCooldowns = {};
   if (!c.sex) c.sex = "male";
   if (!c.mastery) c.mastery = {};
   if (!c.region) c.region = "azuredomain";
