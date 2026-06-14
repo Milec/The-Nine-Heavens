@@ -137,6 +137,12 @@ python play.py --seed 1234
 
 ## The wheel of destiny — randomness at birth
 
+At the start you can **🎲 Roll a Soul** for a fully random birth (the classic
+mode, where your spiritual root stays a mystery until the age-6 Awakening), or
+**✎ Create Your Soul** to hand-pick any of the birth traits below — spiritual
+root, physique, appearance, standing, omen, name and sex — leaving any of them
+on *Random*, with a live preview and a reroll for the attributes.
+
 Everything that defines your potential is rolled the instant you are born:
 
 - **Spiritual Root (灵根)** — the single biggest talent factor, from the
@@ -144,7 +150,11 @@ Everything that defines your potential is rolled the instant you are born:
   the near-mythical *Chaos Root*. It multiplies every scrap of qi you ever
   absorb. A *Mortal Veins* roll means no spiritual root at all.
 - **Physique (体质)** — usually an ordinary body, but rarely a destiny-altering
-  constitution like the *Nine-Yang Divine Body* or *Innate Dao Embryo*.
+  constitution like the *Nine-Yang Divine Body* (faster cultivation, immune to
+  burning, lethal to demons) or the *Innate Dao Embryo* (much faster cultivation
+  and Dao insight, easier breakthroughs). Special physiques grant **lasting
+  bonuses** to cultivation, combat, healing or survival — not just birth stats.
+  Tap any stat (or the **ⓘ Glossary** in your character sheet) to learn what it does.
 - **Birth Standing (出身)** — from *Bond-Slave* and *Gutter Orphan* to *Noble
   Cultivation Clan* and *Imperial Bloodline*. This sets your starting reputation,
   spirit stones, and heirloom items.

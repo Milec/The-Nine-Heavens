@@ -5,6 +5,39 @@ import * as L from "./life.js";
 import * as C from "./combat.js";
 import * as meta from "./meta.js";
 
+/* Plain-language explanations for every stat, shown as tap hints + a glossary. */
+const GLOSSARY = {
+  age: ["Age", "Your years lived, and your lifespan ceiling. Reaching a new realm extends how long you can live."],
+  deeds: ["Deeds", "Actions you can take this year. Only the ⊕ Age Up button passes a year and fires life events — and refreshes your deeds."],
+  cultivation: ["Cultivation (Qi)", "Progress toward your next stage. Fills as you cultivate; at a realm's peak you attempt a breakthrough to the next realm."],
+  power: ["Power ✦", "Your overall combat strength, drawn from your realm, body, soul, techniques, bound treasure, beast and Daos."],
+  health: ["Health", "Your physical condition (0–100). Wounds and illness lower it; rest, pills and spirit springs restore it. Hit zero and you die."],
+  happiness: ["Happiness", "Your state of mind (0–100). A serene heart steadies breakthroughs; deep misery invites the heart-demon."],
+  comprehension: ["Comprehension 悟性", "How quickly you grasp the dao. Speeds cultivation, eases breakthroughs, and quickens Dao insight."],
+  constitution: ["Constitution 根骨", "Bodily strength. More battle stamina and damage-reduction, and a sturdier resistance to death."],
+  soul: ["Soul Sense 神识", "Spiritual perception. A larger combat qi pool, better dodge, faster Dao insight, and stronger tribulation defence."],
+  fortune: ["Fortune 气运", "Luck. Quietly nudges crits, dodges, lucky finds, and clutch escapes from death."],
+  charm: ["Charm 魅力", "Social grace. Helps you make friends, draw a dao companion, and sway elders and foes alike."],
+  karma: ["Karma 业力", "Merit versus sin. Merit softens the Heavenly Tribulation; deep sin summons a heart-demon and bounty hunters."],
+  fame: ["Fame 声望", "How the cultivation world regards your name — Unknown up to Legendary. Fame draws invitations and gifts; infamy brings hunters."],
+  stones: ["Spirit Stones 💎", "The currency of cultivators. Spend them on pills, treasures, auctions and the sect store."],
+  herbs: ["Spirit Herbs 🌿", "Raw materials gathered in the wild and refined into pills at the alchemy furnace."],
+  region: ["Region 📍", "Where you roam. Distant regions hold deadlier foes — and far richer spoils."],
+  wanted: ["Wanted", "Low standing or heavy sin puts a price on your head; bounty hunters will hunt you down."],
+  breakthrough: ["Breakthrough", "You stand at a realm wall. Attempt it from the Cultivate tab to ascend — risky, and from Golden Core up it summons a Heavenly Tribulation."],
+  root: ["Spiritual Root 灵根", "Your innate talent for cultivation — the single biggest factor in how far you can ever climb. Revealed at the age-6 Awakening."],
+  physique: ["Physique 体质", "Your body's nature. Special physiques grant lasting boons to cultivation, combat, healing or survival (see your sheet)."],
+  realm: ["Realm 境界", "Your cultivation stage — from Mortal up the eleven realms to Immortal Ascension. Each realm lengthens your lifespan."],
+};
+function showTip(key) {
+  const g = GLOSSARY[key]; if (!g) return;
+  let t = $("tip");
+  if (!t) { t = el("div"); t.id = "tip"; ($("app") || document.body).appendChild(t); t.addEventListener("click", () => t.classList.remove("show")); }
+  t.innerHTML = `<b>${escapeHtml(g[0])}</b><br>${escapeHtml(g[1])}<div class="tip-x">tap to dismiss</div>`;
+  t.classList.add("show");
+  clearTimeout(state.tipTimer); state.tipTimer = setTimeout(() => t.classList.remove("show"), 7000);
+}
+
 const regionMult = c => (D.REGION_BY_KEY[c.region || "azuredomain"] || [, , , 1])[3] || 1;
 function applyFavor(c) {
   const f = meta.favor();
@@ -75,8 +108,8 @@ function logBanner(html) { const log = $("log"), t = el("div", "turn"); t.append
 function logYear(age) { const log = $("log"), t = el("div", "turn"); t.appendChild(el("div", "year-tag", `❖ Age ${age}`)); log.appendChild(t); log.scrollTop = log.scrollHeight; }
 
 /* ------------------------------ profile ---------------------------------- */
-function vbar(label, val, max, cls, valText) {
-  return `<div class="vbar"><div class="vb-label"><span>${label}</span><span>${valText != null ? valText : Math.floor(val)}</span></div>
+function vbar(label, val, max, cls, valText, tip) {
+  return `<div class="vbar${tip ? " tappable" : ""}"${tip ? ` data-tip="${tip}"` : ""}><div class="vb-label"><span>${label}</span><span>${valText != null ? valText : Math.floor(val)}</span></div>
     <div class="vb-track"><div class="vb-fill ${cls}" style="width:${clampPct(val, max)}%"></div></div></div>`;
 }
 function renderProfile() {
@@ -90,25 +123,28 @@ function renderProfile() {
 
   const bars = [];
   if (c.awakened && c.root.key !== "none")
-    bars.push(vbar("Cultivation", c.qi, E.qiToNext(c), "qi", `${Math.floor(clampPct(c.qi, E.qiToNext(c)))}%`));
-  bars.push(vbar("Health", c.health, 100, "health"));
-  bars.push(vbar("Happiness", c.happiness, 100, "happy"));
+    bars.push(vbar("Cultivation", c.qi, E.qiToNext(c), "qi", `${Math.floor(clampPct(c.qi, E.qiToNext(c)))}%`, "cultivation"));
+  bars.push(vbar("Health", c.health, 100, "health", null, "health"));
+  bars.push(vbar("Happiness", c.happiness, 100, "happy", null, "happiness"));
   $("pf-bars").innerHTML = bars.join("");
 
   const chips = $("pf-chips"); chips.innerHTML = "";
-  const add = (label, val, warn) => chips.appendChild(el("span", "chip" + (warn ? " warn" : ""), `${label} <b>${val}</b>`));
-  add("Age", `${c.age}/${c.maxAge}`);
-  add("Deeds", `${deedsLeft()}/${ACTIONS_PER_YEAR}`, deedsLeft() <= 0);
-  if (c.awakened) add("✦", Math.floor(E.power(c)));
-  add("Fame", D.standingLabel(c.reputation));
-  add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`);
-  add("💎", c.spiritStones);
-  if (c.herbs) add("🌿", c.herbs);
-  if (D.REGION_BY_KEY[c.region]) add("📍", D.REGION_BY_KEY[c.region][2]);
-  if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", true);
-  if (c.awakened && E.canBreakthrough(c)) add("Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, true);
+  const add = (label, val, cls, tip) => { const ch = el("span", "chip" + (cls ? " " + cls : "") + (tip ? " tappable" : ""), `${label} <b>${val}</b>`); if (tip) ch.onclick = () => showTip(tip); chips.appendChild(ch); };
+  add("Age", `${c.age}/${c.maxAge}`, "", "age");
+  const dl = deedsLeft();
+  add("Deeds", "●".repeat(dl) + "○".repeat(Math.max(0, ACTIONS_PER_YEAR - dl)), dl <= 0 ? "warn" : "good", "deeds");
+  if (c.awakened) add("✦", Math.floor(E.power(c)), "", "power");
+  add("Fame", D.standingLabel(c.reputation), c.reputation >= 90 ? "good" : c.reputation <= -12 ? "bad" : "", "fame");
+  add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`, c.karma >= 40 ? "good" : c.karma <= -40 ? "bad" : "", "karma");
+  add("💎", c.spiritStones, "", "stones");
+  if (c.herbs) add("🌿", c.herbs, "", "herbs");
+  if (D.REGION_BY_KEY[c.region]) add("📍", D.REGION_BY_KEY[c.region][2], "", "region");
+  if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", "bad", "wanted");
+  if (c.awakened && E.canBreakthrough(c)) add("⚑ Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, "warn", "breakthrough");
 
-  $("tabbar").querySelector(".tab-age").classList.toggle("ready", c.awakened && E.canBreakthrough(c));
+  const ageTab = $("tabbar").querySelector(".tab-age");
+  ageTab.classList.toggle("ready", c.awakened && E.canBreakthrough(c));
+  ageTab.classList.toggle("spent", dl <= 0 && c.alive);
   save();
   checkAchievements();
 }
@@ -510,25 +546,40 @@ function openQuests() {
 }
 
 /* --------------------------- character sheet ----------------------------- */
+function openGlossary(backFn) {
+  openOverlay("Glossary — what the stats mean", body => {
+    body.appendChild(el("p", "note", "In-game, tap any stat chip up top, any vital bar, or any ⓘ row in your sheet for the same quick hint."));
+    for (const k in GLOSSARY) {
+      const g = GLOSSARY[k];
+      body.appendChild(el("div", "listrow", `<div class="lr-main"><div class="lr-title">${escapeHtml(g[0])}</div><div class="lr-sub">${escapeHtml(g[1])}</div></div>`));
+    }
+    if (backFn) backBtn(body, backFn);
+  });
+}
 function openSheet() {
   const c = state.c;
   openOverlay("Character Sheet", body => {
+    const gloss = el("button", "mbtn full"); gloss.innerHTML = "ⓘ Glossary<small>tap any stat below, or here, to learn what it means</small>";
+    gloss.onclick = () => openGlossary(openSheet); body.appendChild(gloss);
     body.appendChild(infoRows([
       ["Name", `${c.name} (${c.sex === "female" ? "♀" : "♂"})`],
-      ["Age", `${c.age} / ${c.maxAge}`],
-      ["Realm", c.awakened ? `${E.realmLabel(c)} (${E.realmCn(c)})` : "Unawakened child"],
-      ["Health / Happiness", `${Math.floor(c.health)} (${D.vitalLabel(c.health)}) / ${Math.floor(c.happiness)} (${D.vitalLabel(c.happiness)})`],
-      ["Standing", `${c.reputation} (${D.standingLabel(c.reputation)})`], ["Karma", `${c.karma >= 0 ? "+" : ""}${c.karma} (${E.karmaLabelFor(c)})`],
+      ["Age", `${c.age} / ${c.maxAge}`, "age"],
+      ["Realm", c.awakened ? `${E.realmLabel(c)} (${E.realmCn(c)})` : "Unawakened child", "realm"],
+      ["Health / Happiness", `${Math.floor(c.health)} (${D.vitalLabel(c.health)}) / ${Math.floor(c.happiness)} (${D.vitalLabel(c.happiness)})`, "health"],
+      ["Standing", `${c.reputation} (${D.standingLabel(c.reputation)})`, "fame"], ["Karma", `${c.karma >= 0 ? "+" : ""}${c.karma} (${E.karmaLabelFor(c)})`, "karma"],
     ]));
     body.appendChild(el("div", "section-h", "Born With"));
     body.appendChild(infoRows([
-      ["Spiritual Root", c.awakened ? `${c.root.display}${c.root.elements.length ? " [" + c.root.elements.join(", ") + "]" : ""}` : "Unknown — awakens at age 6 (未测)"],
-      ["Physique", c.physiqueName], ["Appearance", c.appearanceName], ["Standing", c.backgroundName],
+      ["Spiritual Root", c.awakened ? `${c.root.display}${c.root.elements.length ? " [" + c.root.elements.join(", ") + "]" : ""}` : "Unknown — awakens at age 6 (未测)", "root"],
+      ["Physique", c.physiqueName, "physique"], ["Appearance", c.appearanceName], ["Standing", c.backgroundName],
     ]));
+    // Spell out what this physique actually does, so it visibly matters.
+    if (D.PHYSIQUE_EFFECTS[c.physiqueKey] && c.physiqueKey !== "ordinary")
+      body.appendChild(el("p", "note", "✦ " + D.physEffect(c).desc));
     body.appendChild(el("div", "section-h", "Attributes"));
     body.appendChild(infoRows([
-      ["Comprehension 悟性", c.comprehension], ["Constitution 根骨", c.constitution],
-      ["Soul Sense 神识", c.soul], ["Fortune 气运", c.luck], ["Charm 魅力", c.charm],
+      ["Comprehension 悟性", c.comprehension, "comprehension"], ["Constitution 根骨", c.constitution, "constitution"],
+      ["Soul Sense 神识", c.soul, "soul"], ["Fortune 气运", c.luck, "fortune"], ["Charm 魅力", c.charm, "charm"],
     ]));
     body.appendChild(el("div", "section-h", "Path"));
     const rows = [["Sect", c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
@@ -551,7 +602,14 @@ function openSheet() {
 }
 function infoRows(rows) {
   const wrap = el("div");
-  for (const [k, v] of rows) { const r = el("div", "kv"); r.appendChild(el("span", "k", escapeHtml(String(k)))); r.appendChild(el("span", "v", escapeHtml(String(v)))); wrap.appendChild(r); }
+  for (const row of rows) {
+    const [k, v, tip] = row;
+    const r = el("div", "kv" + (tip ? " tappable" : ""));
+    r.appendChild(el("span", "k", escapeHtml(String(k)) + (tip ? ' <span class="info-i">ⓘ</span>' : "")));
+    r.appendChild(el("span", "v", escapeHtml(String(v))));
+    if (tip) r.onclick = () => showTip(tip);
+    wrap.appendChild(r);
+  }
   return wrap;
 }
 function backBtn(body, fn) { const b = el("button", "mbtn full"); b.innerHTML = "‹ Back"; b.onclick = fn; body.appendChild(b); }
@@ -593,10 +651,18 @@ function renderBirth(c) {
     `Appearance — ${c.appearanceName}`, "  " + c.appearanceBlurb, "",
     `The family's spiritual root is still a mystery. The Awakening Ceremony comes at age ${D.AWAKENING_AGE}.`,
     `✦ Each year you may perform up to ${ACTIONS_PER_YEAR} deeds (cultivate, fight, brew, travel...). Only the ⊕ Age Up button passes a year and fires life events — and refreshes your deeds.`,
+    "ⓘ Tip: tap any stat (Age, Karma, Fame…) or the ⓘ Glossary in your sheet to learn what it means.",
   ]);
 }
 
 /* ------------------------------ start ------------------------------------ */
+// Commit a finished character and begin the life.
+function beginLife(c) {
+  state.c = c; state.rng = new E.RNG();
+  applyFavor(c); state.actionsLeft = ACTIONS_PER_YEAR; state.deadHandled = false;
+  closeOverlay(); $("log").innerHTML = ""; renderBirth(c); renderProfile();
+}
+
 function startScreen() {
   state.deadHandled = false;
   let chosenSex = null;
@@ -607,34 +673,133 @@ function startScreen() {
     const input = el("input", "txtfield"); input.type = "text"; input.placeholder = "Name your cultivator (or leave to fate)"; input.maxLength = 24;
     card.appendChild(input);
     const seg = el("div", "seg");
-    [["Random", null], ["♀ Girl", "female"], ["♂ Boy", "male"]].forEach(([lab, val], i) => {
+    [["🎲 Random", null], ["♀ Girl", "female"], ["♂ Boy", "male"]].forEach(([lab, val], i) => {
       const b = el("button", i === 0 ? "on" : "", lab);
       b.onclick = () => { chosenSex = val; seg.querySelectorAll("button").forEach(x => x.classList.remove("on")); b.classList.add("on"); };
       seg.appendChild(b);
     });
     card.appendChild(seg);
     const begin = el("button", "mbtn full primary");
-    begin.innerHTML = "Be Born<small>your fate is decided by the heavens</small>";
-    begin.onclick = () => {
-      state.rng = new E.RNG();
-      state.c = L.bornCharacter(state.rng, input.value.trim() || null, chosenSex);
-      applyFavor(state.c); state.actionsLeft = ACTIONS_PER_YEAR;
-      closeOverlay(); $("log").innerHTML = ""; renderBirth(state.c); renderProfile();
-    };
+    begin.innerHTML = "🎲 Roll a Soul &amp; Begin<small>your fate is decided by the heavens</small>";
+    begin.onclick = () => beginLife(L.bornCharacter(new E.RNG(), input.value.trim() || null, chosenSex));
+    const custom = el("button", "mbtn full");
+    custom.innerHTML = "✎ Create Your Soul<small>choose root, physique, looks, standing &amp; more</small>";
+    custom.onclick = () => openCreator(input.value.trim(), chosenSex);
     const sv = loadSave();
     if (sv && sv.c) {
       const cont = el("button", "mbtn full");
-      cont.innerHTML = `Continue Your Saga<small>${escapeHtml(sv.c.name)} · age ${sv.c.age}</small>`;
+      cont.innerHTML = `▶ Continue Your Saga<small>${escapeHtml(sv.c.name)} · age ${sv.c.age}</small>`;
       cont.onclick = () => resumeFrom(sv);
       body.appendChild(cont);
     }
     body.appendChild(card);
     body.appendChild(begin);
+    body.appendChild(custom);
     const ach = el("button", "mbtn full");
-    ach.innerHTML = `Achievements & Legacy<small>Heavenly Favor: ${meta.favor()}</small>`;
+    ach.innerHTML = `🏆 Achievements &amp; Legacy<small>Heavenly Favor: ${meta.favor()}</small>`;
     ach.onclick = () => openAchievements(startScreen);
     body.appendChild(ach);
   }, false);
+}
+
+/* ------------------------- character creator ----------------------------- */
+function creatorOpts() {
+  const cr = state.creator, o = {};
+  if (cr.rootKey) o.rootKey = cr.rootKey;
+  if (cr.physiqueKey) o.physiqueKey = cr.physiqueKey;
+  if (cr.appearanceKey) o.appearanceKey = cr.appearanceKey;
+  if (cr.backgroundKey) o.backgroundKey = cr.backgroundKey;
+  if (cr.omenIndex !== "") o.omenIndex = Number(cr.omenIndex);
+  return o;
+}
+function rebuildPreview() {
+  const cr = state.creator;
+  cr.preview = L.bornCharacter(new E.RNG(), cr.name || null, cr.sex || null, creatorOpts());
+}
+function crSelect(label, options, current, onChange) {
+  const wrap = el("div", "cr-field");
+  wrap.appendChild(el("div", "cr-label", label));
+  const sel = el("select", "cr-select");
+  for (const o of options) { const op = el("option"); op.value = o.v; op.textContent = o.t; if (String(o.v) === String(current)) op.selected = true; sel.appendChild(op); }
+  sel.value = current == null ? "" : String(current);
+  sel.addEventListener("change", () => onChange(sel.value));
+  wrap.appendChild(sel);
+  return wrap;
+}
+function openCreator(name, sex) {
+  if (!state.creator) state.creator = { rootKey: "", physiqueKey: "", appearanceKey: "", backgroundKey: "", omenIndex: "" };
+  state.creator.name = name || state.creator.name || "";
+  state.creator.sex = sex !== undefined ? sex : state.creator.sex;
+  rebuildPreview();
+  renderCreator();
+}
+function renderCreator() {
+  const cr = state.creator;
+  openOverlay("Create Your Soul", body => {
+    const nameIn = el("input", "txtfield"); nameIn.type = "text"; nameIn.placeholder = "Name (or leave to fate)"; nameIn.maxLength = 24; nameIn.value = cr.name || "";
+    nameIn.addEventListener("input", () => { cr.name = nameIn.value; });
+    body.appendChild(nameIn);
+
+    const seg = el("div", "seg");
+    [["🎲 Random", null], ["♀ Girl", "female"], ["♂ Boy", "male"]].forEach(([lab, val]) => {
+      const b = el("button", cr.sex === val ? "on" : "", lab);
+      b.onclick = () => { cr.sex = val; rebuildPreview(); renderCreator(); };
+      seg.appendChild(b);
+    });
+    body.appendChild(seg);
+
+    const rand = { v: "", t: "🎲 Random" };
+    const change = (key) => (v) => { cr[key] = v; rebuildPreview(); renderCreator(); };
+    body.appendChild(crSelect("Spiritual Root 灵根", [rand, ...D.ROOT_TYPES.map(r => ({ v: r[0], t: r[1] }))], cr.rootKey, change("rootKey")));
+    body.appendChild(crSelect("Physique 体质", [rand, ...D.PHYSIQUES.map(p => ({ v: p[0], t: p[1] }))], cr.physiqueKey, change("physiqueKey")));
+    body.appendChild(crSelect("Appearance 容貌", [rand, ...D.APPEARANCES.map(a => ({ v: a[0], t: a[1] }))], cr.appearanceKey, change("appearanceKey")));
+    body.appendChild(crSelect("Birth Standing 出身", [rand, ...D.BACKGROUNDS.map(b => ({ v: b[0], t: b[1] }))], cr.backgroundKey, change("backgroundKey")));
+    body.appendChild(crSelect("Birth Omen 异象", [rand, ...D.BIRTH_OMENS.map((o, i) => ({ v: String(i), t: o[0].length > 40 ? o[0].slice(0, 38) + "…" : o[0] }))], cr.omenIndex, change("omenIndex")));
+
+    body.appendChild(el("div", "section-h", "Preview"));
+    body.appendChild(creatorPreviewCard(cr.preview));
+
+    const reroll = el("button", "mbtn full");
+    reroll.innerHTML = "🎲 Reroll the Random Parts<small>re-rolls attributes &amp; anything left to fate</small>";
+    reroll.onclick = () => { rebuildPreview(); renderCreator(); };
+    body.appendChild(reroll);
+
+    const begin = el("button", "mbtn full primary");
+    begin.innerHTML = "Begin This Life<small>born as previewed above</small>";
+    begin.onclick = () => beginLife(cr.preview);
+    body.appendChild(begin);
+
+    backBtn(body, startScreen);
+  }, false);
+}
+// A one-line read on how promising a birth is (spiritual root dominates).
+function birthVerdict(c) {
+  const special = c.physiqueKey !== "ordinary";
+  const score = c.root.multiplier * 45
+    + (c.comprehension + c.luck + (c.soul + c.constitution) / 2) / 3 * 0.5
+    + c.reputation * 0.3 + (special ? 35 : 0);
+  if (score > 160) return "The heavens have lavished gifts upon you. A dragon among men.";
+  if (score > 108) return "A genuinely blessed birth. Sects would war over you.";
+  if (score > 68) return "A solid hand of cards. Your fate is yours to make.";
+  if (score > 40) return "An unremarkable start. The climb will be steep but not closed.";
+  return "The dao has dealt you ashes. Only sheer will could forge a legend from this.";
+}
+function creatorPreviewCard(c) {
+  if (!c) return el("div");
+  const wrap = el("div", "cr-preview");
+  wrap.appendChild(el("div", "cr-pv-top", `${D.avatarFor(c)} <b>${escapeHtml(c.name)}</b> · ${c.sex === "female" ? "♀" : "♂"}`));
+  const rows = [
+    ["Spiritual Root", `${c.root.display}${c.root.elements.length ? " [" + c.root.elements.join(", ") + "]" : ""}`],
+    ["Physique", c.physiqueName], ["Appearance", c.appearanceName], ["Standing", c.backgroundName],
+    ["Omen", c.omen.length > 46 ? c.omen.slice(0, 44) + "…" : c.omen],
+    ["Comprehension / Constitution", `${c.comprehension} / ${c.constitution}`],
+    ["Soul / Fortune / Charm", `${c.soul} / ${c.luck} / ${c.charm}`],
+  ];
+  wrap.appendChild(infoRows(rows));
+  if (D.PHYSIQUE_EFFECTS[c.physiqueKey] && c.physiqueKey !== "ordinary")
+    wrap.appendChild(el("p", "note", "✦ " + D.physEffect(c).desc));
+  wrap.appendChild(el("p", "note", "✦ " + birthVerdict(c)));
+  return wrap;
 }
 function resumeFrom(sv) {
   state.c = sv.c; state.rng = new E.RNG(0); state.rng.s = sv.s >>> 0; state.deadHandled = false;
@@ -956,6 +1121,9 @@ function wanderFortune(c) {
 const TABS = { cultivate: openCultivate, people: openPeople, activities: openActivities, sect: openSect, age: doAgeUp };
 document.querySelectorAll("#tabbar .tab").forEach(btn => btn.addEventListener("click", () => { const t = btn.dataset.tab; if (TABS[t]) TABS[t](); }));
 $("pf-more").addEventListener("click", () => { if (state.c) openSheet(); });
+$("pf-avatar").addEventListener("click", () => { if (state.c) openSheet(); });
+$("pf-name").addEventListener("click", () => { if (state.c) openSheet(); });
+$("pf-bars").addEventListener("click", e => { const n = e.target.closest ? e.target.closest("[data-tip]") : null; if (n && n.dataset) showTip(n.dataset.tip); });
 $("overlay-close").addEventListener("click", () => { if (state.overlayClosable) closeOverlay(); });
 $("overlay").addEventListener("click", e => { if (e.target === $("overlay") && state.overlayClosable) closeOverlay(); });
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));

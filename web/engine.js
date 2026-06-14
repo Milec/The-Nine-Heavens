@@ -70,8 +70,9 @@ export function cultivationSpeed(c) {
   const comp = 0.55 + c.comprehension / 70.0;
   const realmFactor = Math.pow(D.REALMS[c.realm][4], 0.5);
   const timeDao = c.daos.includes("time") ? 0.25 : 0.0;
+  const phys = D.physEffect(c).cultivate || 0;
   return rootMult * comp * (1 + techQiBonus(c)) * realmFactor * 1.8 *
-    (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao);
+    (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao + phys);
 }
 export function basePower(c) {
   const rf = c.realm * 10 + c.stage + 1;
@@ -104,8 +105,9 @@ function makeName(rng) {
   if (rng.random() < 0.6) given += rng.choice(D.GIVEN_SECOND);
   return `${rng.choice(D.SURNAMES)} ${given}`;
 }
-function rollRoot(rng) {
-  const [key, display, mult0, comp, , blurb] = weightedChoice(rng, D.ROOT_TYPES, 4);
+function rollRoot(rng, forcedKey) {
+  const row = forcedKey ? D.ROOT_TYPES.find(r => r[0] === forcedKey) : weightedChoice(rng, D.ROOT_TYPES, 4);
+  const [key, display, mult0, comp, , blurb] = row;
   let elements = [];
   if (key === "waste") elements = D.ELEMENTS.slice();
   else if (key === "quad") elements = rng.sample(D.ELEMENTS, 4);
@@ -136,22 +138,25 @@ function newCharacter() {
   };
 }
 
-export function generateCharacter(rng, name) {
+// `opts` may force any birth choice: { rootKey, physiqueKey, backgroundKey,
+// appearanceKey, omenIndex }. Anything omitted is rolled at random as before.
+export function generateCharacter(rng, name, opts = {}) {
+  const pick = (table, wi, key, keyIdx = 0) => key ? (table.find(r => r[keyIdx] === key) || weightedChoice(rng, table, wi)) : weightedChoice(rng, table, wi);
   const c = newCharacter();
   c.name = name || makeName(rng);
-  c.root = rollRoot(rng);
+  c.root = rollRoot(rng, opts.rootKey);
 
-  const [pk, pdisp, pblurb, bodyM, qiM, soulM, luckB] = weightedChoice(rng, D.PHYSIQUES, 7);
+  const [pk, pdisp, pblurb, bodyM, qiM, soulM, luckB] = pick(D.PHYSIQUES, 7, opts.physiqueKey);
   c.physiqueKey = pk; c.physiqueName = pdisp; c.physiqueBlurb = pblurb;
 
-  const [bk, bdisp, bblurb, rep, stones, items] = weightedChoice(rng, D.BACKGROUNDS, 6);
+  const [bk, bdisp, bblurb, rep, stones, items] = pick(D.BACKGROUNDS, 6, opts.backgroundKey);
   c.backgroundKey = bk; c.backgroundName = bdisp; c.backgroundBlurb = bblurb;
   c.reputation = rep; c.spiritStones = stones; c.inventory = items.slice();
 
-  const [omen, oComp, oBody, oSoul, oLuck] = weightedChoice(rng, D.BIRTH_OMENS, 5);
+  const [omen, oComp, oBody, oSoul, oLuck] = (opts.omenIndex != null && D.BIRTH_OMENS[opts.omenIndex]) ? D.BIRTH_OMENS[opts.omenIndex] : weightedChoice(rng, D.BIRTH_OMENS, 5);
   c.omen = omen;
 
-  const [ak, adisp, charmBonus, ablurb] = weightedChoice(rng, D.APPEARANCES, 4);
+  const [ak, adisp, charmBonus, ablurb] = pick(D.APPEARANCES, 4, opts.appearanceKey);
   c.appearanceKey = ak; c.appearanceName = adisp; c.appearanceBlurb = ablurb;
 
   c.comprehension = rollAttribute(rng) + c.root.comprehensionBonus + oComp;
@@ -266,6 +271,7 @@ export function breakthroughChance(c) {
   if (c.breakthroughPills > 0) chance += 0.15;
   // A serene dao heart (high happiness) steadies the assault; misery shakes it.
   if (typeof c.happiness === "number") chance += (c.happiness - 50) / 600.0;
+  chance += D.physEffect(c).breakthrough || 0;   // Dao Embryo eases breakthroughs
   return clamp(chance, 0.02, 0.97);
 }
 
@@ -610,7 +616,7 @@ export function meditate(c, rng, years = 1) {
   const msgs = [];
   for (let i = 0; i < years; i++) {
     if (!c.alive) break;
-    let gain = (c.comprehension + c.soul) / 18.0 * rng.uniform(0.7, 1.3) * (1 + c.luck / 300.0);
+    let gain = (c.comprehension + c.soul) / 18.0 * rng.uniform(0.7, 1.3) * (1 + c.luck / 300.0) * (1 + (D.physEffect(c).dao || 0));
     if (c.daos.includes("karma")) gain *= 1.15;
     if (rng.random() < c.comprehension / 2500.0) { gain *= rng.uniform(2.0, 4.0); msgs.push("✦ The veil thins -- a flash of profound enlightenment!"); }
     c.daoInsight += gain; c.age += 1;

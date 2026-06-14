@@ -36,8 +36,8 @@ function makeNemesis(c, rng, grudge) {
   return n;
 }
 
-export function bornCharacter(rng, name, sex) {
-  return augment(E.generateCharacter(rng, name), rng, sex);
+export function bornCharacter(rng, name, sex, opts) {
+  return augment(E.generateCharacter(rng, name, opts || {}), rng, sex);
 }
 
 export function reincarnateLife(old, rng, name) {
