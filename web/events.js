@@ -646,6 +646,125 @@ export const EVENTS = [
       { label: "Bow and decline", result: (c, rng, A) => { cap(c, "soul", 1); return "You bow back and step around the line. The swordsman nods, neither pleased nor displeased, and walks on into the mist."; } },
     ],
   },
+
+  /* ===================== more fortunes, perils & choices ============== */
+  {
+    id: "treasure_map", weight: 4, minAge: 12, maxAge: 9000,
+    cond: c => c.spiritStones >= 10,
+    text: () => "A nervous one-eyed scavenger offers to sell you a blood-stained treasure map for a handful of stones. 'Real, I swear it!'",
+    choices: [
+      { label: "Buy it and follow the map (10 stones)", result: (c, rng, A) => { A.stones(-10); const r = rng.random(); if (r < 0.45) return ["The map leads true — past traps and bones, to a sealed cache..."].concat(A.giveArtifact()); if (r < 0.7) { A.stones(rng.randint(15, 45)); A.herbs(rng.randint(3, 8)); return "The X marks a smuggler's buried stash of stones and herbs. A fine return."; } A.heal(-8); return "The map leads only to a cliff edge and a rude carving. Cheated — and you twisted an ankle climbing down."; } },
+      { label: "Wave the swindler off", result: () => "You've heard that pitch a hundred times. The scavenger slinks away to find a greedier mark." },
+    ],
+  },
+  {
+    id: "spirit_vein", weight: 4, minAge: 8, maxAge: 9000, awakened: true,
+    cond: c => c.root.key !== "none",
+    auto: (c, rng, A) => { A.qi(rng.uniform(0.3, 0.7)); A.stones(rng.randint(3, 12)); return "Your spirit sense snags on a thread of unusually dense qi underfoot — a minor spirit vein. You cultivate atop it for a season before it thins."; },
+  },
+  {
+    id: "qi_deviation", weight: 4, minAge: 10, maxAge: 9000, awakened: true,
+    cond: c => c.root.key !== "none" && c.happiness < 45,
+    text: () => "Mid-cultivation, your qi suddenly churns and rebels — the early signs of a dangerous qi deviation (走火入魔).",
+    choices: [
+      { label: "Force your qi back into order", result: (c, rng, A) => { if (rng.random() < 0.45 + c.soul / 250) { cap(c, "soul", 2); A.happy(4); return "With iron will you wrestle the wild qi back onto its proper path. The crisis passes; your control deepens. (+Soul)"; } A.heal(-18); A.happy(-8); A.qi(-0.2); return "The qi runs riot through your meridians. You collapse, coughing blood, your cultivation set back."; } },
+      { label: "Stop and meditate calmly", result: (c, rng, A) => { A.happy(6); cap(c, "comprehension", 1); return "You cease at once, breathe, and let the storm settle on its own. Slower, but safe. (+Happiness)"; } },
+    ],
+  },
+  {
+    id: "kindly_elder", weight: 4, minAge: 6, maxAge: 9000,
+    auto: (c, rng, A) => { const g = rng.randint(2, 8); A.herbs(g); A.happy(3); A.karma(1); return `A kindly old herbalist, charmed by your manners, presses a bundle of ${g} spirit herbs into your hands and waves off any payment.`; },
+  },
+  {
+    id: "stone_giant_toll", weight: 4, minAge: 12, maxAge: 9000, awakened: true,
+    text: () => "A moss-covered stone giant blocks a mountain pass, one craggy hand outstretched. 'Toll,' it rumbles, 'or trial.'",
+    choices: [
+      { label: "Pay the toll", result: (c, rng, A) => { const cost = Math.min(c.spiritStones, 8 + c.realm * 3); A.stones(-cost); return `You drop ${cost} stones into its palm. The giant grunts and steps aside like a slow landslide.`; } },
+      { label: "Accept the trial of strength", result: (c, rng, A) => ["You roll your shoulders and step up to wrestle the mountain itself."].concat(A.fight(["a Stone Pass-Guardian", A.power() * rng.uniform(0.9, 1.2), (c.realm + 1) * 7, "beast"])) },
+    ],
+  },
+  {
+    id: "cursed_relic", weight: 3, minAge: 14, maxAge: 9000, awakened: true,
+    text: () => "In a barrow you find a treasure radiating power — and a cold, watchful malice. A curse clings to it like grave-frost.",
+    choices: [
+      { label: "Claim it anyway", result: (c, rng, A) => { A.karma(-6); const a = A.giveArtifact(); if (rng.random() < 0.5) { A.heal(-12); return [...a, "But the curse bites: a chill sinks into your marrow and will not leave for years."]; } return [...a, "You suppress the curse with raw will. The power is yours — for now."]; } },
+      { label: "Purify it first, then take it", result: (c, rng, A) => { if (rng.random() < 0.4 + c.soul / 250) { A.karma(4); cap(c, "soul", 1); return [...A.giveArtifact(), "Days of cleansing rites burn the malice away. The treasure is clean, and yours. (+Karma)"]; } A.happy(-4); return "The purification fails; the relic shatters into worthless grey dust rather than yield. A pity."; } },
+      { label: "Leave it buried", result: (c, rng, A) => { A.karma(2); cap(c, "soul", 1); return "Some power is not worth its price. You re-seal the barrow and walk away clean."; } },
+    ],
+  },
+  {
+    id: "old_battlefield", weight: 4, minAge: 12, maxAge: 9000, awakened: true,
+    text: () => "You cross a desolate plain littered with the rusted blades and bleached bones of some ancient war between cultivators.",
+    choices: [
+      { label: "Scavenge among the dead", result: (c, rng, A) => { const r = rng.random(); if (r < 0.3) return ["Beneath a fallen banner you unearth..."].concat(A.giveArtifact()); if (r < 0.55) { A.stones(rng.randint(10, 30)); return "You pry loose storage-pouches still half-full of spirit stones."; } if (r < 0.8) { return ["A war-revenant, still bound to its grudge, rises to defend the field!"].concat(A.fight(["a Battlefield Revenant", A.power() * rng.uniform(0.85, 1.15), (c.realm + 1) * 6, "rogue"])); } A.happy(-2); return "Picked clean long ago. Only dust and old sorrow remain."; } },
+      { label: "Burn incense for the fallen", result: (c, rng, A) => { A.karma(5); cap(c, "soul", 1); A.happy(3); return "You give the unknown dead a moment of respect and a stick of incense. The wind seems to sigh in thanks. (+Karma, +Soul)"; } },
+    ],
+  },
+  {
+    id: "wandering_healer", weight: 4, minAge: 6, maxAge: 9000,
+    cond: c => c.health < 70,
+    text: () => "A travelling spirit-doctor sets up her needles and herbs in the village square, calling for any who ail.",
+    choices: [
+      { label: "Let her treat you", result: (c, rng, A) => { const cost = Math.min(c.spiritStones, 5); A.stones(-cost); A.heal(25); A.happy(4); return `Her needles find the knots of stagnant qi in your body and loosen them. You leave lighter and stronger.`; } },
+      { label: "Trade herbs for her craft", result: (c, rng, A) => { if (c.herbs >= 2) { A.herbs(-2); A.heal(18); cap(c, "comprehension", 1); return "You pay in spirit herbs and watch her work closely, picking up a trick or two of the healing art. (+Comprehension)"; } A.heal(8); return "With nothing to trade, you accept only a basic tonic. Better than nothing."; } },
+    ],
+  },
+  {
+    id: "sect_promotion", weight: 5, awakened: true,
+    cond: c => c.sectKey && c.sectRank < 5,
+    text: () => "An elder summons you: your contributions have been noticed, and a trial for promotion to the next rank awaits.",
+    choices: [
+      { label: "Take the promotion trial", result: (c, rng, A) => { if (rng.random() < 0.4 + c.comprehension / 250 + c.realm * 0.04) { c.contribution += 30; c.reputation += 3; A.happy(8); return "You pass the elders' trial with distinction. Your standing in the sect rises. (+Contribution, +Reputation)"; } A.happy(-4); return "You fall just short of the mark. The elders bid you train harder and return."; } },
+      { label: "Decline — you are content", result: (c, rng, A) => { cap(c, "soul", 1); return "You bow out gracefully. Rank is a cage as much as a ladder, you reflect."; } },
+    ],
+  },
+  {
+    id: "star_pavilion", weight: 3, minRealm: 5, awakened: true, once: true,
+    text: () => "Atop a cloud-wreathed peak you find the ruined Star-Picking Pavilion, where ancient sages once read the dao in the constellations.",
+    choices: [
+      { label: "Read the stars through the night", result: (c, rng, A) => { cap(c, "comprehension", 4); A.qi(rng.uniform(0.6, 1.2)); if (c.realm >= 5 && rng.random() < 0.3 && c.daos && c.daos.length < D.DAOS.length) { c.daoInsight = (c.daoInsight || 0) + 50; return "The turning heavens pour their secrets into you. You feel a great Law trembling on the edge of comprehension. (+Comprehension, +Dao insight)"; } return "The slow wheel of the stars teaches you patience and vastness. Your dao-heart expands. (+Comprehension)"; } },
+      { label: "Rest, and simply watch", result: (c, rng, A) => { A.happy(8); cap(c, "soul", 1); return "For once you cultivate nothing at all, and only watch the stars wheel. Your weary spirit eases."; } },
+    ],
+  },
+  {
+    id: "mortal_war", weight: 4, minAge: 14, maxAge: 9000, awakened: true,
+    cond: c => c.realm >= 2,
+    text: () => "Two mortal kingdoms grind toward war beneath your notice — until refugees beg a passing immortal like you to intervene.",
+    choices: [
+      { label: "End the war with a show of power", result: (c, rng, A) => { A.karma(10); c.reputation += 5; A.happy(5); return "You split a mountain before both armies' eyes. Kings kneel; the war ends before it begins. Mortals will tell the tale for generations. (+Karma, +Reputation)"; } },
+      { label: "It is not your concern", result: (c, rng, A) => { A.karma(-3); cap(c, "soul", 1); return "Mortal squabbles are dust beneath your feet. You walk on, and try not to hear the distant screams."; } },
+    ],
+  },
+  {
+    id: "fated_meeting", weight: 4, minAge: 16, maxAge: 9000,
+    cond: c => !c.relationships.some(n => n.role === "companion" && n.alive) && c.charm > 25,
+    text: () => "Sheltering from a sudden downpour beneath the same plum tree, you and a stranger share a long, easy silence — and then a longer conversation.",
+    choices: [
+      { label: "Let fate take its course", result: (c, rng, A) => { if (rng.random() < 0.45 + c.charm / 200) { const n = A.meet("companion", { affinity: 28 }); A.happy(10); return `By the time the rain clears, you have learned ${n.name}'s name, their dao, and the shape of their laugh. Something has begun.`; } const f = A.meet("friend", { affinity: 18 }); return `The rain ends too soon. You part as friends — ${f.name} — with a small, unspoken regret.`; } },
+      { label: "Bid them farewell when the rain stops", result: (c, rng, A) => { cap(c, "soul", 1); A.happy(2); return "You nod your goodbyes and go your separate ways. Some meetings are meant only to be remembered."; } },
+    ],
+  },
+  {
+    id: "karmic_reckoning", weight: 3, awakened: true, cond: c => c.karma <= -50,
+    text: () => "The lives you have ended gather like a shadow at your back. One night, a vengeful spirit you wronged claws its way out of the dark for revenge.",
+    choices: [
+      { label: "Cut it down without mercy", result: (c, rng, A) => { A.karma(-4); return ["You meet the howling specter with cold steel."].concat(A.fight(["a Vengeful Wraith", A.power() * rng.uniform(0.9, 1.3), (c.realm + 1) * 7, "rogue"])); } },
+      { label: "Kneel and seek to atone", result: (c, rng, A) => { if (rng.random() < 0.4 + c.soul / 250) { A.karma(12); cap(c, "soul", 2); A.happy(4); return "You bow your head and accept your guilt. The spirit's rage cools to sorrow, and it fades, releasing you both. (+Karma, +Soul)"; } A.heal(-15); A.happy(-6); return "The spirit spits on your hollow words and savages you before dissipating. Atonement, it seems, cannot be bought so cheaply."; } },
+    ],
+  },
+  {
+    id: "child_runaway_genius", weight: 4, minAge: 5, maxAge: 11, awakened: false,
+    text: () => "A ragged runaway your own age, sharp-eyed and clever, asks to share your fire for the night.",
+    choices: [
+      { label: "Share food and shelter", result: (c, rng, A) => { const f = A.meet("friend", { affinity: 24 }); A.karma(2); A.happy(4); return `You split your supper with ${f.name}. They never forget a kindness — and something tells you they'll be someone, one day.`; } },
+      { label: "Send them on their way", result: (c, rng, A) => { A.happy(-1); return "You can barely feed yourself. The runaway shrugs, unsurprised, and vanishes into the dark."; } },
+    ],
+  },
+  {
+    id: "drought_blessing", weight: 4, minAge: 10, maxAge: 9000, awakened: true,
+    cond: c => c.realm >= 1,
+    auto: (c, rng, A) => { A.karma(4); c.reputation += 2; A.happy(4); return "A drought withers a region of mortal farms. With a flick of qi you call down a gentle rain over the cracked fields. The peasants build you a little shrine. (+Karma, +Reputation)"; },
+  },
 ];
 
 /* ----------------------- eligibility & rolling --------------------------- */

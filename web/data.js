@@ -107,6 +107,8 @@ export const TECHNIQUES = {
   frost_lotus: ["Frost Lotus Palm", 2, 0.22, 11, "A blossoming palm of killing frost that can freeze a foe mid-step."],
   thunder_step: ["Nine-Heaven Thunder Step", 2, 0.24, 13, "Blink between thunderclaps, striking twice and quickening your own movements."],
   vajra_body: ["Vajra Indestructible Body", 2, 0.10, 6, "A Buddhist body-art of golden, unbreakable flesh that regenerates wounds."],
+  tide_palm: ["Tide-Calling Palm", 2, 0.22, 12, "A surging Water art whose drowning pressure saps a foe's strength."],
+  mountain_seal: ["Mountain-Bearing Seal", 2, 0.20, 14, "An Earth art that drops a mountain's weight on a foe, crushing and pinning them."],
   heaven_slash: ["Heaven-Splitting Sabre", 3, 0.42, 20, "A single annihilating cut that leaves you spent."],
   samsara_palm: ["Samsara Heaven-Turning Palm", 3, 0.50, 18, "Turn the wheel of life and death; void force that rends the foe and mends you."],
 };
@@ -186,16 +188,22 @@ export const ARTIFACTS = [
   ["cloud_boots", "Cloud-Striding Boots", "Spirit", 0.12, 0.03, "Tread the wind itself; foes struggle to pin you down."],
   ["flame_gourd", "Crimson Flame Gourd", "Earth", 0.30, 0.05, "Belches a torrent of spirit-fire that melts iron and beast alike."],
   ["element_pagoda", "Five Elements Pagoda", "Earth", 0.28, 0.10, "A layered treasure-pagoda that grinds enemies between the five elements."],
+  ["frost_mirror", "Frost-Moon Mirror", "Spirit", 0.14, 0.06, "A cold silver disc that drinks moonlight and turns a foe's spells back as ice."],
+  ["bone_banner", "Ten-Thousand Ghost Banner", "Earth", 0.30, 0.08, "A demonic banner that looses a howling tide of vengeful spirits."],
+  ["thunder_drum", "Nine-Heaven Thunder Drum", "Earth", 0.34, 0.06, "One beat looses the wrath of heaven; thunder rolls across the field."],
   ["dragon_cauldron", "Nine Dragon Cauldron", "Heaven", 0.55, 0.16, "Nine dragons coil its rim; it can smelt mountains and refine pills."],
   ["stars_banner", "River-of-Stars Banner", "Heaven", 0.50, 0.20, "Unfurls a galaxy of killing starlight across the battlefield."],
+  ["phoenix_plume", "Vermilion Phoenix Plume", "Heaven", 0.52, 0.18, "A single undying feather wreathed in nirvanic flame that burns and reblooms."],
   ["chaos_bell", "Primordial Chaos Bell", "Immortal", 0.95, 0.32, "A bell from the dawn of the world; one toll unmakes ten thousand spells."],
+  ["samsara_disk", "Wheel-of-Samsara Disk", "Immortal", 0.88, 0.34, "An immortal artifact that turns the wheel of rebirth, grinding all things back to dust."],
 ];
 export const ARTIFACT_BY_KEY = Object.fromEntries(ARTIFACTS.map(a => [a[0], a]));
 
 export const SPIRIT_BEASTS = [
   "Spirit Fox","Cloud Leopard","Crimson Fire Python","Thunder Hawk","Jade-Maned Lion",
   "Frost Wolf","Black Tortoise","Six-Eared Macaque","Azure Dragonling","Golden-Winged Roc",
-  "Nine-Tailed Fox","Qilin Calf",
+  "Nine-Tailed Fox","Qilin Calf","White Tiger Cub","Vermilion Sparrow","Moonlight Jade Hare",
+  "Stone Qilin","Abyssal Serpent","Wind-Roc Fledgling","Three-Eyed Spirit Ape","Bone-Crown Lizard",
 ];
 
 // [key, name, herbCost, baseSuccess, blurb]
@@ -219,6 +227,9 @@ export const DAOS = [
   ["slaughter", "Dao of Slaughter (杀戮)", 0.22, 0.02, "A blood-soaked law of killing intent that terrifies the heavens."],
   ["karma", "Dao of Karma (因果)", 0.12, 0.07, "Perceive the threads of cause and effect; tribulation reads you kindly."],
   ["void", "Dao of the Void (虚无)", 0.16, 0.05, "The empty law underlying all; the foundation of true immortality."],
+  ["thunder", "Dao of Thunder (雷道)", 0.20, 0.03, "The punishing law of heaven's judgment; your strikes carry the sky's own wrath."],
+  ["devour", "Dao of Devouring (吞噬)", 0.20, 0.02, "A ravenous law that swallows qi, spells and life alike to feed your own."],
+  ["dream", "Dao of Dreams (幻梦)", 0.12, 0.06, "The law of illusion and mind; reality bends, and the heavens lose sight of you."],
 ];
 export const DAO_BY_KEY = Object.fromEntries(DAOS.map(d => [d[0], d]));
 

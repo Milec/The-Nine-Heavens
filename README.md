@@ -120,7 +120,7 @@ Three more systems round out a cultivator's life:
 Under the hood it reuses the same cultivation engine and balance as the Python
 version (the eleven realms, sects, alchemy, treasures, spirit beasts, Daos,
 karma, tribulations and reincarnation) and wraps it in a life-sim layer of
-family, life stages, vitals, 80+ branching life events and interactive combat.
+family, life stages, vitals, 95+ branching life events and interactive combat.
 
 ### In a terminal (desktop)
 
