@@ -22,6 +22,7 @@ function augment(c, rng, sex) {
   if (c.abode == null) c.abode = 0;
   if (c.abodeRegion == null) c.abodeRegion = null;
   if (c.ownSect === undefined) c.ownSect = null;
+  if (c.legacySect === undefined) c.legacySect = null;
   generateFamily(c, rng);
   return c;
 }
@@ -52,7 +53,49 @@ export function reincarnateLife(old, rng, name) {
     c.comprehension = Math.min(160, c.comprehension + Math.min(20, inherited * 2));
     note(c, `The arts you passed to ${inherited} student(s) in a former life sharpen your innate insight. (+Comprehension)`);
   }
+  carryLegacySect(c, old, rng);
   return c;
+}
+
+const LEGACY_SECT_FADE = 20;   // below this prestige a leaderless sect finally crumbles
+// A sect you founded outlives you: it limps on, leaderless or under a steward
+// disciple, and awaits the return of its founder's reincarnated soul.
+function carryLegacySect(c, old, rng) {
+  let legacy = null;
+  if (old.ownSect && old.ownSect.prestige >= 40) {
+    const s = old.ownSect;
+    // a strong heir-disciple steadies the sect; otherwise it fades faster.
+    const heir = old.relationships
+      .filter(n => n.role === "disciple" && (n.power || 0) > 0)
+      .sort((a, b) => (b.power || 0) - (a.power || 0))[0];
+    const decay = heir ? 0.7 : 0.5;
+    legacy = {
+      name: s.name, alignment: s.alignment,
+      prestige: Math.floor(s.prestige * decay),
+      members: Math.floor(s.members * decay),
+      steward: heir ? heir.name : null,
+      generations: 1,
+    };
+    note(c, heir
+      ? `Your sect, the ${s.name}, endures under your disciple ${heir.name}'s stewardship, awaiting your return.`
+      : `Your leaderless sect, the ${s.name}, clings on across the years, its disciples praying for the founder's return.`);
+  } else if (old.legacySect) {
+    // An unreclaimed legacy fades further with each generation it waits.
+    const o = old.legacySect;
+    const prestige = Math.floor(o.prestige * 0.7);
+    if (prestige >= LEGACY_SECT_FADE) {
+      legacy = { name: o.name, alignment: o.alignment, prestige, members: Math.floor(o.members * 0.7), steward: o.steward || null, generations: (o.generations || 1) + 1 };
+      note(c, `The ${o.name}, founded ${legacy.generations} lives ago, still waits — fewer disciples now, but the founder's banner yet stands.`);
+    } else {
+      note(c, `The ${o.name}, leaderless too long, has finally crumbled to ruin and memory.`);
+    }
+  }
+  if (legacy) {
+    c.legacySect = legacy;
+    // the renown of a past founder precedes the reincarnated soul.
+    const tierIdx = D.SECT_TIERS.indexOf(D.sectTier(legacy.prestige));
+    c.reputation += 3 + Math.max(0, tierIdx) * 2;
+  }
 }
 
 // Free social action (no year cost): go out and meet someone new.
@@ -536,6 +579,37 @@ export function holdRecruitment(c, rng) {
     msgs.push(`Among them, a true talent — ${n.name} — kneels as your personal disciple and takes up residence at the seat.`);
   }
   return msgs;
+}
+
+export const RECLAIM_SECT_COST = 200;   // cheaper than founding — the sect already stands
+export function canReclaimSect(c) {
+  return c.alive && c.awakened && !c.sectKey && !c.ownSect && !!c.legacySect &&
+    c.realm >= FOUND_SECT_MIN_REALM && (c.abode || 0) >= FOUND_SECT_MIN_ABODE && c.spiritStones >= RECLAIM_SECT_COST;
+}
+export function reclaimSectReason(c) {
+  if (!c.legacySect) return null;
+  if (c.realm < FOUND_SECT_MIN_REALM) return `Reach the ${D.REALMS[FOUND_SECT_MIN_REALM][0]} realm to be worthy of reclaiming it.`;
+  if ((c.abode || 0) < FOUND_SECT_MIN_ABODE) return "Raise a cave abode to tier 3 to re-seat the sect.";
+  if (c.spiritStones < RECLAIM_SECT_COST) return `Gather ${RECLAIM_SECT_COST} spirit stones to reclaim it (you have ${c.spiritStones}).`;
+  return null;
+}
+// Return to the sect you founded in a past life. Its old disciples recognize the
+// founder's reborn soul; you restore it with its (faded) prestige and members.
+export function reclaimSect(c, rng) {
+  if (!c.legacySect) return ["You have no past sect awaiting your return."];
+  if (c.ownSect) return [`You already lead the ${c.ownSect.name}.`];
+  if (c.sectKey) return ["Leave your current sect before reclaiming your old banner."];
+  if (c.realm < FOUND_SECT_MIN_REALM) return [`Your old sect waits, but it will not bow to a weakling: reach the ${D.REALMS[FOUND_SECT_MIN_REALM][0]} realm first.`];
+  if ((c.abode || 0) < FOUND_SECT_MIN_ABODE) return ["Your reborn sect needs a worthy seat — raise your cave abode to at least a Spirit-Gathering Abode (tier 3) first."];
+  if (c.spiritStones < RECLAIM_SECT_COST) return [`Reclaiming the rites and re-seating the sect costs ${RECLAIM_SECT_COST} spirit stones. (You have ${c.spiritStones}.)`];
+  const lg = c.legacySect;
+  c.spiritStones -= RECLAIM_SECT_COST;
+  c.ownSect = { name: lg.name, prestige: lg.prestige, members: Math.min(sectCapacity(c), lg.members), founded: c.age, alignment: lg.alignment, _tier: null };
+  c.legacySect = null;
+  c.reputation += 8;
+  if (!c.titles.includes("Founder")) c.titles.push("Founder");
+  note(c, `Reclaimed the ${lg.name}, your sect from a past life.`);
+  return [`✦ You walk through the old gates and the disciples of the ${lg.name} fall to their knees — the founder's soul has returned! You reclaim your sect, ${D.sectTier(lg.prestige)[1]} prestige and all, with a single life's work already behind it.`];
 }
 
 export function disbandSect(c) {

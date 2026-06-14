@@ -129,7 +129,10 @@ Three more systems round out a cultivator's life:
   Land**), **spreads your fame**, **quickens your dao**, and pays a **stipend** from
   its treasury. Your **abode is its mountain seat** — a grander abode houses more
   disciples — **resident disciples become your founding core**, and when raiders
-  come, your **whole sect rushes to its defense**.
+  come, your **whole sect rushes to its defense**. A thriving sect even **outlives
+  you**: it endures under a steward disciple, and your **reincarnated soul can
+  return to reclaim it** — its prestige and disciples a lifetime's head-start —
+  or watch it slowly fade across the generations if you never come back.
 - **Achievements & Legacy** — feats persist across **every reincarnation and new
   soul**. Each achievement earns **Heavenly Favor** that blesses the innate
   Comprehension and Fortune of all your future lives — true meta-progression.

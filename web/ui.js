@@ -582,8 +582,19 @@ function openSect() {
         if (ok) row.onclick = () => runFree(() => E.attemptJoin(c, state.rng, s[0]));
         body.appendChild(row);
       }
-      body.appendChild(el("div", "section-h", "开宗立派 · Found Your Own Sect"));
-      if (L.canFoundSect(c)) {
+      body.appendChild(el("div", "section-h", "开宗立派 · Your Own Sect"));
+      if (c.legacySect) {
+        const lg = c.legacySect, t = D.sectTier(lg.prestige);
+        body.appendChild(el("p", "note", `A sect from a past life awaits the founder's return: the ${lg.name} — ${t[1]} (${t[2]}), ~${lg.members} disciples${lg.steward ? `, held in trust by ${lg.steward}` : ""}, ${lg.generations} life${lg.generations > 1 ? "-times" : ""} ago.`));
+        if (L.canReclaimSect(c)) {
+          const rb = el("button", "mbtn full primary");
+          rb.innerHTML = `Reclaim the ${escapeHtml(lg.name)}<small>${L.RECLAIM_SECT_COST} stones · restore its ${t[1]} prestige</small>`;
+          rb.onclick = () => { runFree(() => L.reclaimSect(c)); if (c.ownSect) award("reborn_founder"); };
+          body.appendChild(rb);
+        } else {
+          body.appendChild(el("p", "note", L.reclaimSectReason(c) || ""));
+        }
+      } else if (L.canFoundSect(c)) {
         const fb = el("button", "mbtn full primary");
         fb.innerHTML = `Found Your Own Sect<small>${L.FOUND_SECT_COST} stones · your abode becomes its seat</small>`;
         fb.onclick = () => openFoundSect();
@@ -636,7 +647,7 @@ function openFoundSect() {
     const input = el("input", "txtfield"); input.type = "text"; input.placeholder = "Name your sect (or leave it to fate)"; input.maxLength = 28;
     body.appendChild(input);
     const found = el("button", "mbtn full primary"); found.innerHTML = `Raise the Banner<small>${L.FOUND_SECT_COST} stones · you have ${c.spiritStones}</small>`;
-    found.onclick = () => runFree(() => L.foundSect(c, state.rng, input.value.trim() || null));
+    found.onclick = () => { runFree(() => L.foundSect(c, state.rng, input.value.trim() || null)); if (c.ownSect) award("founder"); };
     body.appendChild(found);
     backBtn(body, openSect);
   });
@@ -696,6 +707,7 @@ function openSheet() {
       ["Abode", ab ? `${ab[1]} (${ab[2]})${c.ownSect ? " · sect seat" : ""}` : "None", "abode"],
       ["Treasure", c.equippedArtifact ? E.describeArtifact(c.equippedArtifact) : "(none)"]];
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
+    if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);
     if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
     body.appendChild(infoRows(rows));
@@ -741,7 +753,9 @@ function deathScreen() {
     rein.onclick = () => {
       state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.actionsLeft = ACTIONS_PER_YEAR; state.deadHandled = false; closeOverlay();
       logBanner("☯ THE WHEEL OF REBIRTH TURNS ☯");
-      logMessages([`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), dimly recalling a former life.`, "Age up to live this new life. Your past climb has sharpened your innate talent."]);
+      const msgs = [`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), dimly recalling a former life.`, "Age up to live this new life. Your past climb has sharpened your innate talent."];
+      if (state.c.legacySect) msgs.push(`Far away, the ${state.c.legacySect.name} you founded in a past life still keeps your banner — reach the Nascent Soul realm with a worthy abode, and you may reclaim it.`);
+      logMessages(msgs);
       renderProfile();
     };
     body.appendChild(rein);

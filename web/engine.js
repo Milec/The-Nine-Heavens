@@ -138,7 +138,7 @@ function newCharacter() {
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, titles: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0,
-    artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null,
+    artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
