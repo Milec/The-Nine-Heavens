@@ -656,6 +656,13 @@ function renderBirth(c) {
 }
 
 /* ------------------------------ start ------------------------------------ */
+// Commit a finished character and begin the life.
+function beginLife(c) {
+  state.c = c; state.rng = new E.RNG();
+  applyFavor(c); state.actionsLeft = ACTIONS_PER_YEAR; state.deadHandled = false;
+  closeOverlay(); $("log").innerHTML = ""; renderBirth(c); renderProfile();
+}
+
 function startScreen() {
   state.deadHandled = false;
   let chosenSex = null;
@@ -666,34 +673,133 @@ function startScreen() {
     const input = el("input", "txtfield"); input.type = "text"; input.placeholder = "Name your cultivator (or leave to fate)"; input.maxLength = 24;
     card.appendChild(input);
     const seg = el("div", "seg");
-    [["Random", null], ["♀ Girl", "female"], ["♂ Boy", "male"]].forEach(([lab, val], i) => {
+    [["🎲 Random", null], ["♀ Girl", "female"], ["♂ Boy", "male"]].forEach(([lab, val], i) => {
       const b = el("button", i === 0 ? "on" : "", lab);
       b.onclick = () => { chosenSex = val; seg.querySelectorAll("button").forEach(x => x.classList.remove("on")); b.classList.add("on"); };
       seg.appendChild(b);
     });
     card.appendChild(seg);
     const begin = el("button", "mbtn full primary");
-    begin.innerHTML = "Be Born<small>your fate is decided by the heavens</small>";
-    begin.onclick = () => {
-      state.rng = new E.RNG();
-      state.c = L.bornCharacter(state.rng, input.value.trim() || null, chosenSex);
-      applyFavor(state.c); state.actionsLeft = ACTIONS_PER_YEAR;
-      closeOverlay(); $("log").innerHTML = ""; renderBirth(state.c); renderProfile();
-    };
+    begin.innerHTML = "🎲 Roll a Soul &amp; Begin<small>your fate is decided by the heavens</small>";
+    begin.onclick = () => beginLife(L.bornCharacter(new E.RNG(), input.value.trim() || null, chosenSex));
+    const custom = el("button", "mbtn full");
+    custom.innerHTML = "✎ Create Your Soul<small>choose root, physique, looks, standing &amp; more</small>";
+    custom.onclick = () => openCreator(input.value.trim(), chosenSex);
     const sv = loadSave();
     if (sv && sv.c) {
       const cont = el("button", "mbtn full");
-      cont.innerHTML = `Continue Your Saga<small>${escapeHtml(sv.c.name)} · age ${sv.c.age}</small>`;
+      cont.innerHTML = `▶ Continue Your Saga<small>${escapeHtml(sv.c.name)} · age ${sv.c.age}</small>`;
       cont.onclick = () => resumeFrom(sv);
       body.appendChild(cont);
     }
     body.appendChild(card);
     body.appendChild(begin);
+    body.appendChild(custom);
     const ach = el("button", "mbtn full");
-    ach.innerHTML = `Achievements & Legacy<small>Heavenly Favor: ${meta.favor()}</small>`;
+    ach.innerHTML = `🏆 Achievements &amp; Legacy<small>Heavenly Favor: ${meta.favor()}</small>`;
     ach.onclick = () => openAchievements(startScreen);
     body.appendChild(ach);
   }, false);
+}
+
+/* ------------------------- character creator ----------------------------- */
+function creatorOpts() {
+  const cr = state.creator, o = {};
+  if (cr.rootKey) o.rootKey = cr.rootKey;
+  if (cr.physiqueKey) o.physiqueKey = cr.physiqueKey;
+  if (cr.appearanceKey) o.appearanceKey = cr.appearanceKey;
+  if (cr.backgroundKey) o.backgroundKey = cr.backgroundKey;
+  if (cr.omenIndex !== "") o.omenIndex = Number(cr.omenIndex);
+  return o;
+}
+function rebuildPreview() {
+  const cr = state.creator;
+  cr.preview = L.bornCharacter(new E.RNG(), cr.name || null, cr.sex || null, creatorOpts());
+}
+function crSelect(label, options, current, onChange) {
+  const wrap = el("div", "cr-field");
+  wrap.appendChild(el("div", "cr-label", label));
+  const sel = el("select", "cr-select");
+  for (const o of options) { const op = el("option"); op.value = o.v; op.textContent = o.t; if (String(o.v) === String(current)) op.selected = true; sel.appendChild(op); }
+  sel.value = current == null ? "" : String(current);
+  sel.addEventListener("change", () => onChange(sel.value));
+  wrap.appendChild(sel);
+  return wrap;
+}
+function openCreator(name, sex) {
+  if (!state.creator) state.creator = { rootKey: "", physiqueKey: "", appearanceKey: "", backgroundKey: "", omenIndex: "" };
+  state.creator.name = name || state.creator.name || "";
+  state.creator.sex = sex !== undefined ? sex : state.creator.sex;
+  rebuildPreview();
+  renderCreator();
+}
+function renderCreator() {
+  const cr = state.creator;
+  openOverlay("Create Your Soul", body => {
+    const nameIn = el("input", "txtfield"); nameIn.type = "text"; nameIn.placeholder = "Name (or leave to fate)"; nameIn.maxLength = 24; nameIn.value = cr.name || "";
+    nameIn.addEventListener("input", () => { cr.name = nameIn.value; });
+    body.appendChild(nameIn);
+
+    const seg = el("div", "seg");
+    [["🎲 Random", null], ["♀ Girl", "female"], ["♂ Boy", "male"]].forEach(([lab, val]) => {
+      const b = el("button", cr.sex === val ? "on" : "", lab);
+      b.onclick = () => { cr.sex = val; rebuildPreview(); renderCreator(); };
+      seg.appendChild(b);
+    });
+    body.appendChild(seg);
+
+    const rand = { v: "", t: "🎲 Random" };
+    const change = (key) => (v) => { cr[key] = v; rebuildPreview(); renderCreator(); };
+    body.appendChild(crSelect("Spiritual Root 灵根", [rand, ...D.ROOT_TYPES.map(r => ({ v: r[0], t: r[1] }))], cr.rootKey, change("rootKey")));
+    body.appendChild(crSelect("Physique 体质", [rand, ...D.PHYSIQUES.map(p => ({ v: p[0], t: p[1] }))], cr.physiqueKey, change("physiqueKey")));
+    body.appendChild(crSelect("Appearance 容貌", [rand, ...D.APPEARANCES.map(a => ({ v: a[0], t: a[1] }))], cr.appearanceKey, change("appearanceKey")));
+    body.appendChild(crSelect("Birth Standing 出身", [rand, ...D.BACKGROUNDS.map(b => ({ v: b[0], t: b[1] }))], cr.backgroundKey, change("backgroundKey")));
+    body.appendChild(crSelect("Birth Omen 异象", [rand, ...D.BIRTH_OMENS.map((o, i) => ({ v: String(i), t: o[0].length > 40 ? o[0].slice(0, 38) + "…" : o[0] }))], cr.omenIndex, change("omenIndex")));
+
+    body.appendChild(el("div", "section-h", "Preview"));
+    body.appendChild(creatorPreviewCard(cr.preview));
+
+    const reroll = el("button", "mbtn full");
+    reroll.innerHTML = "🎲 Reroll the Random Parts<small>re-rolls attributes &amp; anything left to fate</small>";
+    reroll.onclick = () => { rebuildPreview(); renderCreator(); };
+    body.appendChild(reroll);
+
+    const begin = el("button", "mbtn full primary");
+    begin.innerHTML = "Begin This Life<small>born as previewed above</small>";
+    begin.onclick = () => beginLife(cr.preview);
+    body.appendChild(begin);
+
+    backBtn(body, startScreen);
+  }, false);
+}
+// A one-line read on how promising a birth is (spiritual root dominates).
+function birthVerdict(c) {
+  const special = c.physiqueKey !== "ordinary";
+  const score = c.root.multiplier * 45
+    + (c.comprehension + c.luck + (c.soul + c.constitution) / 2) / 3 * 0.5
+    + c.reputation * 0.3 + (special ? 35 : 0);
+  if (score > 160) return "The heavens have lavished gifts upon you. A dragon among men.";
+  if (score > 108) return "A genuinely blessed birth. Sects would war over you.";
+  if (score > 68) return "A solid hand of cards. Your fate is yours to make.";
+  if (score > 40) return "An unremarkable start. The climb will be steep but not closed.";
+  return "The dao has dealt you ashes. Only sheer will could forge a legend from this.";
+}
+function creatorPreviewCard(c) {
+  if (!c) return el("div");
+  const wrap = el("div", "cr-preview");
+  wrap.appendChild(el("div", "cr-pv-top", `${D.avatarFor(c)} <b>${escapeHtml(c.name)}</b> · ${c.sex === "female" ? "♀" : "♂"}`));
+  const rows = [
+    ["Spiritual Root", `${c.root.display}${c.root.elements.length ? " [" + c.root.elements.join(", ") + "]" : ""}`],
+    ["Physique", c.physiqueName], ["Appearance", c.appearanceName], ["Standing", c.backgroundName],
+    ["Omen", c.omen.length > 46 ? c.omen.slice(0, 44) + "…" : c.omen],
+    ["Comprehension / Constitution", `${c.comprehension} / ${c.constitution}`],
+    ["Soul / Fortune / Charm", `${c.soul} / ${c.luck} / ${c.charm}`],
+  ];
+  wrap.appendChild(infoRows(rows));
+  if (D.PHYSIQUE_EFFECTS[c.physiqueKey] && c.physiqueKey !== "ordinary")
+    wrap.appendChild(el("p", "note", "✦ " + D.physEffect(c).desc));
+  wrap.appendChild(el("p", "note", "✦ " + birthVerdict(c)));
+  return wrap;
 }
 function resumeFrom(sv) {
   state.c = sv.c; state.rng = new E.RNG(0); state.rng.s = sv.s >>> 0; state.deadHandled = false;

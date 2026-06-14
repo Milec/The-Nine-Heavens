@@ -137,6 +137,12 @@ python play.py --seed 1234
 
 ## The wheel of destiny — randomness at birth
 
+At the start you can **🎲 Roll a Soul** for a fully random birth (the classic
+mode, where your spiritual root stays a mystery until the age-6 Awakening), or
+**✎ Create Your Soul** to hand-pick any of the birth traits below — spiritual
+root, physique, appearance, standing, omen, name and sex — leaving any of them
+on *Random*, with a live preview and a reroll for the attributes.
+
 Everything that defines your potential is rolled the instant you are born:
 
 - **Spiritual Root (灵根)** — the single biggest talent factor, from the
