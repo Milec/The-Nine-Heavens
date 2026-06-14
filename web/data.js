@@ -353,6 +353,34 @@ export const abodeAt = lvl => (lvl > 0 && lvl <= ABODES.length) ? ABODES[lvl - 1
 // abodeNext(level): the row for the next tier up (null if already at the peak).
 export const abodeNext = lvl => (lvl || 0) < ABODES.length ? ABODES[lvl || 0] : null;
 
+/* Founding your own sect (开宗立派): once you are a recognized power with a
+ * worthy abode to serve as its mountain seat, you may raise your own sect. It
+ * gathers members and prestige over the years, spreading your name and feeding
+ * you a stipend. The abode's grade caps how large the sect can grow. */
+// [minPrestige, name, cn, speedBonus, repPerYear]
+export const SECT_TIERS = [
+  [0,    "Fledgling Sect",  "新立小宗", 0.05, 1],
+  [40,   "Minor Sect",      "三流宗门", 0.10, 2],
+  [120,  "Established Sect", "二流宗门", 0.16, 3],
+  [300,  "Great Sect",      "一流大宗", 0.24, 5],
+  [700,  "Dominant Sect",   "超然巨擘", 0.34, 8],
+  [1600, "Holy Land",       "圣地",     0.48, 12],
+];
+export function sectTier(prestige) {
+  let t = SECT_TIERS[0];
+  for (const s of SECT_TIERS) if (prestige >= s[0]) t = s;
+  return t;
+}
+export function sectTierNext(prestige) {
+  for (const s of SECT_TIERS) if (prestige < s[0]) return s;
+  return null;
+}
+// How many followers an abode-seat of each grade can house (index by abode tier 0..6).
+export const SECT_CAPACITY = [0, 30, 80, 200, 500, 1200, 3000];
+// Parts for auto-generating a sect name when the founder leaves it to fate.
+export const SECT_NAME_ADJ = ["Azure", "Cloud", "Heaven", "Nine-Heaven", "Profound", "Jade", "Golden", "Mystic", "Boundless", "Crimson", "Spirit", "Void", "Thousand-Star", "Purple", "Divine", "Immortal", "Eternal", "Cangming"];
+export const SECT_NAME_NOUN = ["Cloud Sect", "Sword Sect", "Sky Pavilion", "Heaven Palace", "Dao Sect", "Spirit Hall", "Mystic Gate", "Origin Sect", "Star Pavilion", "Sacred Hall", "Profound Sect", "Cloud Pavilion", "Sword Pavilion"];
+
 /* Ongoing physique (体质) effects, beyond the birth-stat multipliers. These bite
  * throughout life — cultivation speed, breakthroughs, Dao insight, and combat. */
 export const PHYSIQUE_EFFECTS = {

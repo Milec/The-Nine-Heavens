@@ -123,6 +123,13 @@ Three more systems round out a cultivator's life:
   from the Spirit-Gathering tier up a **pill room steadies your alchemy furnace**.
   Each year it **yields herbs and stones** and **quickens your cultivation**, and
   you can **seal yourself in for a deep seclusion** — a home that grows with you.
+- **Found your own sect (开宗立派)** — once you are a recognized power (Nascent
+  Soul) with a worthy abode for a seat, **raise your own banner**. Name your sect;
+  it gathers **members and prestige** over the years (Fledgling Sect → … → **Holy
+  Land**), **spreads your fame**, **quickens your dao**, and pays a **stipend** from
+  its treasury. Your **abode is its mountain seat** — a grander abode houses more
+  disciples — **resident disciples become your founding core**, and when raiders
+  come, your **whole sect rushes to its defense**.
 - **Achievements & Legacy** — feats persist across **every reincarnation and new
   soul**. Each achievement earns **Heavenly Favor** that blesses the innate
   Comprehension and Fortune of all your future lives — true meta-progression.

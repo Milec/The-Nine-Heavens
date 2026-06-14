@@ -775,10 +775,13 @@ export const EVENTS = [
         const reg = D.REGION_BY_KEY[c.abodeRegion || c.region || "azuredomain"];
         const danger = reg ? reg[3] : 1;
         const disciples = c.relationships.filter(n => n.alive && n.resides && n.role === "disciple").length;
-        // The guardian array (abode grade), a war-beast and resident disciples all blunt the assault.
-        const defense = Math.min(0.55, (c.abode || 0) * 0.05 + (c.beast && c.beast.alive ? 0.12 : 0) + disciples * 0.08);
+        const sectDef = c.ownSect ? Math.min(0.22, c.ownSect.members / 1500) : 0;
+        // Guardian array (abode grade), a war-beast, resident disciples and — if you
+        // lead one — your whole sect rush to defend their mountain.
+        const defense = Math.min(0.62, (c.abode || 0) * 0.05 + (c.beast && c.beast.alive ? 0.12 : 0) + disciples * 0.08 + sectDef);
         const pre = [];
         if ((c.abode || 0) >= 3) pre.push("Your guardian array roars to life, walls of light snapping up around the abode.");
+        if (c.ownSect) pre.push(`The disciples of the ${c.ownSect.name} pour from the halls to defend their seat!`);
         if (disciples) pre.push(`Your ${disciples} resident disciple${disciples > 1 ? "s" : ""} take up arms at your side.`);
         if (c.beast && c.beast.alive) pre.push(`${c.beast.name} bares its fangs beside you.`);
         const ePower = A.power() * rng.uniform(1.0, 1.4) * danger * (1 - defense);
@@ -800,6 +803,18 @@ export const EVENTS = [
   {
     id: "abode_bloom", weight: 4, awakened: true, cond: c => (c.abode || 0) >= 3,
     auto: (c, rng, A) => { const h = rng.randint(3, 8) + (c.abode || 0); A.herbs(h); if (rng.random() < 0.3) { c.pills += 1; return `A rare spirit herb blooms in your abode's fields, potent enough to refine on the spot. (+${h} herbs, +1 pill)`; } return `The spirit vein beneath your abode surges; your herb fields run riot with growth. (+${h} herbs)`; },
+  },
+  {
+    id: "sect_glory", weight: 4, awakened: true, cond: c => !!c.ownSect,
+    auto: (c, rng, A) => { const g = rng.randint(10, 30); c.ownSect.prestige += g; c.reputation += 2; A.happy(3); return `A disciple of the ${c.ownSect.name} wins honour in a distant contest, and your sect's name spreads. (+${g} prestige, +Reputation)`; },
+  },
+  {
+    id: "rival_sect_challenge", weight: 4, awakened: true, cond: c => c.ownSect && c.ownSect.prestige >= 80,
+    text: c => `The master of a jealous rival sect, galled by the rise of the ${c.ownSect.name}, challenges you to a duel of honour for prestige and territory.`,
+    choices: [
+      { label: "Answer the challenge yourself", result: (c, rng, A) => { const res = A.fight(["a Rival Sect Master", A.power() * rng.uniform(1.0, 1.35), (c.realm + 1) * 8, "rogue"]); if (c.alive) { c.ownSect.prestige += 60; c.reputation += 6; res.push(`You humble the rival master before both sects. The ${c.ownSect.name}'s prestige soars. (+Prestige, +Reputation)`); } return ["You take the duelling platform, your disciples watching tense from the walls."].concat(res); } },
+      { label: "Send your strongest disciple", result: (c, rng, A) => { const d = c.relationships.filter(n => n.alive && n.role === "disciple").sort((a, b) => (b.power || 0) - (a.power || 0))[0]; if (!d) return "You have no disciple ready to stand for the sect — you must answer this another day."; const win = (d.power || 1) * rng.uniform(0.85, 1.35) >= A.power() * 0.5 * rng.uniform(0.85, 1.2); if (win) { c.ownSect.prestige += 35; d.affinity = Math.min(100, d.affinity + 12); A.happy(5); return `${d.name} fights for the sect's honour — and wins! Their name rises with the sect's. (+Prestige)`; } c.ownSect.prestige = Math.max(0, c.ownSect.prestige - 20); d.affinity = Math.max(-100, d.affinity - 4); A.happy(-4); return `${d.name} is beaten before the watching crowds. The ${c.ownSect.name} loses face, and prestige with it.`; } },
+    ],
   },
   {
     id: "abode_guest", weight: 4, awakened: true, cond: c => (c.abode || 0) >= 3 && c.reputation >= 30,

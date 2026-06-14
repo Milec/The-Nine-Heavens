@@ -21,6 +21,7 @@ function augment(c, rng, sex) {
   c.region = c.region || "azuredomain";
   if (c.abode == null) c.abode = 0;
   if (c.abodeRegion == null) c.abodeRegion = null;
+  if (c.ownSect === undefined) c.ownSect = null;
   generateFamily(c, rng);
   return c;
 }
@@ -194,6 +195,10 @@ export function ageUp(c, rng) {
   // Your cave abode yields herbs and stones — scaled by its region's wildness,
   // its resident disciples (who tend the fields) and a foraging spirit beast.
   abodeYearly(c, rng, events);
+
+  // A sect you founded gathers members and prestige, spreads your name, and pays
+  // you a stipend from its treasury (its seat is your abode).
+  sectYearly(c, rng, events);
 
   // Your nemesis cultivates too, always shadowing your strength.
   const nem = getNemesis(c);
@@ -457,6 +462,89 @@ export function secludeInAbode(c, rng, usePill = false) {
     : `You seal the entrance of your ${abode[1]} and sink into deep seclusion.`];
   if (mate) { c.happiness = clampN(c.happiness + 3, 0, 100); mate.affinity = clampN(mate.affinity + 2, -100, 100); }
   return msgs.concat(E.gainQi(c, rng, intensity, usePill));
+}
+
+/* --------------------------- your own sect ------------------------------- */
+export const FOUND_SECT_MIN_REALM = 5;     // Nascent Soul — a recognized power
+export const FOUND_SECT_MIN_ABODE = 3;     // Spirit-Gathering Abode — a worthy seat
+export const FOUND_SECT_COST = 500;        // founding rites, halls, jade tokens
+
+export const sectCapacity = c => D.SECT_CAPACITY[Math.min(D.SECT_CAPACITY.length - 1, c.abode || 0)] || 0;
+export function canFoundSect(c) {
+  return c.alive && c.awakened && !c.sectKey && !c.ownSect &&
+    c.realm >= FOUND_SECT_MIN_REALM && (c.abode || 0) >= FOUND_SECT_MIN_ABODE;
+}
+export function foundSectReason(c) {
+  if (c.ownSect) return `You already lead the ${c.ownSect.name}.`;
+  if (c.sectKey) return "Leave your current sect before raising your own banner.";
+  if (c.realm < FOUND_SECT_MIN_REALM) return `The world heeds only the strong: reach the ${D.REALMS[FOUND_SECT_MIN_REALM][0]} realm first.`;
+  if ((c.abode || 0) < FOUND_SECT_MIN_ABODE) return "Your sect needs a worthy seat — raise your cave abode to at least a Spirit-Gathering Abode (tier 3).";
+  if (c.spiritStones < FOUND_SECT_COST) return `Founding costs ${FOUND_SECT_COST} spirit stones (halls, tokens, rites). You have ${c.spiritStones}.`;
+  return null;
+}
+export function foundSect(c, rng, name) {
+  const reason = foundSectReason(c);
+  if (reason && c.spiritStones < FOUND_SECT_COST) return [reason];
+  if (reason) return [reason];
+  c.spiritStones -= FOUND_SECT_COST;
+  const sectName = (name && name.trim()) || `${rng.choice(D.SECT_NAME_ADJ)} ${rng.choice(D.SECT_NAME_NOUN)}`;
+  const alignment = c.karma <= -40 ? "demonic" : c.karma >= 40 ? "righteous" : "neutral";
+  const core = c.relationships.filter(n => n.alive && n.role === "disciple").length;
+  c.ownSect = { name: sectName, prestige: 0, members: 5 + core * 4, founded: c.age, alignment, _tier: null };
+  // your resident disciples become the founding core — settle them at the seat
+  for (const n of c.relationships) if (n.alive && n.role === "disciple") n.resides = true;
+  c.reputation += 10;
+  if (!c.titles.includes("Founder")) c.titles.push("Founder");
+  note(c, `Founded the ${sectName} (${alignment}), seated at your abode.`);
+  return [`✦ You raise your banner and found the ${sectName}! Your cave abode becomes its mountain seat. Disciples will gather to your name — the sect will rise, or fall, with you.`];
+}
+
+// The sect's quiet year: it recruits toward its seat's capacity, gains prestige
+// from your strength and following, spreads your name, and pays a stipend.
+function sectYearly(c, rng, events) {
+  const s = c.ownSect; if (!s) return;
+  const cap = sectCapacity(c);
+  const coreDisc = c.relationships.filter(n => n.alive && n.role === "disciple").length;
+  if (s.members < cap) {
+    const gain = Math.max(1, Math.round((cap - s.members) * (0.04 + c.reputation / 4000 + s.prestige / 9000)));
+    s.members = Math.min(cap, s.members + gain);
+  } else if (s.members > cap) s.members = cap;
+  s.prestige += c.realm * 0.6 + Math.min(6, c.abode || 0) * 0.5 + s.members * 0.02 + coreDisc * 0.5 + Math.max(0, c.reputation) * 0.01;
+  const tier = D.sectTier(s.prestige);
+  c.reputation += tier[4];
+  c.spiritStones += Math.round(s.members * 0.4 * (1 + Math.min(6, c.abode || 0) * 0.2));
+  if (s._tier !== tier[1]) {
+    if (s._tier) events.push({ id: "sect_rise_" + c.age, auto: true, milestone: true, text: [`✦ Your sect, the ${s.name}, has risen to a ${tier[1]} (${tier[2]})! Its name now carries weight across the land.`] });
+    s._tier = tier[1];
+  }
+}
+
+// Throw open the gates and recruit (a deed). Draws followers up to the seat's
+// capacity, and sometimes a true talent kneels as a personal disciple.
+export function holdRecruitment(c, rng) {
+  const s = c.ownSect; if (!s) return ["You lead no sect."];
+  const cap = sectCapacity(c);
+  const room = Math.max(0, cap - s.members);
+  if (room <= 0) return [`The halls of the ${s.name} are already full to its seat's capacity (${s.members}/${cap}). Expand your abode to take in more.`];
+  const drew = Math.min(room, rng.randint(5, 15) + Math.floor(Math.max(0, c.reputation) / 20));
+  s.members += drew; s.prestige += 3 + drew * 0.2;
+  const msgs = [`You throw open the gates of the ${s.name}. ${drew} hopefuls flock to your banner. (${s.members}/${cap} members)`];
+  if (c.realm >= 4 && getDisciples(c).length < 4 && rng.random() < 0.45) {
+    const n = mkNpc("disciple", E.npcName(rng), 55);
+    n.kin = "Disciple"; n.power = E.power(c) * rng.uniform(0.2, 0.4); n.learned = []; n.resides = true;
+    c.relationships.push(n);
+    msgs.push(`Among them, a true talent — ${n.name} — kneels as your personal disciple and takes up residence at the seat.`);
+  }
+  return msgs;
+}
+
+export function disbandSect(c) {
+  if (!c.ownSect) return ["You lead no sect."];
+  const nm = c.ownSect.name;
+  c.ownSect = null;
+  c.reputation = Math.max(-200, c.reputation - 8);
+  note(c, `Disbanded the ${nm}.`);
+  return [`You lower the banner of the ${nm} and disband it. Its disciples scatter to the four winds. (−Reputation)`];
 }
 
 /* ------------------------------ queries ---------------------------------- */

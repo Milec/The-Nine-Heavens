@@ -464,6 +464,8 @@ function openAbode() {
       ]));
       const who = [mate && `${mate.name} (companion)`, tenders.length && `${tenders.length} disciple${tenders.length > 1 ? "s" : ""}`, c.beast && c.beast.alive && `${c.beast.name} the ${c.beast.species}`].filter(Boolean);
       body.appendChild(el("p", "note", who.length ? `Residents: ${who.join(", ")}. Invite a dao companion or disciples from Relationships to tend the fields and defend your home.` : "No one lives here yet. Invite a dao companion or disciples (from Relationships) to share your home, tend its fields, and help defend it."));
+      if (c.ownSect) body.appendChild(el("p", "note", `🏯 This abode is the mountain seat of your sect, the ${c.ownSect.name} (${D.sectTier(c.ownSect.prestige)[1]}). A grander seat houses more disciples.`));
+      else if (L.canFoundSect(c)) body.appendChild(el("p", "note", "🏯 Your abode is now grand enough to serve as the seat of your own sect — found one from the Sect tab."));
       const sec = el("button", "mbtn full primary");
       sec.innerHTML = `Cultivate in Seclusion<small>a deed · seal yourself in for a deep cultivation</small>`;
       sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng));
@@ -569,6 +571,7 @@ function openSect() {
   const c = state.c;
   openOverlay("Sect Affairs", body => {
     if (!c.awakened) { body.appendChild(el("p", "note", "You cannot join a sect before your spiritual root awakens.")); return; }
+    if (c.ownSect) { renderOwnSect(c, body); return; }
     if (!c.sectKey) {
       body.appendChild(el("p", "note", "Join a sect for a cultivation bonus, a yearly stipend, a rank ladder, quests and tournaments. Better sects demand rarer talent."));
       for (const s of D.SECTS) {
@@ -578,6 +581,15 @@ function openSect() {
         row.innerHTML = `<div class="lr-ava">🏯</div><div class="lr-main"><div class="lr-title">${s[1]}</div><div class="lr-sub">${s[2]} · ${gate}<br>${s[9]}</div></div>`;
         if (ok) row.onclick = () => runFree(() => E.attemptJoin(c, state.rng, s[0]));
         body.appendChild(row);
+      }
+      body.appendChild(el("div", "section-h", "开宗立派 · Found Your Own Sect"));
+      if (L.canFoundSect(c)) {
+        const fb = el("button", "mbtn full primary");
+        fb.innerHTML = `Found Your Own Sect<small>${L.FOUND_SECT_COST} stones · your abode becomes its seat</small>`;
+        fb.onclick = () => openFoundSect();
+        body.appendChild(fb);
+      } else {
+        body.appendChild(el("p", "note", "Why bow to another's banner forever? " + (L.foundSectReason(c) || "")));
       }
       return;
     }
@@ -592,6 +604,41 @@ function openSect() {
     mk("Sect Store", "25 contrib → pills", () => runFree(() => E.exchangeContribution(c, state.rng)));
     const leave = el("button", "mbtn full danger"); leave.innerHTML = "Leave the Sect<small>go rogue</small>"; leave.onclick = () => runFree(() => E.leaveSect(c)); grid.appendChild(leave);
     body.appendChild(grid);
+  });
+}
+function renderOwnSect(c, body) {
+  const s = c.ownSect;
+  const tier = D.sectTier(s.prestige), next = D.sectTierNext(s.prestige);
+  const cap = L.sectCapacity(c);
+  const align = { righteous: "Righteous", neutral: "Neutral", demonic: "Demonic" }[s.alignment] || "Neutral";
+  body.appendChild(el("div", "section-h", `${s.name}`));
+  body.appendChild(el("p", "note", `You are the Founder and Sect Master of the ${s.name}, a ${align}-path sect seated at your ${(D.abodeAt(c.abode || 0) || [, "abode"])[1]}.`));
+  body.appendChild(infoRows([
+    ["Standing", `${tier[1]} (${tier[2]})`],
+    ["Prestige", next ? `${Math.floor(s.prestige)} / ${next[0]} → ${next[1]}` : `${Math.floor(s.prestige)} (peak)`],
+    ["Members", `${s.members} / ${cap}`],
+    ["Cultivation bonus", `+${Math.round(tier[3] * 100)}%`, "abode"],
+    ["Founded", `age ${s.founded}`],
+  ]));
+  body.appendChild(el("p", "note", `Each year your sect spreads your name (+${tier[4]} fame), pays a stipend from its treasury, and quickens your dao. Expand your cave abode to raise the members cap. Invite disciples (in Relationships) to settle them as your core.`));
+  const grid = el("div", "menu-grid");
+  const mk = (l, sub, h, full, primary) => { const b = el("button", "mbtn" + (full ? " full" : "") + (primary ? " primary" : "")); b.innerHTML = `${l}<small>${sub}</small>`; b.onclick = h; grid.appendChild(b); };
+  mk("Hold a Recruitment", s.members < cap ? "a deed · draw new disciples" : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng)), true, s.members < cap);
+  if (c.realm >= 4 && L.getDisciples(c).length < 4)
+    mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction()) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
+  body.appendChild(grid);
+  const dis = el("button", "mbtn full danger"); dis.innerHTML = "Disband the Sect<small>lower your banner</small>"; dis.onclick = () => runFree(() => L.disbandSect(c)); body.appendChild(dis);
+}
+function openFoundSect() {
+  const c = state.c;
+  openOverlay("Found a Sect 开宗立派", body => {
+    body.appendChild(el("p", "note", `Raise your own banner with your cave abode as its mountain seat. It will gather disciples and prestige over the years, spread your name, quicken your dao, and pay you a stipend. Founding costs ${L.FOUND_SECT_COST} spirit stones.`));
+    const input = el("input", "txtfield"); input.type = "text"; input.placeholder = "Name your sect (or leave it to fate)"; input.maxLength = 28;
+    body.appendChild(input);
+    const found = el("button", "mbtn full primary"); found.innerHTML = `Raise the Banner<small>${L.FOUND_SECT_COST} stones · you have ${c.spiritStones}</small>`;
+    found.onclick = () => runFree(() => L.foundSect(c, state.rng, input.value.trim() || null));
+    body.appendChild(found);
+    backBtn(body, openSect);
   });
 }
 function openQuests() {
@@ -645,8 +692,8 @@ function openSheet() {
     ]));
     body.appendChild(el("div", "section-h", "Path"));
     const ab = D.abodeAt(c.abode || 0);
-    const rows = [["Sect", c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
-      ["Abode", ab ? `${ab[1]} (${ab[2]})` : "None", "abode"],
+    const rows = [["Sect", c.ownSect ? `${c.ownSect.name} — Founder (${D.sectTier(c.ownSect.prestige)[1]})` : c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
+      ["Abode", ab ? `${ab[1]} (${ab[2]})${c.ownSect ? " · sect seat" : ""}` : "None", "abode"],
       ["Treasure", c.equippedArtifact ? E.describeArtifact(c.equippedArtifact) : "(none)"]];
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);
