@@ -133,8 +133,9 @@ const deedsLeft = () => (state.actionsLeft == null ? ACTIONS_PER_YEAR : state.ac
 /* Reasonable minimum ages for certain endeavours (a 6-year-old shouldn't be
  * raiding Secret Realms or travelling the world alone). */
 const AGE_MIN = {
-  oddjobs: 10, alchemy: 10, wander: 12, hunt: 12, arena: 12, duel: 12, quest: 12,
-  mingle: 12, travel: 14, tournament: 14, romance: 16, boss: 16, secret: 16, disciple: 18,
+  train: 4, study: 5, oddjobs: 10, alchemy: 10, wander: 12, hunt: 12, arena: 12,
+  duel: 12, quest: 12, mingle: 12, travel: 14, tournament: 14, romance: 16,
+  boss: 16, secret: 16, disciple: 18,
 };
 // True if old enough; otherwise emits a note and returns false.
 function ageAllows(key) {
@@ -385,8 +386,8 @@ function openActivities() {
     // young: below the action's minimum age
     const young = key => c.age < (AGE_MIN[key] || 0);
     const sub = (key, normal) => young(key) ? `from age ${AGE_MIN[key]}` : normal;
-    mk("Train the Body", "build constitution", () => runTimed(() => L.trainBody(c, state.rng)));
-    mk("Study Scriptures", "build comprehension", () => runTimed(() => L.studyScriptures(c, state.rng)));
+    mk("Train the Body", sub("train", "build constitution"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng)); }, { disabled: young("train") });
+    mk("Study Scriptures", sub("study", "build comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng)); }, { disabled: young("study") });
     mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
     mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
     const canHunt = c.awakened && c.root.key !== "none";
