@@ -105,11 +105,11 @@ function carryLegacySect(c, old, rng) {
 export function mingle(c, rng) {
   const pull = c.charm + (["striking", "peerless", "immortal"].includes(c.appearanceKey) ? 20 : 0);
   const roll = rng.random();
-  // Romance only blooms once you've come of age.
-  if (c.age >= 16 && roll < 0.22 + pull / 500 && !c.relationships.some(n => n.role === "companion" && n.alive)) {
+  // Romance blooms once you've come of age; you may gather more than one love.
+  if (c.age >= 16 && roll < 0.22 + pull / 500 && c.relationships.filter(n => n.role === "companion" && n.alive).length < D.HAREM_CAP) {
     const n = meetPerson(c, rng, "companion", { affinity: 18 + Math.floor(pull / 7) });
     c.happiness = clampN(c.happiness + 6, 0, 100);
-    return [`✦ You cross paths with ${n.name}, and a spark kindles. A potential dao companion.`];
+    return [`✦ You cross paths with ${n.name}, and a spark kindles. A new romance — court them, and a dao companion they may become.`];
   }
   if (roll < 0.65) {
     const n = meetPerson(c, rng, "friend", { affinity: 14 + Math.floor(c.charm / 9) });
@@ -163,14 +163,55 @@ function learnRandomTech(c, rng) {
 }
 function meetPerson(c, rng, role, opts = {}) {
   const surname = c.name.split(" ")[0];
-  const name = (opts.kin && ["Son", "Daughter"].includes(opts.kin))
-    ? `${surname} ${E.givenName(rng)}` : E.npcName(rng);
+  const child = opts.kin && ["Son", "Daughter"].includes(opts.kin);
+  const name = child ? `${surname} ${E.givenName(rng)}` : E.npcName(rng);
   const n = mkNpc(role, name, opts.affinity != null ? opts.affinity : 20);
-  n.power = E.power(c) * rng.uniform(0.5, 1.4);
+  n.power = child ? 1 : E.power(c) * rng.uniform(0.5, 1.4);
   if (opts.kin) n.kin = opts.kin;
   if (opts.born != null) n.born = opts.born;
+  if (opts.parent) n.parent = opts.parent;
+  // Romantic partners have a sex (mostly the opposite of yours; love is love).
+  if (role === "companion") n.sex = opts.sex || (rng.random() < 0.82 ? (c.sex === "female" ? "male" : "female") : c.sex);
+  if (child) n.sex = opts.kin === "Son" ? "male" : "female";
   c.relationships.push(n);
   return n;
+}
+
+/* ----------------------------- romance & kin ----------------------------- */
+export const livingLovers = c => c.relationships.filter(n => n.role === "companion" && n.alive);
+export const livingSpouses = c => c.relationships.filter(n => n.role === "companion" && n.married && n.alive);
+export const childrenOf = c => c.relationships.filter(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive);
+
+// Take a courted companion as your wedded dao companion. Harems welcome.
+export function marry(c, npc, rng) {
+  if (npc.married) return [`You and ${npc.name} are already wed.`];
+  npc.married = true;
+  npc.kin = D.spouseLabel(npc);
+  npc.affinity = clampN(npc.affinity + 15, -100, 100);
+  c.happiness = clampN(c.happiness + 18, 0, 100);
+  c.karma += 1; c.reputation += 3;
+  if (!c.titles.includes("Wed")) c.titles.push("Wed");
+  const n = livingSpouses(c).length;
+  if (n >= 3) { c.titles = c.titles.filter(t => !/^Harem of/.test(t)); c.titles.push(`Harem of ${n}`); }
+  note(c, `Wed ${npc.name}${n > 1 ? ` (now ${n} dao companions)` : ""}.`);
+  const others = n > 1 ? ` Your other ${n - 1} dao companion${n - 1 > 1 ? "s" : ""} look on — some glowing with joy, some with a flicker of jealousy.` : "";
+  return [`✦ Beneath a blood-red moon, you and ${npc.name} pledge to walk the long road to immortality together — wed at last, ${npc.kin.toLowerCase()} and spouse.${others}`];
+}
+
+// Try for a child with a wedded spouse; bears them into your line.
+export function tryForChild(c, npc, rng) {
+  if (childrenOf(c).length >= 10) return ["Your line is already vast — ten children is legacy enough for any cultivator."];
+  if (c.age < 18) return ["You are not yet of an age to raise children."];
+  if (rng.random() < 0.55 + c.luck / 400) {
+    const son = rng.random() < 0.5;
+    const child = meetPerson(c, rng, "family", { kin: son ? "Son" : "Daughter", affinity: 70, born: c.age, parent: npc.name });
+    npc.affinity = clampN(npc.affinity + 6, -100, 100);
+    c.happiness = clampN(c.happiness + 12, 0, 100);
+    note(c, `${npc.name} bore you a ${son ? "son" : "daughter"}, ${child.name}.`);
+    return [`✦ Joy fills your household: ${npc.name} gives you a ${son ? "son" : "daughter"} — ${child.name}. A new spark of your bloodline enters the world.`];
+  }
+  c.happiness = clampN(c.happiness + 3, 0, 100);
+  return [`A tender season with ${npc.name}, though no child comes of it just yet.`];
 }
 
 function makeApi(c, rng) {
@@ -191,6 +232,9 @@ function makeApi(c, rng) {
     kinAdjust: (label, d) => { const n = c.relationships.find(x => x.kin === label && x.alive); if (n) n.affinity = clampN(n.affinity + d, -100, 100); },
     makeNemesis: grudge => makeNemesis(c, rng, grudge),
     nemesis: () => getNemesis(c),
+    marry: npc => marry(c, npc, rng),
+    spouses: () => livingSpouses(c),
+    lovers: () => livingLovers(c),
   };
 }
 
@@ -389,7 +433,15 @@ export function relationActions(c, npc) {
   if (npc.role === "family" && (npc.realm || 0) >= 2) acts.push({ id: "guidance", label: "Seek their guidance" });
   if (npc.role === "family" && (c.backgroundKey === "noble" || c.backgroundKey === "royal")) acts.push({ id: "askhelp", label: "Ask for resources" });
   if (npc.role === "rival" || npc.role === "friend") acts.push({ id: "spar", label: "Spar" });
-  if (npc.role === "companion") acts.push({ id: "dual", label: "Dual cultivate" });
+  if (npc.role === "companion") {
+    if (!npc.married) {
+      acts.push({ id: "court", label: "Woo them with sweet words" });
+      if (npc.affinity >= 55) acts.push({ id: "propose", label: "Propose marriage 💍" });
+    } else {
+      acts.push({ id: "dual", label: "Dual cultivate" });
+      if (c.age >= 18 && childrenOf(c).length < 10) acts.push({ id: "trychild", label: "Try for a child" });
+    }
+  }
   if ((npc.role === "companion" || npc.role === "disciple") && (c.abode || 0) > 0)
     acts.push(npc.resides ? { id: "sendaway", label: "Have them leave your abode" } : { id: "invite", label: "Invite to live at your abode" });
   if (npc.role === "enemy") { acts.push({ id: "insult", label: "Threaten them" }); acts.push({ id: "reconcile", label: "Make peace" }); acts.push({ id: "duel", label: "Challenge to a duel" }); }
@@ -419,7 +471,18 @@ export function doRelationAction(c, npc, action, rng) {
       adj(win ? rng.randint(2, 6) : rng.randint(-3, 2)); happy(1);
       return [win ? `You best ${npc.name} in a friendly bout; they respect you for it.` : `${npc.name} gets the better of you. Humbling, but instructive.`];
     }
-    case "dual": adj(rng.randint(3, 7)); happy(4); return [`You and ${npc.name} share a tender, quiet hour. Your bond deepens. (${E.npcStatus(npc)})`];
+    case "dual": adj(rng.randint(3, 7)); happy(4); return [`You and ${npc.name} share a tender, quiet hour of dual cultivation. Your bond deepens. (${E.npcStatus(npc)})`];
+    case "court": {
+      const g = rng.randint(4, 9) + Math.floor(c.charm / 25); adj(g); happy(3);
+      const lines = [`You court ${npc.name} with sweet words, moonlit walks and small gifts of the heart. (${E.npcStatus(npc)})`];
+      if (npc.affinity >= 55 && !npc.married) lines.push(`${npc.name}'s eyes shine when they meet yours — they would say yes, were you to ask.`);
+      return lines;
+    }
+    case "propose":
+      if (npc.married) return [`You and ${npc.name} are already wed.`];
+      if (npc.affinity < 55) { adj(-4); happy(-4); return [`You drop to one knee too soon — ${npc.name} falters, then gently declines. You court them a while longer.`]; }
+      return marry(c, npc, rng);
+    case "trychild": return tryForChild(c, npc, rng);
     case "invite": npc.resides = true; adj(rng.randint(4, 8)); happy(3); return [`${npc.name} moves into your cave abode. ${npc.role === "disciple" ? "They will tend its spirit fields and grow in its dense qi." : "It feels far more like a home now."}`];
     case "sendaway": npc.resides = false; adj(-rng.randint(1, 3)); return [`${npc.name} packs their things and leaves your abode.`];
     case "insult": adj(-rng.randint(4, 10)); happy(1); return [`You hurl threats at ${npc.name}. The feud festers.`];

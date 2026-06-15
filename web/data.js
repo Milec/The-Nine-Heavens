@@ -175,6 +175,9 @@ export function relationshipLabel(a) {
 }
 
 export const ROLE_LABEL = { master:"Master", rival:"Rival", friend:"Sworn Friend", companion:"Dao Companion", enemy:"Enemy" };
+// A married companion's kin label, by their sex.
+export const spouseLabel = n => n.sex === "female" ? "Wife" : n.sex === "male" ? "Husband" : "Dao Partner";
+export const HAREM_CAP = 6;   // how many dao companions you may gather at once
 export const TOURNAMENT_TITLES = [[1,"Champion"],[2,"Runner-up"],[4,"Top Four"],[8,"Top Eight"]];
 
 export const ARTIFACT_GRADES = ["Mortal","Spirit","Earth","Heaven","Immortal"];

@@ -65,11 +65,14 @@ function checkAchievements() {
   if (c.karma >= 120) award("saint");
   if (c.daos && c.daos.length) award("daoist");
   if (c.beast) award("tamer");
+  const spouses = c.relationships.filter(n => n.role === "companion" && n.married && n.alive).length;
+  if (spouses >= 1) award("companion");
+  if (spouses >= 3) award("harem");
+  if (c.relationships.filter(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive).length >= 5) award("dynasty");
   if ((c.bodyRealm || 0) >= 5) { award("bodysaint"); if (c.root && c.root.key === "none") award("rootless_legend"); }
   if (c.reincarnationCount >= 5) award("eternal");
   if (c.sectKey && c.sectRank >= D.SECT_RANKS.length - 1) award("sectmaster");
   const t = c.titles || [];
-  if (t.includes("Dao Companion")) award("companion");
   if (t.some(x => x.startsWith("Nemesis Slain"))) award("nemesis");
   if (t.includes("Tournament Champion")) award("champion");
   if (t.includes("Secret Realm Delver")) award("delver");
@@ -328,10 +331,21 @@ function openCultivate() {
 function openPeople() {
   const c = state.c;
   openOverlay("Relationships", body => {
-    const fam = L.livingFamily(c), bonds = L.livingBonds(c);
-    if (fam.length) { body.appendChild(el("div", "section-h", "Family")); fam.forEach(n => body.appendChild(personRow(n))); }
+    const all = c.relationships.filter(n => n.alive);
+    const family = all.filter(n => n.role === "family" && n.kin !== "Son" && n.kin !== "Daughter");
+    const loves = all.filter(n => n.role === "companion").sort((a, b) => (b.married ? 1 : 0) - (a.married ? 1 : 0) || b.affinity - a.affinity);
+    const kids = all.filter(n => n.kin === "Son" || n.kin === "Daughter");
+    const bonds = all.filter(n => n.role !== "family" && n.role !== "companion");
+    const section = (title, list) => { if (list.length) { body.appendChild(el("div", "section-h", title)); list.forEach(n => body.appendChild(personRow(n))); } };
+    section("Family", family);
+    if (loves.length) {
+      const sp = loves.filter(n => n.married).length;
+      body.appendChild(el("div", "section-h", `Spouses & Lovers${sp ? ` · ${sp} wed` : ""}`));
+      loves.forEach(n => body.appendChild(personRow(n)));
+    }
+    section(kids.length ? `Children · ${kids.length}` : "Children", kids);
     body.appendChild(el("div", "section-h", "Bonds"));
-    if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or companions yet."));
+    if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or sworn enemies yet."));
     bonds.forEach(n => body.appendChild(personRow(n)));
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
     b.onclick = () => { if (!ageAllows("mingle") || !useAction()) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
@@ -359,14 +373,19 @@ function openTeachPicker(npc) {
     backBtn(body, () => openPerson(npc));
   });
 }
+function relLabel(n) {
+  if (n.role === "companion") return n.married ? (n.kin || "Spouse") : "Sweetheart";
+  return n.kin || E.npcRoleLabel(n);
+}
 function personRow(n) {
-  const row = el("div", "listrow");
+  const row = el("div", "listrow" + (n.role === "companion" && n.married ? " bound" : ""));
   const aff = Math.max(-100, Math.min(100, n.affinity));
   const col = aff < 0 ? "var(--red)" : aff < 40 ? "var(--muted)" : aff < 75 ? "var(--jade)" : "var(--pink)";
   const w = (aff + 100) / 2;
+  const extra = n.occupation ? " · " + n.occupation : (n.parent ? " · child of " + escapeHtml(n.parent) : "");
   row.innerHTML = `<div class="lr-ava">${personEmoji(n)}</div><div class="lr-main">
-    <div class="lr-title">${escapeHtml(n.name)} <span class="lr-sub" style="display:inline">· ${n.kin || E.npcRoleLabel(n)}</span></div>
-    <div class="lr-sub">${E.npcStatus(n)}${n.occupation ? " · " + n.occupation : ""}</div>
+    <div class="lr-title">${escapeHtml(n.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(relLabel(n))}</span></div>
+    <div class="lr-sub">${E.npcStatus(n)}${extra}</div>
     <div class="affbar"><div style="width:${w}%;background:${col}"></div></div></div>`;
   row.onclick = () => openPerson(n);
   return row;
@@ -374,14 +393,16 @@ function personRow(n) {
 function personEmoji(n) {
   if (n.kin === "Father") return "👨"; if (n.kin === "Mother") return "👩";
   if (n.kin === "Brother") return "👦"; if (n.kin === "Sister") return "👧";
-  if (n.kin === "Son") return "🧒"; if (n.kin === "Daughter") return "🧒";
-  return ({ master: "🧓", rival: "😼", friend: "🙂", companion: "💞", enemy: "😠", nemesis: "👿", disciple: "🙇" })[n.role] || "🧑";
+  if (n.kin === "Son") return "👦"; if (n.kin === "Daughter") return "👧";
+  if (n.role === "companion") return n.married ? "💍" : "💞";
+  return ({ master: "🧓", rival: "😼", friend: "🙂", enemy: "😠", nemesis: "👿", disciple: "🙇" })[n.role] || "🧑";
 }
 function openPerson(n) {
   const c = state.c;
   openOverlay(n.name, body => {
     body.appendChild(infoRows([
-      ["Relation", n.kin || E.npcRoleLabel(n)], ["Feeling", `${E.npcStatus(n)} (${n.affinity >= 0 ? "+" : ""}${n.affinity})`],
+      ["Relation", relLabel(n) + (n.role === "companion" && n.married ? " (married)" : "")], ["Feeling", `${E.npcStatus(n)} (${n.affinity >= 0 ? "+" : ""}${n.affinity})`],
+      ...(n.parent ? [["Parent", n.parent]] : []),
       ...(n.occupation ? [["Occupation", n.occupation]] : []),
     ]));
     for (const act of L.relationActions(c, n)) {

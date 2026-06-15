@@ -89,28 +89,51 @@ export const EVENTS = [
   },
   {
     id: "romance", weight: 5, minAge: 16, maxAge: 9000,
-    cond: c => !c.relationships.some(n => n.role === "companion" && n.alive) && c.charm > 30,
-    text: c => `Beneath the lantern-light at a gathering, ${c.sex === "female" ? "a striking young cultivator" : "a graceful young cultivator"} catches your eye — and holds it.`,
+    cond: c => c.charm > 25 && c.relationships.filter(n => n.role === "companion" && n.alive).length < D.HAREM_CAP,
+    text: c => `Beneath the lantern-light at a gathering, a graceful young cultivator catches your eye — and holds it.`,
     choices: [
-      { label: "Pursue them", result: (c, rng, A) => { if (rng.random() < 0.35 + c.charm / 200) { const n = A.meet("companion", { affinity: 30 }); A.happy(12); return `Words become walks, walks become promises. ${n.name} may yet become your dao companion.`; } A.happy(-5); return "Your heart races; their eyes slide past you to another. Rejection stings like cold rain."; } },
+      { label: "Pursue them", result: (c, rng, A) => { if (rng.random() < 0.4 + c.charm / 200) { const n = A.meet("companion", { affinity: 28 }); A.happy(12); return `Words become walks, walks become promises. ${n.name} may yet become your dao companion — court them in your Relationships.`; } A.happy(-5); return "Your heart races; their eyes slide past you to another. Rejection stings like cold rain."; } },
       { label: "Focus on the dao", result: (c, rng, A) => { A.qi(0.2); cap(c, "soul", 1); return "Love is a beautiful distraction you cannot afford. You return to your cultivation."; } },
     ],
   },
   {
-    id: "marriage", weight: 7, minAge: 16, maxAge: 9000, once: true,
-    cond: c => c.relationships.some(n => n.role === "companion" && n.alive && n.affinity >= 60),
-    text: c => { const n = c.relationships.find(x => x.role === "companion" && x.alive); return `Under a blood-red moon, ${n ? n.name : "your beloved"} takes your hands: "Walk the long road to immortality at my side — forever."`; },
+    id: "marriage", weight: 7, minAge: 16, maxAge: 9000,
+    cond: c => c.relationships.some(n => n.role === "companion" && n.alive && !n.married && n.affinity >= 55),
+    text: c => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity >= 55); return `Under a blood-red moon, ${n ? n.name : "your beloved"} takes your hands: "Walk the long road to immortality at my side — as my spouse, forever."`; },
     choices: [
-      { label: "Pledge yourselves as dao companions", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive); if (n) { n.kin = "Dao Partner"; n.affinity = Math.min(100, n.affinity + 20); } if (!c.titles.includes("Dao Companion")) c.titles.push("Dao Companion"); A.happy(20); return `You are bound, soul to soul. Two dao-hearts beating as one against the indifferent heavens.`; } },
-      { label: "You are not ready", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive); if (n) n.affinity = Math.max(-100, n.affinity - 15); A.happy(-8); return "You hesitate, and something in their eyes dims. The moment passes, perhaps forever."; } },
+      { label: "Pledge yourselves — wed", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity >= 55); return n ? A.marry(n) : "The moment slips away."; } },
+      { label: "You are not ready", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity >= 55); if (n) n.affinity = Math.max(-100, n.affinity - 12); A.happy(-8); return "You hesitate, and something in their eyes dims. Perhaps another night."; } },
     ],
   },
   {
-    id: "have_child", weight: 5, minAge: 18, maxAge: 9000, once: false,
-    cond: c => c.relationships.some(n => n.role === "companion" && n.alive && n.affinity >= 50) && c.relationships.filter(n => n.kin === "Son" || n.kin === "Daughter").length < 4,
-    text: () => "Your dao companion shares joyful news: a child is coming.",
+    id: "have_child", weight: 5, minAge: 18, maxAge: 9000,
+    cond: c => c.relationships.some(n => n.role === "companion" && n.married && n.alive) && c.relationships.filter(n => n.kin === "Son" || n.kin === "Daughter").length < 10,
+    text: c => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); return `Your ${sp ? sp.kin.toLowerCase() : "spouse"} ${sp ? sp.name : ""} shares joyful news: a child is coming.`; },
     choices: [
-      { label: "Welcome the child", result: (c, rng, A) => { const child = A.meet("family", { kin: rng.random() < 0.5 ? "Son" : "Daughter", affinity: 70, born: c.age }); A.happy(15); return `A child is born to your line — ${child.name}. A spark of your blood to carry the dao onward.`; } },
+      { label: "Welcome the child", result: (c, rng, A) => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); const child = A.meet("family", { kin: rng.random() < 0.5 ? "Son" : "Daughter", affinity: 70, born: c.age, parent: sp ? sp.name : null }); A.happy(15); return `A child is born to your line — ${child.name}${sp ? `, ${sp.name}'s ${child.kin.toLowerCase()}` : ""}. A spark of your blood to carry the dao onward.`; } },
+    ],
+  },
+  {
+    id: "harem_jealousy", weight: 4, minAge: 16, maxAge: 9000,
+    cond: c => c.relationships.filter(n => n.role === "companion" && n.alive).length >= 2,
+    text: c => { const ls = c.relationships.filter(n => n.role === "companion" && n.alive); return `Two of your dao companions, ${ls[0].name} and ${ls[1].name}, fall to bitter quarrelling over your divided attentions.`; },
+    choices: [
+      { label: "Soothe them with wisdom and grace", result: (c, rng, A) => { if (rng.random() < 0.4 + (c.charm + c.soul) / 400) { A.happy(8); for (const n of c.relationships) if (n.role === "companion" && n.alive) n.affinity = Math.min(100, n.affinity + 4); return "You speak to each heart in turn, and turn rivalry into sisterly accord. Your household finds harmony — for now."; } A.happy(-6); const ls = c.relationships.filter(n => n.role === "companion" && n.alive); ls.forEach(n => n.affinity = Math.max(-100, n.affinity - 6)); return "Your clumsy words please no one; both feel slighted, and the chill in your home deepens."; } },
+      { label: "Let them sort it out themselves", result: (c, rng, A) => { A.happy(-4); const ls = c.relationships.filter(n => n.role === "companion" && n.alive); ls.forEach(n => n.affinity = Math.max(-100, n.affinity - 4)); return "You stay out of it. The feud simmers; both grow a little cooler toward you."; } },
+    ],
+  },
+  {
+    id: "harem_harmony", weight: 3, minAge: 16, maxAge: 9000,
+    cond: c => c.relationships.filter(n => n.role === "companion" && n.married && n.alive).length >= 2 && (c.charm + c.soul) >= 120,
+    auto: (c, rng, A) => { A.happy(7); for (const n of c.relationships) if (n.role === "companion" && n.married && n.alive) n.affinity = Math.min(100, n.affinity + 3); return "Your dao companions move through your household like one mind in many bodies — a rare and harmonious union that is the envy of the cultivation world. (+Happiness)"; },
+  },
+  {
+    id: "lover_neglected", weight: 3, minAge: 16, maxAge: 9000,
+    cond: c => c.relationships.some(n => n.role === "companion" && n.alive && !n.married && n.affinity < 30),
+    text: c => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity < 30); return `${n ? n.name : "A companion"}, long left wanting for your attention, asks quietly whether your heart is truly in this.`; },
+    choices: [
+      { label: "Rekindle the romance", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity < 30); if (n) n.affinity = Math.min(100, n.affinity + 18); A.happy(4); return `You set everything aside for them, and the warmth returns to ${n ? n.name : "their"} eyes.`; } },
+      { label: "Let them go", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity < 30); if (n) { n.role = "friend"; n.kin = null; } A.happy(-4); return `You part ways gently. ${n ? n.name : "They"} remains a friend, but the romance fades to memory.`; } },
     ],
   },
 

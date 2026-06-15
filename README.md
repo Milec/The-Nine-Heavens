@@ -92,6 +92,13 @@ heart for those bold (or greedy) enough to reach it.
 
 Three more systems round out a cultivator's life:
 
+- **Romance, marriage & family (道侣)** — meet potential loves by mingling or at
+  gatherings, **court** them with sweet words until their heart is yours, then
+  **propose and wed** them as your dao companion. Take **more than one** — a full
+  xianxia **harem** of up to six spouses (with jealousy to manage, or harmony to
+  cherish). **Try for children** with any spouse: sons and daughters who carry
+  your bloodline, take your surname, awaken their own roots, learn your arts, and
+  — through reincarnation — sharpen the soul of your next life.
 - **Lineage (传承)** — at the Golden Core you may **take disciples**, and **teach
   your techniques** to disciples, children and your dao companion. Your students
   carry your arts onward, and the teaching **echoes across reincarnation**,
