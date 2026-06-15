@@ -21,6 +21,8 @@ export function elementMult(att, def) {
 }
 const ELEMENT_ICON = { Metal: "⚔️", Wood: "🌿", Water: "💧", Fire: "🔥", Earth: "⛰️", Ice: "❄️", Lightning: "⚡", Thunder: "⚡", Dark: "🌑", Light: "✨", Wind: "🌪️", Void: "🕳️", Chaos: "☯️" };
 export const elementIcon = e => ELEMENT_ICON[e] || "✊";
+// A high-rank beast's elemental bite: [statusType, turns, value].
+const BEAST_BITE = { Fire: ["burn", 3, 0.05], Ice: ["stun", 1, 0], Wood: ["bleed", 3, 0.05], Lightning: ["weaken", 2, 0.2], Dark: ["bleed", 3, 0.06], Metal: ["weaken", 2, 0.18], Water: ["weaken", 2, 0.18], Wind: ["weaken", 1, 0.15] };
 
 /* --------------------------- skill definitions --------------------------- */
 // dmg values are a FRACTION of the attacker's power (so they scale at any realm).
@@ -155,6 +157,9 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,
     element: (c.awakened && c.root.elements.length) ? c.root.elements[0] : (ph.element || null),
     shield: 0, statuses: [], beast: E.beastPower(c),
+    beastElement: (c.beast && c.beast.alive) ? (c.beast.element || null) : null,
+    beastBond: (c.beast && c.beast.alive) ? (c.beast.bond != null ? c.beast.bond : 50) : 0,
+    beastRank: (c.beast && c.beast.alive) ? (c.beast.rank || 1) : 0,
   };
   const ep = enemyDef.power;
   const hpMult = enemyDef.hpMult || 2.3;
@@ -303,10 +308,17 @@ function takeRound(B, actionId) {
     }
   }
 
-  // Beast ally assists each round.
+  // Beast ally assists each round — harder the deeper your bond, and with the
+  // bite of its own element. A high-rank beast can inflict an elemental affliction.
   if (P.beast > 0 && En.hp > 0 && actionId !== "flee") {
-    const bd = Math.round(P.beast * 0.22 * B.rng.uniform(0.8, 1.2) * elementMult(null, En.element));
-    En.hp -= bd; lines.push(`🐾 ${c.beast.name} lunges in for ${bd} dmg.`);
+    const bondMult = 0.7 + (P.beastBond / 100) * 0.6;            // 0.7 .. 1.3
+    const em = elementMult(P.beastElement, En.element);
+    const bd = Math.round(P.beast * 0.22 * bondMult * B.rng.uniform(0.8, 1.2) * em);
+    En.hp -= bd; lines.push(`🐾 ${c.beast.name} lunges in for ${bd} dmg${em > 1.05 ? " 🔆" : ""}.`);
+    if (P.beastRank >= 3 && P.beastElement && En.hp > 0 && B.rng.random() < 0.25) {
+      const fx = BEAST_BITE[P.beastElement];
+      if (fx && !(fx[0] === "burn" && En.burnImmune)) { addStatus(En, fx[0], fx[1] + 1, fx[2]); lines.push(`   ${En.name} suffers the beast's ${fx[0]}!`); }
+    }
   }
 
   if (En.hp <= 0) { B.over = true; B.outcome = "win"; lines.push(`🏆 ${En.name} is defeated!`); B.turn++; return { lines, over: true, outcome: "win" }; }

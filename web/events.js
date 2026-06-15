@@ -12,6 +12,7 @@
  */
 
 import * as D from "./data.js";
+import * as E from "./engine.js";
 
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const cap = (c, k, v) => { c[k] = Math.min(160, c[k] + v); };
@@ -803,6 +804,27 @@ export const EVENTS = [
   {
     id: "abode_bloom", weight: 4, awakened: true, cond: c => (c.abode || 0) >= 3,
     auto: (c, rng, A) => { const h = rng.randint(3, 8) + (c.abode || 0); A.herbs(h); if (rng.random() < 0.3) { c.pills += 1; return `A rare spirit herb blooms in your abode's fields, potent enough to refine on the spot. (+${h} herbs, +1 pill)`; } return `The spirit vein beneath your abode surges; your herb fields run riot with growth. (+${h} herbs)`; },
+  },
+  /* ----------------------- spirit beast companion --------------------- */
+  {
+    id: "beast_forage_find", weight: 4, awakened: true, cond: c => c.beast && c.beast.alive,
+    auto: (c, rng, A) => { const b = c.beast; const r = b.rank || 1; if (rng.random() < 0.3) { A.herbs(rng.randint(2, 6) * r); return `${b.name} returns from the wilds dragging a mouthful of rare spirit herbs, tail wagging.`; } if (rng.random() < 0.4 && b.exp != null) { b.exp += 4; b.bond = Math.min(100, (b.bond || 50) + 2); return `${b.name} hunts a fierce wild beast all on its own and returns bloodied but proud. (bond & exp grow)`; } A.stones(rng.randint(2, 8) * r); return `${b.name} unearths a glittering cache of spirit stones buried near your path.`; },
+  },
+  {
+    id: "beast_peril", weight: 3, awakened: true, cond: c => c.beast && c.beast.alive,
+    text: c => `A larger, savage beast corners your ${c.beast.name} in the wild, fangs bared to kill.`,
+    choices: [
+      { label: "Rush to your beast's defense", result: (c, rng, A) => { const res = A.fight(["a Savage Alpha-Beast", A.power() * rng.uniform(0.9, 1.25), (c.realm + 1) * 6, "beast"]); if (c.alive && c.beast) { c.beast.bond = Math.min(100, (c.beast.bond || 50) + 12); if (c.beast.exp != null) c.beast.exp += 8; res.push(`${c.beast.name} presses to your side, fierce gratitude in its eyes. Your bond deepens.`); } return [`You will not lose ${c.beast.name}. You charge in.`].concat(res); } },
+      { label: "Let it prove itself alone", result: (c, rng, A) => { const b = c.beast; const win = rng.random() < 0.4 + (b.bond || 50) / 250 + (b.rank || 1) * 0.08; if (win) { b.bond = Math.min(100, (b.bond || 50) + 4); if (b.exp != null) b.exp += 10; return `${b.name} fights with savage cunning and tears its way free. It returns stronger for the trial.`; } b.power *= 0.85; b.bond = Math.max(0, (b.bond || 50) - 8); A.happy(-5); return `${b.name} barely survives, limping home wounded. It will need time — and feeding — to recover.`; } },
+    ],
+  },
+  {
+    id: "wild_beast_call", weight: 4, awakened: true, cond: c => !c.beast && c.root.key !== "none" && c.realm >= 1,
+    text: () => "A wounded spirit-beast cub, abandoned by its pack, creeps to the edge of your camp and watches you with wary, hungry eyes.",
+    choices: [
+      { label: "Earn its trust with food and patience", result: (c, rng, A) => { if (rng.random() < 0.45 + c.charm / 250 + c.soul / 400) { const sp = rng.choice(D.SPIRIT_BEASTS); c.beast = E.normalizeBeast({ name: sp.split(" ").slice(-1)[0], species: sp, baseSpecies: sp, element: D.beastElement(sp), power: E.power(c) * rng.uniform(0.25, 0.4), bond: 60, rank: 1, exp: 0, fedThisYear: 0, alive: true }); A.happy(8); A.note(`Befriended a wild ${sp} cub.`); return `Day by day it draws closer, until one dawn it simply will not leave your side. You have a new companion: a ${sp}! (See Treasures & Beast.)`; } A.happy(-2); return "The cub is too skittish; one wrong move and it bolts into the trees, gone for good."; } },
+      { label: "Leave it to the wild", result: () => "You let nature take its course. The cub watches you go, then turns back to the forest." },
+    ],
   },
   {
     id: "sect_glory", weight: 4, awakened: true, cond: c => !!c.ownSect,

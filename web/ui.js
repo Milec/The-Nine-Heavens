@@ -547,12 +547,45 @@ function openAchievements(backFn) {
     if (backFn) backBtn(body, backFn);
   });
 }
+function openBeast() {
+  const c = state.c;
+  if (!c.beast) { openAssets(); return; }
+  E.normalizeBeast(c.beast);
+  const b = c.beast;
+  openOverlay(`${b.name} 灵兽`, body => {
+    const req = D.BEAST_EXP_REQ[b.rank];
+    body.appendChild(infoRows([
+      ["Species", b.species],
+      ["Rank", `${E.beastTier(b)} (${b.rank}/5)`],
+      ["Element", b.element || "—"],
+      ["Power", Math.floor(b.power)],
+      ["Bond", `${Math.round(b.bond)} / 100`],
+      ["Experience", b.rank < 5 ? `${b.exp} / ${req}` : "max rank"],
+    ]));
+    body.appendChild(el("p", "note", `In battle ${b.name} strikes each round for a share of its power, with its element's advantage and — from Earth Beast rank — a chance to inflict its elemental bite. Feeding raises its bond and experience; fed and battle-hardened, it can evolve into a mightier form. (Fed ${b.fedThisYear}/3 this year.)`));
+    const grid = el("div", "menu-grid");
+    const mk = (l, s, h, opt = {}) => { const x = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); x.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) x.disabled = true; else x.onclick = h; grid.appendChild(x); };
+    const fedOut = b.fedThisYear >= 3;
+    mk("Feed Herbs", fedOut ? "sated this year" : "2 herbs · +bond, +exp", () => runFree(() => E.feedBeast(c, state.rng, false)), { disabled: fedOut || c.herbs < 2 });
+    mk("Feed a Pill", fedOut ? "sated this year" : `${c.pills} pills · big boost`, () => runFree(() => E.feedBeast(c, state.rng, true)), { disabled: fedOut || c.pills <= 0 });
+    if (E.beastAdvanceReady(c))
+      mk("✦ Evolve Your Beast", "advance to the next rank", () => { runFree(() => E.advanceBeast(c, state.rng)); if (c.beast && c.beast.rank >= 5) award("beastlord"); }, { full: true, primary: true });
+    body.appendChild(grid);
+    backBtn(body, openAssets);
+  });
+}
 function openAssets() {
   const c = state.c;
   openOverlay("Treasures & Beast", body => {
     body.appendChild(el("div", "section-h", "Spirit Beast"));
-    if (c.beast) body.appendChild(el("p", "note", `${c.beast.name} the ${c.beast.species} — ${E.beastTier(c.beast)}, power ${Math.floor(c.beast.power)}.`));
-    else body.appendChild(el("p", "note", "None. Best a wild beast while wandering to try taming one."));
+    if (c.beast) {
+      E.normalizeBeast(c.beast);
+      const b = c.beast;
+      const row = el("div", "listrow" + (E.beastAdvanceReady(c) ? " bound" : ""));
+      row.innerHTML = `<div class="lr-ava">${b.element ? C.elementIcon(b.element) : "🐾"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(b.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(b.species)}</span></div><div class="lr-sub">${E.beastTier(b)}${b.element ? " · " + b.element : ""} · power ${Math.floor(b.power)} · bond ${Math.round(b.bond)}/100${E.beastAdvanceReady(c) ? " · ✦ ready to evolve!" : ""}</div></div>`;
+      row.onclick = () => openBeast();
+      body.appendChild(row);
+    } else body.appendChild(el("p", "note", "None. Best a wild beast while wandering to try taming one."));
     body.appendChild(el("div", "section-h", "Magic Treasures (法宝)"));
     if (!c.artifacts.length) body.appendChild(el("p", "note", "You own no treasures yet."));
     for (const key of c.artifacts) {

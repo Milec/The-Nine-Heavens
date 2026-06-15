@@ -243,6 +243,9 @@ export function ageUp(c, rng) {
   // you a stipend from its treasury (its seat is your abode).
   sectYearly(c, rng, events);
 
+  // Your spirit beast grows over the year (and its yearly feeding refreshes).
+  if (c.beast && c.beast.alive) E.beastGrow(c, rng);
+
   // Your nemesis cultivates too, always shadowing your strength.
   const nem = getNemesis(c);
   if (nem) nem.power = Math.max(nem.power * 1.03, E.basePower(c) * rng.uniform(1.0, 1.18));
@@ -466,7 +469,7 @@ function abodeYearly(c, rng, events) {
   const residents = abodeResidents(c);
   const tenders = residents.filter(n => n.role === "disciple").length;
   if (tenders) herbs += tenders * Math.max(1, Math.round(abode[5] * 0.3));   // disciples tend the herb fields
-  if (c.beast && c.beast.alive) { herbs += 1 + Math.floor((c.abode || 0) / 2); stones += Math.floor(c.abode || 0); }  // beast forages
+  if (c.beast && c.beast.alive) { herbs += (c.beast.rank || 1) + Math.floor((c.abode || 0) / 2); stones += Math.floor(c.abode || 0); }  // beast forages (better the higher its rank)
   c.herbs += Math.round(herbs * danger);
   c.spiritStones += Math.round(stones * danger);
   // Living among your own spirit vein steadies the heart; resident disciples

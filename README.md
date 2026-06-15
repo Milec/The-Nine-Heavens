@@ -109,6 +109,13 @@ Three more systems round out a cultivator's life:
   the Demon-Haunted Wastes and the Starfall Frontier; the deeper you roam, the
   **deadlier the foes and the richer the spoils** of every wander, hunt, boss and
   Secret Realm.
+- **Spirit beast companions (灵兽)** — tame a wild beast, then **raise it**: feed it
+  herbs and pills to build its **bond and experience**, and **evolve it through five
+  ranks** (Mortal → Spirit → Earth → Heaven → **Mythic Beast**) into ever mightier
+  forms. Each beast has an **innate element**, so in battle its every-round assist
+  lands with Wu Xing advantage — and from the Earth-Beast rank up it inflicts its
+  own **elemental bite** (burn, freeze, bleed…). A beast also **forages at your
+  abode**, better the higher its rank.
 - **Multi-phase bosses** — boss-tier foes (named cultivators, realm guardians, the
   tournament champion, your nemesis) **enter a second phase at half health** and
   **telegraph a devastating element-themed ultimate** — guard, heal, or be

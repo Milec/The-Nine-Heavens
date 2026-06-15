@@ -99,11 +99,19 @@ export function recomputeMaxHp(c) {
 function note(c, text) { c.log.push([c.age, text]); }
 
 export function beastTier(b) {
-  if (b.power < 200) return "Rank 1";
-  if (b.power < 2000) return "Rank 2";
-  if (b.power < 20000) return "Rank 3";
-  if (b.power < 200000) return "Rank 4";
-  return "Rank 5";
+  const r = b.rank || (b.power < 200 ? 1 : b.power < 2000 ? 2 : b.power < 20000 ? 3 : b.power < 200000 ? 4 : 5);
+  return D.beastRankName(r);
+}
+// Back-fill the progression fields on a beast (older saves / freshly-tamed).
+export function normalizeBeast(b) {
+  if (!b) return b;
+  if (b.rank == null) b.rank = (b.power < 200 ? 1 : b.power < 2000 ? 2 : b.power < 20000 ? 3 : b.power < 200000 ? 4 : 5);
+  if (b.bond == null) b.bond = b.loyalty != null ? b.loyalty : 50;
+  if (b.baseSpecies == null) b.baseSpecies = b.species;
+  if (b.element === undefined) b.element = D.beastElement(b.species);
+  if (b.exp == null) b.exp = 0;
+  if (b.fedThisYear == null) b.fedThisYear = 0;
+  return b;
 }
 
 /* ------------------------- birth generation ------------------------------ */
@@ -568,17 +576,60 @@ function tameChance(c, beastPow, rng) {
 export function tryTame(c, species, beastPow, rng) {
   if (c.beast !== null) return [];
   if (rng.random() < tameChance(c, beastPow, rng)) {
-    c.beast = { name: beastName(species, rng), species, power: beastPow * rng.uniform(0.6, 0.9), loyalty: 50, alive: true };
+    c.beast = normalizeBeast({ name: beastName(species, rng), species, baseSpecies: species, element: D.beastElement(species), power: beastPow * rng.uniform(0.6, 0.9), bond: 50, rank: 1, exp: 0, fedThisYear: 0, alive: true });
+    const el = c.beast.element ? ` Its nature runs to ${c.beast.element}.` : "";
     note(c, `Tamed a ${species} as a spirit beast companion.`);
-    return [`  ✦ You subdue the ${species} and bind it as a spirit beast companion! (${c.beast.name}, ${beastTier(c.beast)})`];
+    return [`  ✦ You subdue the ${species} and bind it as a spirit beast companion! (${c.beast.name}, ${beastTier(c.beast)})${el}`];
   }
   return ["  The beast breaks free and flees before you can bind it."];
 }
-function beastGrow(c, rng) {
+export function beastGrow(c, rng) {
   const b = c.beast; if (!b || !b.alive) return;
-  b.power *= rng.uniform(1.0, 1.04);
-  const target = power(c) * 0.6;
-  if (b.power < target) b.power += (target - b.power) * 0.05;
+  normalizeBeast(b);
+  b.fedThisYear = 0;
+  b.power *= rng.uniform(1.0, 1.03);
+  // higher-ranked beasts pace closer to their master's strength.
+  const target = power(c) * (0.45 + 0.09 * (b.rank || 1));
+  if (b.power < target) b.power += (target - b.power) * 0.06;
+  // a year fighting and roaming at your side earns a little experience.
+  b.exp = (b.exp || 0) + 1 + Math.floor((b.bond || 50) / 40);
+}
+
+export const beastAdvanceReady = c => {
+  const b = c.beast; if (!b || !b.alive) return false; normalizeBeast(b);
+  return (b.rank || 1) < 5 && b.exp >= D.BEAST_EXP_REQ[b.rank || 1] && b.bond >= 55;
+};
+
+// Feed your beast (free care; capped per year). Herbs give steady growth; a pill
+// gives a richer boost. Raises power, bond and experience toward its next rank.
+export function feedBeast(c, rng, usePill = false) {
+  const b = c.beast; if (!b || !b.alive) return ["You have no spirit beast to feed."];
+  normalizeBeast(b);
+  if (b.fedThisYear >= 3) return [`${b.name} is sated for now — it will take more food next year.`];
+  if (usePill) {
+    if (c.pills <= 0) return ["You have no pills to feed it."];
+    c.pills -= 1; b.exp += 28; b.bond = clamp(b.bond + 12, 0, 100); b.power *= 1.04; b.fedThisYear += 1;
+    return [`You feed ${b.name} a spirit pill. Its eyes blaze; it grows visibly stronger and nuzzles you. (bond ${Math.round(b.bond)}/100)`];
+  }
+  if (c.herbs < 2) return ["You need at least 2 spirit herbs to feed your beast."];
+  c.herbs -= 2; b.exp += 10; b.bond = clamp(b.bond + 5, 0, 100); b.power += power(c) * 0.012; b.fedThisYear += 1;
+  return [`You feed ${b.name} a bundle of spirit herbs. It chuffs contentedly. (bond ${Math.round(b.bond)}/100, exp ${b.exp}/${D.BEAST_EXP_REQ[b.rank] || "—"})`];
+}
+
+// Evolve the beast to its next rank — a dramatic surge in power and a new form.
+export function advanceBeast(c, rng) {
+  const b = c.beast; if (!b || !b.alive) return ["You have no spirit beast."];
+  normalizeBeast(b);
+  if ((b.rank || 1) >= 5) return [`${b.name} has reached the Mythic Beast pinnacle; it can rise no further.`];
+  if (b.exp < D.BEAST_EXP_REQ[b.rank]) return [`${b.name} is not ready to evolve — keep feeding it and fighting at its side. (exp ${b.exp}/${D.BEAST_EXP_REQ[b.rank]})`];
+  if (b.bond < 55) return [`Your bond with ${b.name} is too shallow for it to entrust you with its breakthrough. (bond ${Math.round(b.bond)}/100, need 55)`];
+  b.exp -= D.BEAST_EXP_REQ[b.rank];
+  b.rank += 1;
+  b.species = D.beastEvolvedName(b.baseSpecies, b.rank);
+  b.power *= 1.3 + 0.05 * b.rank;
+  b.bond = clamp(b.bond - 10, 0, 100);
+  note(c, `${b.name} evolved into ${b.species} (${D.beastRankName(b.rank)}).`);
+  return [`✦ ${b.name} threshes in a cocoon of spirit-light and emerges transformed — now a ${b.species}, a ${D.beastRankName(b.rank)}! Its power surges.`];
 }
 
 /* ------------------------------ alchemy ---------------------------------- */

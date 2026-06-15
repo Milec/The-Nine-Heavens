@@ -381,6 +381,36 @@ export const SECT_CAPACITY = [0, 30, 80, 200, 500, 1200, 3000];
 export const SECT_NAME_ADJ = ["Azure", "Cloud", "Heaven", "Nine-Heaven", "Profound", "Jade", "Golden", "Mystic", "Boundless", "Crimson", "Spirit", "Void", "Thousand-Star", "Purple", "Divine", "Immortal", "Eternal", "Cangming"];
 export const SECT_NAME_NOUN = ["Cloud Sect", "Sword Sect", "Sky Pavilion", "Heaven Palace", "Dao Sect", "Spirit Hall", "Mystic Gate", "Origin Sect", "Star Pavilion", "Sacred Hall", "Profound Sect", "Cloud Pavilion", "Sword Pavilion"];
 
+/* Spirit beast companions (灵兽) grow with you: feed them and fight at their side
+ * to raise their bond and exp, evolving them through five ranks into ever
+ * mightier forms with their own elemental bite. */
+export const BEAST_EXP_REQ = [0, 25, 70, 160, 340];   // exp to advance FROM rank r (1..4)
+export const beastRankName = rank => ["Mortal Beast", "Spirit Beast", "Earth Beast", "Heaven Beast", "Mythic Beast"][Math.max(0, Math.min(4, (rank || 1) - 1))];
+export function beastEvolvedName(base, rank) {
+  switch (rank) {
+    case 2: return `Awakened ${base}`;
+    case 3: return `Elder ${base}`;
+    case 4: return `${base} Sovereign`;
+    case 5: return `Mythic ${base}`;
+    default: return base;
+  }
+}
+// Infer a beast's innate element from its species name (null if none fits).
+export function beastElement(species) {
+  const s = (species || "").toLowerCase();
+  if (/fire|flame|crimson|ember|phoenix|vermilion/.test(s)) return "Fire";
+  if (/frost|ice|snow|cold/.test(s)) return "Ice";
+  if (/thunder|lightning|storm|roc|bolt/.test(s)) return "Lightning";
+  if (/wind|cloud|gale|leopard/.test(s)) return "Wind";
+  if (/stone|rock|tortoise|qilin|bone|earth/.test(s)) return "Earth";
+  if (/python|serpent|jade|macaque|hare|wood/.test(s)) return "Wood";
+  if (/water|tide|abyss|kraken|dragon/.test(s)) return "Water";
+  if (/fox|shadow|ghost|dark/.test(s)) return "Dark";
+  if (/tiger|metal|sword|iron|fang|wolf/.test(s)) return "Metal";
+  if (/light|sparrow|crane|roc/.test(s)) return "Light";
+  return null;
+}
+
 /* Ongoing physique (体质) effects, beyond the birth-stat multipliers. These bite
  * throughout life — cultivation speed, breakthroughs, Dao insight, and combat. */
 export const PHYSIQUE_EFFECTS = {

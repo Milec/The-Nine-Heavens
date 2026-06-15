@@ -17,6 +17,7 @@ export const ACHIEVEMENTS = [
   ["delver", "Realm Delver", "Conquer a Secret Realm to its heart."],
   ["bossslayer", "Giant-Killer", "Slay a boss-tier foe."],
   ["tamer", "Beast Tamer", "Tame a spirit beast companion."],
+  ["beastlord", "Mythic Companion", "Raise a spirit beast to the Mythic rank."],
   ["daoist", "Dao Walker", "Comprehend a great Dao."],
   ["alchemist", "Grand Alchemist", "Refine a Flawless pill."],
   ["legendary", "Living Legend", "Reach Legendary world standing."],
