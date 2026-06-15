@@ -115,6 +115,13 @@ Three more systems round out a cultivator's life:
   sinks to *Notorious*). Fame draws **sect invitations, grand banquets and
   admirers' gifts**; infamy and heavy sin mark you **Wanted**, summoning bounty
   hunters and slamming doors in your face.
+- **World Eras (天时)** — the realm turns through long ages that colour every
+  life: an **Age of Abundance** (qi flows thick, cultivation flourishes), a
+  **Warring Era** and **Demon Tide** (the world grows far deadlier, with their own
+  perils and temptations), a **Spiritual Drought** (every breakthrough dearly
+  bought), and a rare **Dawn of Ascension** (the heavens ease your breakthroughs).
+  An era shifts the global pace of cultivation, the danger of the roads, and
+  which fates befall you — and the world keeps turning across your reincarnations.
 - **Regions of the world (地域)** — **travel** from the gentle Azure Heartlands to
   the Demon-Haunted Wastes and the Starfall Frontier; the deeper you roam, the
   **deadlier the foes and the richer the spoils** of every wander, hunt, boss and

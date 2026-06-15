@@ -789,6 +789,39 @@ export const EVENTS = [
       { label: "Send them on their way", result: (c, rng, A) => { A.happy(-1); return "You can barely feed yourself. The runaway shrugs, unsurprised, and vanishes into the dark."; } },
     ],
   },
+  /* ----------------------- the turning world (eras) ------------------- */
+  {
+    id: "era_abundance_tide", weight: 6, awakened: true, cond: c => c.era === "abundance" && c.root.key !== "none",
+    auto: (c, rng, A) => { A.qi(rng.uniform(0.3, 0.7)); A.happy(4); return "In this Age of Abundance the very air is sweet with spirit qi; you breathe deep and your cultivation surges with the prosperous tide."; },
+  },
+  {
+    id: "era_warring_band", weight: 6, minAge: 12, maxAge: 9000, awakened: true, cond: c => c.era === "warring" && c.root.key !== "none",
+    text: () => "These are warring years — a roving war-band of sect deserters falls upon the road you travel, blades already wet.",
+    choices: [
+      { label: "Cut your way through", result: (c, rng, A) => { const res = A.fight(["War-Band Marauders", A.power() * rng.uniform(0.95, 1.3), (c.realm + 1) * 7, "rogue"]); if (c.alive) { A.stones(rng.randint(8, 24)); c.reputation += 2; res.push("You leave the road littered and ride on the richer for it."); } return ["Steel rings on steel."].concat(res); } },
+      { label: "Pay them off and pass", result: (c, rng, A) => { const cost = Math.min(c.spiritStones, 10 + c.realm * 4); A.stones(-cost); A.happy(-2); return `You buy passage with ${cost} stones. In a warring era, coin spent is blood saved.`; } },
+    ],
+  },
+  {
+    id: "era_demontide_surge", weight: 7, minAge: 12, maxAge: 9000, awakened: true, cond: c => c.era === "demontide" && c.root.key !== "none",
+    text: () => "The Demon Tide runs high: a corpse-fiend war-party boils out of a blood-fog, hungering for the living.",
+    choices: [
+      { label: "Purge them with righteous force", result: (c, rng, A) => { const res = A.fight(["Corpse-Fiend Horde", A.power() * rng.uniform(1.0, 1.35), (c.realm + 1) * 8, "rogue"]); if (c.alive) { A.karma(8); c.reputation += 4; res.push("You burn the fiends to ash. In these dark years, such deeds are not forgotten. (+Karma, +Reputation)"); } return ["You stand against the tide of the dead."].concat(res); } },
+      { label: "Embrace the tide — take a blood-art", result: (c, rng, A) => { A.karma(-18); A.qi(0.9); if (!c.techniques.includes("blood_refine")) c.techniques.push("blood_refine"); return "You drink deep of the era's red power, carving a forbidden blood-art into your soul. Fast strength, and a long reckoning."; } },
+    ],
+  },
+  {
+    id: "era_drought_spring", weight: 6, awakened: true, cond: c => c.era === "drought" && c.root.key !== "none",
+    text: () => "In this Spiritual Drought, qi is precious as water in a desert. You catch the faint trace of a hidden, half-dry spirit spring.",
+    choices: [
+      { label: "Seek it out and guard it", result: (c, rng, A) => { if (rng.random() < 0.5 + c.comprehension / 300) { A.qi(rng.uniform(0.4, 0.9)); A.herbs(rng.randint(2, 6)); return "You find the spring and drink its thinning qi in secret for a season — a rare gift in a starving age."; } A.happy(-3); return "The trail goes cold; the spring has already run dry. Such is the drought."; } },
+      { label: "Hoard your reserves instead", result: (c, rng, A) => { cap(c, "soul", 1); return "You conserve what qi you have and wait the lean years out. Patience is its own cultivation."; } },
+    ],
+  },
+  {
+    id: "era_dawn_sign", weight: 6, minRealm: 3, awakened: true, cond: c => c.era === "dawn",
+    auto: (c, rng, A) => { A.qi(rng.uniform(0.4, 1.0)); cap(c, "comprehension", 2); A.happy(5); return "Auspicious light wreathes the heavens in this Dawn of Ascension. The dao feels close enough to touch; your understanding deepens and a breakthrough seems near. (+Comprehension)"; },
+  },
   {
     id: "drought_blessing", weight: 4, minAge: 10, maxAge: 9000, awakened: true,
     cond: c => c.realm >= 1,

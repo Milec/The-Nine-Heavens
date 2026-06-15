@@ -23,6 +23,7 @@ const GLOSSARY = {
   stones: ["Spirit Stones 💎", "The currency of cultivators. Spend them on pills, treasures, auctions and the sect store."],
   herbs: ["Spirit Herbs 🌿", "Raw materials gathered in the wild and refined into pills at the alchemy furnace."],
   region: ["Region 📍", "Where you roam. Distant regions hold deadlier foes — and far richer spoils."],
+  era: ["World Era 天时", "The age the realm is passing through. An Age of Abundance quickens cultivation and calms the roads; a Warring Era or Demon Tide makes the world far deadlier; a Spiritual Drought stifles all qi; a Dawn of Ascension eases breakthroughs. The world turns on across your reincarnations."],
   wanted: ["Wanted", "Low standing or heavy sin puts a price on your head; bounty hunters will hunt you down."],
   breakthrough: ["Breakthrough", "You stand at a realm wall. Attempt it from the Cultivate tab to ascend — risky, and from Golden Core up it summons a Heavenly Tribulation."],
   root: ["Spiritual Root 灵根", "Your innate talent for cultivation — the single biggest factor in how far you can ever climb. Revealed at the age-6 Awakening."],
@@ -41,6 +42,9 @@ function showTip(key) {
 }
 
 const regionMult = c => (D.REGION_BY_KEY[c.region || "azuredomain"] || [, , , 1])[3] || 1;
+// Combat danger combines where you are (region) with when you live (world era).
+const eraDanger = c => D.eraAt(c.era)[5];
+const worldDanger = c => regionMult(c) * eraDanger(c);
 // A combatant: a qi cultivator, or a body cultivator who has tempered past mortal.
 const isCultivator = c => c.awakened && (c.root.key !== "none" || (c.bodyRealm || 0) >= 1);
 // Strong enough for bosses / secret realms: Foundation+ in qi, or Steel Bone+ in body.
@@ -152,6 +156,7 @@ function renderProfile() {
   add("💎", c.spiritStones, "", "stones");
   if (c.herbs) add("🌿", c.herbs, "", "herbs");
   if (D.REGION_BY_KEY[c.region]) add("📍", D.REGION_BY_KEY[c.region][2], "", "region");
+  if (c.era) add("☷", D.eraAt(c.era)[2], D.eraAt(c.era)[5] > 1.2 ? "bad" : D.eraAt(c.era)[4] > 1.1 ? "good" : "", "era");
   if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", "bad", "wanted");
   if (c.awakened && E.canBreakthrough(c)) add("⚑ Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, "warn", "breakthrough");
 
@@ -783,6 +788,7 @@ function openSheet() {
       ["Body Realm", `${D.bodyRealmName(c.bodyRealm || 0)} (${D.bodyRealmAt(c.bodyRealm || 0)[1]})`, "body"],
       ["Health / Happiness", `${Math.floor(c.health)} (${D.vitalLabel(c.health)}) / ${Math.floor(c.happiness)} (${D.vitalLabel(c.happiness)})`, "health"],
       ["Standing", `${c.reputation} (${D.standingLabel(c.reputation)})`, "fame"], ["Karma", `${c.karma >= 0 ? "+" : ""}${c.karma} (${E.karmaLabelFor(c)})`, "karma"],
+      ...(c.era ? [["World Era", `${D.eraAt(c.era)[1]} (${D.eraAt(c.era)[2]})`, "era"]] : []),
     ]));
     body.appendChild(el("div", "section-h", "Born With"));
     body.appendChild(infoRows([
@@ -1110,7 +1116,7 @@ function doBreakthrough() {
 function doBossFight() {
   if (!ageAllows("boss") || !useAction()) return;
   const c = state.c; closeOverlay();
-  const boss = C.makeBoss(c, state.rng, { factorMult: regionMult(c) });
+  const boss = C.makeBoss(c, state.rng, { factorMult: worldDanger(c) });
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
   startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
 }
@@ -1189,13 +1195,13 @@ function realmStage() {
   if (R.idx >= R.depth) { realmComplete(); return; }
   const stageNo = R.idx + 1, last = R.idx === R.depth - 1;
   if (last) {
-    const guardian = C.makeBoss(c, state.rng, { name: "the Realm Guardian", factor: 1.4 + state.rng.random() * 0.2, element: "Earth", factorMult: regionMult(c) });
+    const guardian = C.makeBoss(c, state.rng, { name: "the Realm Guardian", factor: 1.4 + state.rng.random() * 0.2, element: "Earth", factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — ${guardian.name} bars the inner sanctum!`]);
     startBattle(guardian, { title: "Secret Realm · Guardian", startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
     return;
   }
   if (state.rng.random() < 0.6) {
-    const enemy = C.makeEnemy(c, state.rng, { factor: 0.8 + R.idx * 0.15, factorMult: regionMult(c) });
+    const enemy = C.makeEnemy(c, state.rng, { factor: 0.8 + R.idx * 0.15, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — a ${enemy.name} lurks in the mist.`]);
     startBattle(enemy, { title: `Secret Realm · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
   } else {
@@ -1335,7 +1341,7 @@ function doWander() {
   if (!ageAllows("wander") || !useAction()) return;
   const c = state.c; closeOverlay();
   if (isCultivator(c) && state.rng.random() < 0.58) {
-    const enemy = C.makeEnemy(c, state.rng, { factorMult: regionMult(c) });
+    const enemy = C.makeEnemy(c, state.rng, { factorMult: worldDanger(c) });
     logMessages([`You roam the wild reaches and are set upon by a ${enemy.name}!`]);
     startBattle(enemy, { title: "Wild Encounter" }, () => endActivityYear());
   } else {
@@ -1345,7 +1351,7 @@ function doWander() {
 function doHunt() {
   if (!ageAllows("hunt") || !useAction()) return;
   const c = state.c; closeOverlay();
-  const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]), factorMult: regionMult(c) });
+  const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]), factorMult: worldDanger(c) });
   logMessages([`You track a ${enemy.name} through the spirit-wilds and corner it.`]);
   startBattle(enemy, { title: "Beast Hunt" }, () => endActivityYear());
 }

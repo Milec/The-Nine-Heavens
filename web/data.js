@@ -178,6 +178,20 @@ export const ROLE_LABEL = { master:"Master", rival:"Rival", friend:"Sworn Friend
 // A married companion's kin label, by their sex.
 export const spouseLabel = n => n.sex === "female" ? "Wife" : n.sex === "male" ? "Husband" : "Dao Partner";
 export const HAREM_CAP = 6;   // how many dao companions you may gather at once
+
+/* World Eras (天时): the realm turns through long ages that colour every life —
+ * shifting how fast qi gathers, how dangerous the roads are, and which fates
+ * tend to befall a cultivator. The world keeps turning across reincarnations. */
+// [key, name, cn, blurb, cultMult, dangerMult, breakBonus]
+export const ERAS = [
+  ["abundance", "Age of Abundance", "盛世", "Spirit qi runs thick and the realm is at peace; cultivation flourishes and fortune comes easily.", 1.15, 0.85, 0.00],
+  ["warring",   "Warring Era",      "乱世", "The great sects clash and war-bands roam; blood is cheap and the strong devour the weak.", 1.00, 1.30, 0.00],
+  ["demontide", "Demon Tide",       "魔潮", "Devil-path cultivators and corpse-fiends surge from the wastes; the righteous stand besieged.", 0.95, 1.45, 0.00],
+  ["drought",   "Spiritual Drought","灵气枯竭", "The heavens' qi thins to a trickle; every breakthrough is dearly bought and lifespans matter.", 0.78, 1.00, -0.03],
+  ["dawn",      "Dawn of Ascension","飞升之兆", "Auspicious signs fill the sky; the long-shut path to immortality seems, for a while, to stand open.", 1.25, 1.10, 0.06],
+];
+export const ERA_BY_KEY = Object.fromEntries(ERAS.map(e => [e[0], e]));
+export const eraAt = key => ERA_BY_KEY[key] || ERAS[0];
 export const TOURNAMENT_TITLES = [[1,"Champion"],[2,"Runner-up"],[4,"Top Four"],[8,"Top Eight"]];
 
 export const ARTIFACT_GRADES = ["Mortal","Spirit","Earth","Heaven","Immortal"];

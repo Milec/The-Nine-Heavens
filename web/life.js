@@ -24,6 +24,7 @@ function augment(c, rng, sex) {
   if (c.ownSect === undefined) c.ownSect = null;
   if (c.legacySect === undefined) c.legacySect = null;
   if (c.generation == null) c.generation = 1;
+  if (c.era == null) { c.era = D.ERAS[Math.floor(rng.random() * D.ERAS.length)][0]; c.eraYears = 20 + Math.floor(rng.random() * 35); }
   if (c.bodyRealm == null) c.bodyRealm = 0;
   if (c.temper == null) c.temper = 0;
   if (c.longevityBonus == null) c.longevityBonus = 0;
@@ -58,6 +59,7 @@ export function reincarnateLife(old, rng, name) {
     note(c, `The arts you passed to ${inherited} student(s) in a former life sharpen your innate insight. (+Comprehension)`);
   }
   carryLegacySect(c, old, rng);
+  c.era = old.era; c.eraYears = old.eraYears;   // the world keeps turning across rebirth
   return c;
 }
 
@@ -218,6 +220,7 @@ export function succeedAsHeir(old, child, rng) {
   c.awakened = true;                                   // a grown heir is long past the Awakening
   c.age = Math.max(16, childAge(old, child));
   c.generation = (old.generation || 1) + 1;
+  c.era = old.era; c.eraYears = old.eraYears;          // the same world the forebear knew
   // inherit the family estate and a share of the fortune
   c.abode = old.abode || 0; c.abodeRegion = old.abodeRegion || null;
   if (old.ownSect) c.ownSect = Object.assign({}, old.ownSect, { founded: c.age, _tier: null });
@@ -327,6 +330,15 @@ export function ageUp(c, rng) {
   const A = makeApi(c, rng);
   c.age += 1;
   const events = [];
+
+  // The world turns: an era runs its course and gives way to the next.
+  c.eraYears = (c.eraYears == null ? 30 : c.eraYears) - 1;
+  if (c.eraYears <= 0) {
+    const opts = D.ERAS.filter(e => e[0] !== c.era);
+    const next = opts[Math.floor(rng.random() * opts.length)];
+    c.era = next[0]; c.eraYears = 25 + Math.floor(rng.random() * 30);
+    events.push({ id: "era_" + c.era, auto: true, milestone: true, text: [`☷ The age turns: the realm enters the ${next[1]} (${next[2]}). ${next[3]}`] });
+  }
 
   // A full natural year of background cultivation, once your root has awakened.
   // This (scaled by your spiritual root) is the main driver of progress, so

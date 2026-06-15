@@ -71,6 +71,9 @@ export const abodeAlchemyBonus = c => Math.max(0, (c.abode || 0) - 2) * 0.04;
 // Leading your own thriving sect quickens your dao (its formations and the
 // devotion of your disciples), scaling with the sect's prestige tier.
 export const ownSectSpeedBonus = c => c.ownSect ? D.sectTier(c.ownSect.prestige)[3] : 0;
+// The world era's pull on cultivation (Abundance quickens, Drought stifles).
+export const eraCultMult = c => D.eraAt(c.era)[4];
+export const eraBreakBonus = c => D.eraAt(c.era)[6];
 
 export function cultivationSpeed(c) {
   const rootMult = c.root ? c.root.multiplier : 0.1;
@@ -79,7 +82,8 @@ export function cultivationSpeed(c) {
   const timeDao = c.daos.includes("time") ? 0.25 : 0.0;
   const phys = D.physEffect(c).cultivate || 0;
   return rootMult * comp * (1 + techQiBonus(c)) * realmFactor * 1.8 *
-    (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao + phys + abodeQiBonus(c) + ownSectSpeedBonus(c));
+    (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao + phys + abodeQiBonus(c) + ownSectSpeedBonus(c)) *
+    eraCultMult(c);
 }
 // Martial might from body cultivation — its own power base, independent of qi
 // realm, so a body cultivator (even rootless) can grow truly strong.
@@ -325,6 +329,7 @@ export function breakthroughChance(c) {
   // A serene dao heart (high happiness) steadies the assault; misery shakes it.
   if (typeof c.happiness === "number") chance += (c.happiness - 50) / 600.0;
   chance += D.physEffect(c).breakthrough || 0;   // Dao Embryo eases breakthroughs
+  chance += eraBreakBonus(c);                     // a Dawn of Ascension eases the heavens
   return clamp(chance, 0.02, 0.97);
 }
 
