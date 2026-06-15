@@ -114,6 +114,11 @@ export const EVENTS = [
     ],
   },
   {
+    id: "grandchild", weight: 4, minAge: 36, maxAge: 9000, cooldown: 10,
+    cond: c => c.relationships.some(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 18),
+    auto: (c, rng, A) => { const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 18); A.happy(10); c.reputation += 2; return `Joyful news from your ${k ? k.kin.toLowerCase() : "child"} ${k ? k.name : ""}: a grandchild is born, and the ${c.name.split(" ")[0]} bloodline flows on into a new generation. (+Happiness)`; },
+  },
+  {
     id: "harem_jealousy", weight: 4, minAge: 16, maxAge: 9000,
     cond: c => c.relationships.filter(n => n.role === "companion" && n.alive).length >= 2,
     text: c => { const ls = c.relationships.filter(n => n.role === "companion" && n.alive); return `Two of your dao companions, ${ls[0].name} and ${ls[1].name}, fall to bitter quarrelling over your divided attentions.`; },

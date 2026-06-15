@@ -69,6 +69,7 @@ function checkAchievements() {
   if (spouses >= 1) award("companion");
   if (spouses >= 3) award("harem");
   if (c.relationships.filter(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive).length >= 5) award("dynasty");
+  if ((c.generation || 1) > 1) award("bloodline");
   if ((c.bodyRealm || 0) >= 5) { award("bodysaint"); if (c.root && c.root.key === "none") award("rootless_legend"); }
   if (c.reincarnationCount >= 5) award("eternal");
   if (c.sectKey && c.sectRank >= D.SECT_RANKS.length - 1) award("sectmaster");
@@ -776,7 +777,7 @@ function openSheet() {
     const gloss = el("button", "mbtn full"); gloss.innerHTML = "ⓘ Glossary<small>tap any stat below, or here, to learn what it means</small>";
     gloss.onclick = () => openGlossary(openSheet); body.appendChild(gloss);
     body.appendChild(infoRows([
-      ["Name", `${c.name} (${c.sex === "female" ? "♀" : "♂"})`],
+      ["Name", `${c.name} (${c.sex === "female" ? "♀" : "♂"})${(c.generation || 1) > 1 ? ` · gen ${c.generation}` : ""}`],
       ["Age", `${c.age} / ${c.maxAge}`, "age"],
       ["Realm", c.awakened ? `${E.realmLabel(c)} (${E.realmCn(c)})` : "Unawakened child", "realm"],
       ["Body Realm", `${D.bodyRealmName(c.bodyRealm || 0)} (${D.bodyRealmAt(c.bodyRealm || 0)[1]})`, "body"],
@@ -854,10 +855,41 @@ function deathScreen() {
       renderProfile();
     };
     body.appendChild(rein);
+    const heirs = L.eligibleHeirs(c);
+    if (heirs.length) {
+      const h = el("button", "mbtn full");
+      h.innerHTML = `Continue as your Heir<small>play on as your child · inherit the family's legacy</small>`;
+      h.onclick = () => heirs.length === 1 ? beginHeir(c, heirs[0]) : openHeirPicker(c, heirs);
+      body.appendChild(h);
+    }
     const fresh = el("button", "mbtn full"); fresh.innerHTML = "Let the Soul Rest<small>roll a brand-new, unrelated soul</small>";
     fresh.onclick = () => { clearSave(); startScreen(); };
     body.appendChild(fresh);
   }, false);
+}
+function openHeirPicker(old, heirs) {
+  openOverlay("Choose your Heir", body => {
+    body.appendChild(el("p", "note", "Which of your children will carry the bloodline onward?"));
+    for (const k of heirs) {
+      const row = el("div", "listrow");
+      row.innerHTML = `<div class="lr-ava">${k.sex === "female" ? "👧" : "👦"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(k.name)}</div><div class="lr-sub">${k.kin}, age ${L.childAge(old, k)}${k._awakened ? " · awakened" : ""}</div></div>`;
+      row.onclick = () => beginHeir(old, k);
+      body.appendChild(row);
+    }
+  }, false);
+}
+function beginHeir(old, child) {
+  const heir = L.succeedAsHeir(old, child, state.rng);
+  state.c = heir; state.rng = new E.RNG(); applyFavor(heir);
+  state.deeds = defaultDeeds(); state.deadHandled = false; closeOverlay();
+  $("log").innerHTML = "";
+  logBanner("⚑ THE BLOODLINE ENDURES ⚑");
+  const surname = old.name.split(" ")[0];
+  logMessages([
+    `${heir.name} takes up the mantle of the ${surname} family — now ${heir.generation} generations strong.`,
+    `You inherit the family estate and a share of its fortune${heir.ownSect ? `, and leadership of the ${heir.ownSect.name} your forebear founded` : ""}. Carry the lineage onward.`,
+  ]);
+  renderProfile(); save();
 }
 
 /* ------------------------------ birth ------------------------------------ */

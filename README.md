@@ -98,7 +98,10 @@ Three more systems round out a cultivator's life:
   xianxia **harem** of up to six spouses (with jealousy to manage, or harmony to
   cherish). **Try for children** with any spouse: sons and daughters who carry
   your bloodline, take your surname, awaken their own roots, learn your arts, and
-  — through reincarnation — sharpen the soul of your next life.
+  — through reincarnation — sharpen the soul of your next life. And when you die,
+  you may **play on as your grown heir** — a true bloodline succession that
+  **inherits the family estate, a share of the fortune, and the very sect your
+  forebear founded** — carrying the dynasty across the generations.
 - **Lineage (传承)** — at the Golden Core you may **take disciples**, and **teach
   your techniques** to disciples, children and your dao companion. Your students
   carry your arts onward, and the teaching **echoes across reincarnation**,

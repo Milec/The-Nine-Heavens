@@ -23,6 +23,7 @@ function augment(c, rng, sex) {
   if (c.abodeRegion == null) c.abodeRegion = null;
   if (c.ownSect === undefined) c.ownSect = null;
   if (c.legacySect === undefined) c.legacySect = null;
+  if (c.generation == null) c.generation = 1;
   if (c.bodyRealm == null) c.bodyRealm = 0;
   if (c.temper == null) c.temper = 0;
   if (c.longevityBonus == null) c.longevityBonus = 0;
@@ -198,6 +199,62 @@ export function marry(c, npc, rng) {
   return [`✦ Beneath a blood-red moon, you and ${npc.name} pledge to walk the long road to immortality together — wed at last, ${npc.kin.toLowerCase()} and spouse.${others}`];
 }
 
+// Grown children who could carry on the bloodline if you die.
+export const childAge = (c, k) => c.age - (k.born != null ? k.born : c.age);
+export const eligibleHeirs = c => c.relationships.filter(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && childAge(c, n) >= 16);
+
+// Continue your bloodline: play on as a grown child, inheriting the family's
+// estate, fortune and the sect your forebear founded. Distinct from rebirth —
+// this is the next generation, not the same soul reborn.
+export function succeedAsHeir(old, child, rng) {
+  const surname = old.name.split(" ")[0];
+  // Bloodline talent: a mighty parent tends to beget a gifted child.
+  const tierBonus = Math.min(4, Math.floor((old.realm + (old.bodyRealm || 0)) / 3));
+  const opts = {};
+  const fineRoots = ["quad", "triple", "dual", "heavenly", "variant"];
+  if (rng.random() < 0.25 + tierBonus * 0.09) opts.rootKey = fineRoots[Math.min(fineRoots.length - 1, 1 + Math.floor(rng.random() * (tierBonus + 1)))];
+  const c = E.generateCharacter(rng, child.name, opts);
+  augment(c, rng, child.sex);
+  c.awakened = true;                                   // a grown heir is long past the Awakening
+  c.age = Math.max(16, childAge(old, child));
+  c.generation = (old.generation || 1) + 1;
+  // inherit the family estate and a share of the fortune
+  c.abode = old.abode || 0; c.abodeRegion = old.abodeRegion || null;
+  if (old.ownSect) c.ownSect = Object.assign({}, old.ownSect, { founded: c.age, _tier: null });
+  c.spiritStones += Math.floor((old.spiritStones || 0) * 0.6);
+  c.herbs += Math.floor((old.herbs || 0) * 0.5);
+  c.pills += old.pills || 0;
+  if (old.equippedArtifact) { c.artifacts.push(old.equippedArtifact); c.equippedArtifact = old.equippedArtifact; }
+  c.reputation += Math.floor((old.reputation || 0) * 0.3) + 5;
+  c.comprehension = Math.min(160, c.comprehension + Math.min(20, old.realm * 2));   // inherited insight
+  // The heir has cultivated since their own childhood — simulate that youth so
+  // they begin at a realm befitting their age and talent (no tribulation risk).
+  const years = Math.min(Math.max(0, c.age - 6), 200);
+  for (let y = 0; y < years; y++) {
+    c.qi += E.cultivationSpeed(c) * rng.uniform(0.85, 1.15);
+    while (c.qi >= E.qiToNext(c)) {
+      if (c.stage < E.realmStages(c) - 1) { c.qi -= E.qiToNext(c); c.stage += 1; }
+      else if (c.realm < D.REALMS.length - 1) { c.qi -= E.qiToNext(c); c.realm += 1; c.stage = 0; }
+      else { c.qi = E.qiToNext(c) * 0.5; break; }
+    }
+    E.temperBody(c, rng, 0.5);
+  }
+  // the heir's family: a revered ancestor, the surviving co-parent, and siblings
+  c.relationships = [];
+  c.relationships.push({ name: old.name, role: "family", kin: "Honoured Ancestor", affinity: 85, alive: false, power: 0, realm: old.realm });
+  const co = old.relationships.find(n => n.role === "companion" && n.alive && n.name === child.parent)
+    || old.relationships.find(n => n.role === "companion" && n.married && n.alive);
+  if (co) c.relationships.push({ name: co.name, role: "family", kin: co.sex === "female" ? "Mother" : "Father", affinity: 78, alive: true, power: co.power || 0, realm: 1 });
+  for (const sib of old.relationships)
+    if ((sib.kin === "Son" || sib.kin === "Daughter") && sib.alive && sib !== child)
+      c.relationships.push({ name: sib.name, role: "family", kin: sib.sex === "female" ? "Sister" : "Brother", affinity: rng.randint(45, 70), alive: true, power: sib.power || 1 });
+  E.recomputeMaxAge(c); E.recomputeMaxHp(c);
+  note(c, `Took up the legacy of ${old.name} as the ${ordinal(c.generation)} generation of the ${surname} line.`);
+  if (c.ownSect) note(c, `Inherited leadership of the ${c.ownSect.name}.`);
+  return c;
+}
+const ordinal = n => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+
 // Try for a child with a wedded spouse; bears them into your line.
 export function tryForChild(c, npc, rng) {
   if (childrenOf(c).length >= 10) return ["Your line is already vast — ten children is legacy enough for any cultivator."];
@@ -293,6 +350,11 @@ export function ageUp(c, rng) {
   // A body tempers slowly just by living a hard cultivator's life — and for the
   // rootless, this quiet hardening is the whole of their climb.
   if (c.alive) for (const m of E.temperBody(c, rng, 0.5)) if (m[0] === "⛰") events.push({ id: "bodyup", auto: true, milestone: true, text: [m] });
+
+  // Your awakened children grow into power of their own over the years.
+  for (const k of c.relationships)
+    if ((k.kin === "Son" || k.kin === "Daughter") && k.alive && k._awakened)
+      k.power = Math.max(k.power || 1, E.basePower(c) * 0.18) * rng.uniform(1.0, 1.04);
 
   // Your spirit beast grows over the year (and its yearly feeding refreshes).
   if (c.beast && c.beast.alive) E.beastGrow(c, rng);

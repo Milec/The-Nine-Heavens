@@ -27,6 +27,7 @@ export const ACHIEVEMENTS = [
   ["companion", "Two Hearts as One", "Wed a dao companion."],
   ["harem", "Blessed Union", "Take three or more dao companions as spouses."],
   ["dynasty", "A Flourishing Line", "Raise five children."],
+  ["bloodline", "The Bloodline Endures", "Play on as your own heir."],
   ["devil", "Heaven-Defying Devil", "Sink to the deepest sin."],
   ["saint", "Living Saint", "Attain the heights of merit."],
   ["patriarch", "Patriarch of a Lineage", "Teach 5 techniques to your students."],
