@@ -8,7 +8,7 @@ import * as meta from "./meta.js";
 /* Plain-language explanations for every stat, shown as tap hints + a glossary. */
 const GLOSSARY = {
   age: ["Age", "Your years lived, and your lifespan ceiling. Reaching a new realm extends how long you can live."],
-  deeds: ["Deeds", "Actions you can take this year. Only the ⊕ Age Up button passes a year and fires life events — and refreshes your deeds."],
+  deeds: ["Deeds", "Each year you have three separate budgets of deeds — ☯ Cultivation, ⚔ Activities and ❤ Social — three of each. They never pass time; only the ⊕ Age Up button passes a year, fires life events, and refreshes all your deeds."],
   cultivation: ["Cultivation (Qi)", "Progress toward your next stage. Fills as you cultivate; at a realm's peak you attempt a breakthrough to the next realm."],
   power: ["Power ✦", "Your overall combat strength, drawn from your realm, body, soul, techniques, bound treasure, beast and Daos."],
   health: ["Health", "Your physical condition (0–100). Wounds and illness lower it; rest, pills and spirit springs restore it. Hit zero and you die."],
@@ -141,8 +141,10 @@ function renderProfile() {
   const chips = $("pf-chips"); chips.innerHTML = "";
   const add = (label, val, cls, tip) => { const ch = el("span", "chip" + (cls ? " " + cls : "") + (tip ? " tappable" : ""), `${label} <b>${val}</b>`); if (tip) ch.onclick = () => showTip(tip); chips.appendChild(ch); };
   add("Age", `${c.age}/${c.maxAge}`, "", "age");
-  const dl = deedsLeft();
-  add("Deeds", "●".repeat(dl) + "○".repeat(Math.max(0, ACTIONS_PER_YEAR - dl)), dl <= 0 ? "warn" : "good", "deeds");
+  for (const cat of ["cult", "act", "social"]) {
+    const n = deedsLeft(cat);
+    add(DEED_ICON[cat], "●".repeat(n) + "○".repeat(Math.max(0, DEEDS_PER_CAT - n)), n <= 0 ? "warn" : "good", "deeds");
+  }
   if (c.awakened) add("✦", Math.floor(E.power(c)), "", "power");
   add("Fame", D.standingLabel(c.reputation), c.reputation >= 90 ? "good" : c.reputation <= -12 ? "bad" : "", "fame");
   add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`, c.karma >= 40 ? "good" : c.karma <= -40 ? "bad" : "", "karma");
@@ -154,7 +156,8 @@ function renderProfile() {
 
   const ageTab = $("tabbar").querySelector(".tab-age");
   ageTab.classList.toggle("ready", c.awakened && E.canBreakthrough(c));
-  ageTab.classList.toggle("spent", dl <= 0 && c.alive);
+  const allSpent = ["cult", "act", "social"].every(cat => deedsLeft(cat) <= 0);
+  ageTab.classList.toggle("spent", allSpent && c.alive);
   save();
   checkAchievements();
 }
@@ -172,9 +175,14 @@ function closeOverlay() { $("overlay").classList.add("hidden"); }
 
 /* ----------------------- time model: deeds per year ---------------------- *
  * Only Age Up advances the year. Other actions are instantaneous but limited
- * to a few "deeds" per year so you can't do everything at once. */
-const ACTIONS_PER_YEAR = 3;
-const deedsLeft = () => (state.actionsLeft == null ? ACTIONS_PER_YEAR : state.actionsLeft);
+ * to a few "deeds" per year so you can't do everything at once. Deeds are split
+ * into three separate budgets — Cultivation, Activities and Social — so a year
+ * of training doesn't crowd out adventuring or tending your relationships. */
+const DEEDS_PER_CAT = 3;
+const DEED_LABEL = { cult: "Cultivation", act: "Activities", social: "Social" };
+const DEED_ICON = { cult: "☯", act: "⚔", social: "❤" };
+const defaultDeeds = () => ({ cult: DEEDS_PER_CAT, act: DEEDS_PER_CAT, social: DEEDS_PER_CAT });
+const deedsLeft = cat => (state.deeds && state.deeds[cat] != null) ? state.deeds[cat] : DEEDS_PER_CAT;
 
 /* Reasonable minimum ages for certain endeavours (a 6-year-old shouldn't be
  * raiding Secret Realms or travelling the world alone). */
@@ -193,15 +201,16 @@ function ageAllows(key) {
   return false;
 }
 
-function useAction() {
+function useAction(cat = "act") {
   if (!state.c || !state.c.alive) return false;
-  if (deedsLeft() <= 0) {
+  if (!state.deeds) state.deeds = defaultDeeds();
+  if (deedsLeft(cat) <= 0) {
     closeOverlay();
-    logMessages(["· You have done all you can this year. Tap ⊕ Age Up to let a year pass. ·"]);
+    logMessages([`· You have used all your ${DEED_LABEL[cat]} deeds this year. Tap ⊕ Age Up to let a year pass — or spend a different kind of deed. ·`]);
     renderProfile();
     return false;
   }
-  state.actionsLeft = deedsLeft() - 1;
+  state.deeds[cat] = deedsLeft(cat) - 1;
   return true;
 }
 // Run an effect without letting it advance the year (undo any internal aging).
@@ -213,8 +222,8 @@ function preserveAge(fn) {
   return r;
 }
 /* a deed: costs one of the year's actions; never ages you */
-function runTimed(fn) {
-  if (!useAction()) return;
+function runTimed(fn, cat = "act") {
+  if (!useAction(cat)) return;
   const msgs = preserveAge(fn);
   closeOverlay();
   logMessages(msgs && msgs.length ? msgs : ["You spend a season in focused effort."]);
@@ -234,7 +243,7 @@ function doAgeUp() {
   if (!state.c.alive) { startOrDeath(); return; }
   closeOverlay();
   const { events } = L.ageUp(state.c, state.rng);
-  state.actionsLeft = ACTIONS_PER_YEAR;   // a fresh year, fresh deeds
+  state.deeds = defaultDeeds();   // a fresh year, fresh deeds
   logYear(state.c.age);
   if (!events.length) logMessages([idleFlavor()]);
   processQueue(events.slice());
@@ -298,9 +307,9 @@ function openCultivate() {
       const g = el("div", "menu-grid");
       if (E.canBreakthrough(c))
         addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
-      addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15)));
-      addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true)), { disabled: c.pills <= 0 });
-      addBtn(g, "Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
+      addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult"));
+      addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult"), { disabled: c.pills <= 0 });
+      addBtn(g, "Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1), "cult"), { disabled: !E.canComprehend(c) });
       body.appendChild(g);
     } else {
       body.appendChild(el("p", "note", "The heavens have shut the gate of qi to you — but the road of the body remains open. Temper your flesh until even immortals must take notice."));
@@ -317,7 +326,7 @@ function openCultivate() {
       ["Body limit", `${D.bodyRealmName(cap)} (${c.physiqueName})`],
     ]));
     const bg = el("div", "menu-grid");
-    addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5)), { full: true, primary: !hasRoot });
+    addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5), "cult"), { full: true, primary: !hasRoot });
     body.appendChild(bg);
 
     // ---- shared ----
@@ -348,11 +357,11 @@ function openPeople() {
     if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or sworn enemies yet."));
     bonds.forEach(n => body.appendChild(personRow(n)));
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
-    b.onclick = () => { if (!ageAllows("mingle") || !useAction()) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
+    b.onclick = () => { if (!ageAllows("mingle") || !useAction("social")) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
     body.appendChild(b);
     if (c.realm >= 4 && L.getDisciples(c).length < 3) {
       const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>a deed · pass on your arts</small>";
-      d.onclick = () => { if (!ageAllows("disciple") || !useAction()) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
+      d.onclick = () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
       body.appendChild(d);
     }
   });
@@ -367,7 +376,7 @@ function openTeachPicker(npc) {
       const known = (npc.learned || []).includes(t);
       const row = el("div", "listrow" + (known ? " disabled" : ""));
       row.innerHTML = `<div class="lr-ava">📖</div><div class="lr-main"><div class="lr-title">${escapeHtml(D.TECHNIQUES[t][0])}</div><div class="lr-sub">${known ? "already learned" : D.TECHNIQUES[t][4]}</div></div>`;
-      if (!known) row.onclick = () => { logMessages(L.teachTo(c, npc, t)); renderProfile(); openPerson(npc); };
+      if (!known) row.onclick = () => { if (!useAction("social")) return; logMessages(L.teachTo(c, npc, t)); renderProfile(); openPerson(npc); };
       body.appendChild(row);
     }
     backBtn(body, () => openPerson(npc));
@@ -408,9 +417,9 @@ function openPerson(n) {
     for (const act of L.relationActions(c, n)) {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
       b.onclick = () => {
-        if (act.id === "teach") { openTeachPicker(n); return; }
+        if (act.id === "teach") { openTeachPicker(n); return; }   // picker spends the deed on teach
         if (act.id === "duel") {  // an interactive duel to the finish
-          if (!ageAllows("duel")) return;
+          if (!ageAllows("duel") || !useAction("social")) return;
           const isNemesis = n.role === "nemesis";
           const enemy = isNemesis
             ? C.makeBoss(c, state.rng, { name: n.name, power: n.power, element: n.element })
@@ -433,6 +442,7 @@ function openPerson(n) {
           });
           return;
         }
+        if (!useAction("social")) return;
         const res = L.doRelationAction(c, n, act.id, state.rng);
         logMessages(res); renderProfile();
         if (!c.alive) { closeOverlay(); checkDeath(); return; }
@@ -461,7 +471,7 @@ function openTechniques() {
         <div class="lr-title">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${rank[0]} (+${Math.round(rank[2] * 100)}%)</span></div>
         <div class="lr-sub">${eff}${s.qi ? ` · ⊙${s.qi} qi` : " · free"}${next ? ` · ${pts}/${next[1]} → ${next[0]}` : " · perfected"}</div>
         <div class="affbar"><div style="width:${pctTo}%;background:var(--gold2)"></div></div></div>`;
-      row.onclick = () => runTimed(() => L.trainTechnique(c, state.rng, t));
+      row.onclick = () => runTimed(() => L.trainTechnique(c, state.rng, t), "cult");
       body.appendChild(row);
     }
   });
@@ -474,8 +484,8 @@ function openActivities() {
     // young: below the action's minimum age
     const young = key => c.age < (AGE_MIN[key] || 0);
     const sub = (key, normal) => young(key) ? `from age ${AGE_MIN[key]}` : normal;
-    mk("Train the Body", sub("train", "build constitution"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng)); }, { disabled: young("train") });
-    mk("Study Scriptures", sub("study", "build comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng)); }, { disabled: young("study") });
+    mk("Train the Body", sub("train", "build constitution"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult"); }, { disabled: young("train") });
+    mk("Study Scriptures", sub("study", "build comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "cult"); }, { disabled: young("study") });
     mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
     mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
     const canHunt = isCultivator(c);
@@ -519,12 +529,12 @@ function openAbode() {
       else if (L.canFoundSect(c)) body.appendChild(el("p", "note", "🏯 Your abode is now grand enough to serve as the seat of your own sect — found one from the Sect tab."));
       const sec = el("button", "mbtn full primary");
       sec.innerHTML = `Cultivate in Seclusion<small>a deed · seal yourself in for a deep cultivation</small>`;
-      sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng));
+      sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng), "cult");
       body.appendChild(sec);
       if (c.pills > 0) {
         const secp = el("button", "mbtn full");
         secp.innerHTML = `Seclusion + Qi Pill<small>a deed · ${c.pills} pill(s) left</small>`;
-        secp.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng, true));
+        secp.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng, true), "cult");
         body.appendChild(secp);
       }
     } else {
@@ -720,7 +730,7 @@ function renderOwnSect(c, body) {
   const mk = (l, sub, h, full, primary) => { const b = el("button", "mbtn" + (full ? " full" : "") + (primary ? " primary" : "")); b.innerHTML = `${l}<small>${sub}</small>`; b.onclick = h; grid.appendChild(b); };
   mk("Hold a Recruitment", s.members < cap ? "a deed · draw new disciples" : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng)), true, s.members < cap);
   if (c.realm >= 4 && L.getDisciples(c).length < 4)
-    mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction()) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
+    mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
   body.appendChild(grid);
   const dis = el("button", "mbtn full danger"); dis.innerHTML = "Disband the Sect<small>lower your banner</small>"; dis.onclick = () => runFree(() => L.disbandSect(c)); body.appendChild(dis);
 }
@@ -836,7 +846,7 @@ function deathScreen() {
     const rein = el("button", "mbtn full primary");
     rein.innerHTML = "Reincarnate<small>be reborn carrying your soul's legacy</small>";
     rein.onclick = () => {
-      state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.actionsLeft = ACTIONS_PER_YEAR; state.deadHandled = false; closeOverlay();
+      state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.deeds = defaultDeeds(); state.deadHandled = false; closeOverlay();
       logBanner("☯ THE WHEEL OF REBIRTH TURNS ☯");
       const msgs = [`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), dimly recalling a former life.`, "Age up to live this new life. Your past climb has sharpened your innate talent."];
       if (state.c.legacySect) msgs.push(`Far away, the ${state.c.legacySect.name} you founded in a past life still keeps your banner — reach the Nascent Soul realm with a worthy abode, and you may reclaim it.`);
@@ -860,7 +870,7 @@ function renderBirth(c) {
     `Physique — ${c.physiqueName}`, "  " + c.physiqueBlurb, "",
     `Appearance — ${c.appearanceName}`, "  " + c.appearanceBlurb, "",
     `The family's spiritual root is still a mystery. The Awakening Ceremony comes at age ${D.AWAKENING_AGE}.`,
-    `✦ Each year you may perform up to ${ACTIONS_PER_YEAR} deeds (cultivate, fight, brew, travel...). Only the ⊕ Age Up button passes a year and fires life events — and refreshes your deeds.`,
+    `✦ Each year you have three deeds of each kind — ☯ Cultivation, ⚔ Activities, and ❤ Social. Only the ⊕ Age Up button passes a year and fires life events — and refreshes them all.`,
     "ⓘ Tip: tap any stat (Age, Karma, Fame…) or the ⓘ Glossary in your sheet to learn what it means.",
   ]);
 }
@@ -869,7 +879,7 @@ function renderBirth(c) {
 // Commit a finished character and begin the life.
 function beginLife(c) {
   state.c = c; state.rng = new E.RNG();
-  applyFavor(c); state.actionsLeft = ACTIONS_PER_YEAR; state.deadHandled = false;
+  applyFavor(c); state.deeds = defaultDeeds(); state.deadHandled = false;
   closeOverlay(); $("log").innerHTML = ""; renderBirth(c); renderProfile();
 }
 
@@ -1013,7 +1023,7 @@ function creatorPreviewCard(c) {
 }
 function resumeFrom(sv) {
   state.c = sv.c; state.rng = new E.RNG(0); state.rng.s = sv.s >>> 0; state.deadHandled = false;
-  state.actionsLeft = ACTIONS_PER_YEAR;
+  state.deeds = defaultDeeds();
   // Back-compat: ensure life-sim fields exist on older saves.
   const c = state.c;
   if (typeof c.happiness !== "number") c.happiness = 55;
