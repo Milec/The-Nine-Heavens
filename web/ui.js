@@ -201,7 +201,7 @@ const deedsLeft = cat => (state.deeds && state.deeds[cat] != null) ? state.deeds
 /* Reasonable minimum ages for certain endeavours (a 6-year-old shouldn't be
  * raiding Secret Realms or travelling the world alone). */
 const AGE_MIN = {
-  train: 4, study: 5, oddjobs: 10, alchemy: 10, wander: 12, hunt: 12, arena: 12,
+  train: 4, study: 5, spar: 6, oddjobs: 10, alchemy: 10, wander: 12, hunt: 12, arena: 12,
   duel: 12, quest: 12, mingle: 12, travel: 14, tournament: 14, romance: 16,
   boss: 16, secret: 16, disciple: 18,
 };
@@ -432,6 +432,20 @@ function openPerson(n) {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
       b.onclick = () => {
         if (act.id === "teach") { openTeachPicker(n); return; }   // picker spends the deed on teach
+        if (act.id === "spar") {  // a friendly, non-lethal bout — fought in the combat menu
+          if (!ageAllows("spar") || !useAction("social")) return;
+          const enemy = { name: n.name, kind: "rogue", power: n.power || E.power(c) * 0.8, element: n.element || null, reward: 0, kit: undefined };
+          logMessages([`You square off against ${n.name} for a friendly spar. (non-lethal)`]);
+          startBattle(enemy, { title: `Spar · ${n.name}`, nonLethal: true, noSpoils: true }, (outcome) => {
+            if (state.c.alive) {
+              c.happiness = Math.min(100, c.happiness + 2);
+              if (outcome === "win") { n.affinity = Math.min(100, n.affinity + state.rng.randint(2, 6)); logMessages([`You best ${n.name} in the friendly bout; they respect you for it.`]); }
+              else if (outcome === "lose" || outcome === "yield") { n.affinity = Math.max(-100, n.affinity + state.rng.randint(-3, 2)); logMessages([`${n.name} gets the better of you. Humbling, but instructive.`]); }
+            }
+            renderProfile(); if (!state.c.alive) checkDeath(); else openPerson(n);
+          });
+          return;
+        }
         if (act.id === "duel") {  // an interactive duel to the finish
           if (!ageAllows("duel") || !useAction("social")) return;
           const isNemesis = n.role === "nemesis";
