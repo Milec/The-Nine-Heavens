@@ -417,21 +417,25 @@ export function beastElement(species) {
  * cultivation for those who would walk both roads. Driven by constitution and
  * physique, not your root. */
 // [name, cn, temperReq(cumulative), martialBase, hpFrac, lifespanBonus, mitig]
+// Note: martialBase is deliberately kept well below the comparable qi realm's
+// power — a body cultivator's strength is survivability, not raw offense. Even a
+// maxed God-Body (~5500) sits below Nascent Soul/Spirit-Severing qi power and far
+// under the true immortal realms; their edge is monstrous HP and damage-reduction.
 export const BODY_REALMS = [
   ["Mortal Body",            "凡体",     0,     0,    0.00,    0, 0.00],
-  ["Tempered Flesh",         "淬体境",   50,    6,    0.10,   30, 0.02],
-  ["Iron Body",              "铁皮境",   180,   35,   0.20,   80, 0.04],
-  ["Steel Bone",             "钢骨境",   500,   160,  0.32,  200, 0.06],
-  ["Silver Marrow",          "银髓境",   1300,  650,  0.45,  500, 0.09],
-  ["Golden Body",            "金身境",   3200,  2400, 0.60, 1300, 0.12],
-  ["Diamond Sun-Body",       "琉璃金身", 8000,  7000, 0.80, 3500, 0.16],
-  ["Indestructible God-Body","不灭神体", 20000, 16000, 1.10, 9000, 0.22],
+  ["Tempered Flesh",         "淬体境",   50,    5,    0.10,   30, 0.02],
+  ["Iron Body",              "铁皮境",   180,   30,   0.22,   80, 0.05],
+  ["Steel Bone",             "钢骨境",   500,   120,  0.36,  200, 0.08],
+  ["Silver Marrow",          "银髓境",   1300,  400,  0.50,  500, 0.11],
+  ["Golden Body",            "金身境",   3200,  1100, 0.68, 1300, 0.14],
+  ["Diamond Sun-Body",       "琉璃金身", 8000,  2600, 0.90, 3500, 0.18],
+  ["Indestructible God-Body","不灭神体", 20000, 5500, 1.20, 9000, 0.24],
 ];
 export const bodyRealmAt = i => BODY_REALMS[Math.max(0, Math.min(BODY_REALMS.length - 1, i || 0))];
 export const bodyRealmName = i => bodyRealmAt(i)[0];
 // Your physique is your destiny on the body axis: it caps how far you may temper.
 // Only the legendary Undying Golden Body can ever become a true God-Body.
-export const PHYSIQUE_BODY_CAP = { ordinary: 4, sturdy: 5, spirit: 5, yin: 5, yang: 6, dao: 6, immortal: 7 };
+export const PHYSIQUE_BODY_CAP = { ordinary: 4, sturdy: 5, spirit: 5, yin: 6, yang: 6, dao: 6, immortal: 7 };
 
 /* Ongoing physique (体质) effects, beyond the birth-stat multipliers. These bite
  * throughout life — cultivation speed, breakthroughs, Dao insight, and combat. */
