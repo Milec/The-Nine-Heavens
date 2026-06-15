@@ -142,6 +142,8 @@ export const SECTS = [
 export const SECT_BY_KEY = Object.fromEntries(SECTS.map(s => [s[0], s]));
 
 export const ROOT_TIER = { none:0, waste:0, quad:1, triple:2, dual:3, heavenly:4, variant:5, chaos:6 };
+// Representative root for a given tier (used by bloodline genetics).
+export const ROOT_BY_TIER = { 0:"waste", 1:"quad", 2:"triple", 3:"dual", 4:"heavenly", 5:"variant", 6:"chaos" };
 
 // [name, minRealm, minContribution, speedBonus, stipend]
 export const SECT_RANKS = [

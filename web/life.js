@@ -173,8 +173,9 @@ function meetPerson(c, rng, role, opts = {}) {
   if (opts.kin) n.kin = opts.kin;
   if (opts.born != null) n.born = opts.born;
   if (opts.parent) n.parent = opts.parent;
-  // Romantic partners have a sex (mostly the opposite of yours; love is love).
-  if (role === "companion") n.sex = opts.sex || (rng.random() < 0.82 ? (c.sex === "female" ? "male" : "female") : c.sex);
+  // Romantic partners have a sex (mostly the opposite of yours; love is love)
+  // and a latent heritable genome (their spiritual root, physique, looks…).
+  if (role === "companion") { n.sex = opts.sex || (rng.random() < 0.82 ? (c.sex === "female" ? "male" : "female") : c.sex); n.geno = E.rollGenome(rng); }
   if (child) n.sex = opts.kin === "Son" ? "male" : "female";
   c.relationships.push(n);
   return n;
@@ -210,13 +211,15 @@ export const eligibleHeirs = c => c.relationships.filter(n => (n.kin === "Son" |
 // this is the next generation, not the same soul reborn.
 export function succeedAsHeir(old, child, rng) {
   const surname = old.name.split(" ")[0];
-  // Bloodline talent: a mighty parent tends to beget a gifted child.
-  const tierBonus = Math.min(4, Math.floor((old.realm + (old.bodyRealm || 0)) / 3));
-  const opts = {};
-  const fineRoots = ["quad", "triple", "dual", "heavenly", "variant"];
-  if (rng.random() < 0.25 + tierBonus * 0.09) opts.rootKey = fineRoots[Math.min(fineRoots.length - 1, 1 + Math.floor(rng.random() * (tierBonus + 1)))];
+  // The heir embodies their inherited genome (root, physique, looks); if an older
+  // save lacks one, derive it now from the parent's bloodline.
+  const geno = child.geno || E.inheritGenome(E.playerGenome(old), E.rollGenome(rng), rng);
+  const opts = { rootKey: geno.rootKey, physiqueKey: geno.physiqueKey, appearanceKey: geno.appearanceKey };
   const c = E.generateCharacter(rng, child.name, opts);
   augment(c, rng, child.sex);
+  // Layer the inherited attributes over the generated base (kept the higher of the two).
+  for (const k of ["comprehension", "constitution", "soul", "luck", "charm"])
+    c[k] = Math.min(160, Math.max(c[k], geno[k] || 0));
   c.awakened = true;                                   // a grown heir is long past the Awakening
   c.age = Math.max(16, childAge(old, child));
   c.generation = (old.generation || 1) + 1;
@@ -265,6 +268,8 @@ export function tryForChild(c, npc, rng) {
   if (rng.random() < 0.55 + c.luck / 400) {
     const son = rng.random() < 0.5;
     const child = meetPerson(c, rng, "family", { kin: son ? "Son" : "Daughter", affinity: 70, born: c.age, parent: npc.name });
+    if (!npc.geno) npc.geno = E.rollGenome(rng);
+    child.geno = E.inheritGenome(E.playerGenome(c), npc.geno, rng);   // inherits from both parents
     npc.affinity = clampN(npc.affinity + 6, -100, 100);
     c.happiness = clampN(c.happiness + 12, 0, 100);
     note(c, `${npc.name} bore you a ${son ? "son" : "daughter"}, ${child.name}.`);

@@ -429,9 +429,20 @@ function personEmoji(n) {
 function openPerson(n) {
   const c = state.c;
   openOverlay(n.name, body => {
+    const rootName = k => { const r = D.ROOT_TYPES.find(x => x[0] === k); return r ? r[1] : "—"; };
+    const physName = k => { const p = D.PHYSIQUES.find(x => x[0] === k); return p && k !== "ordinary" ? p[1] : null; };
+    const geneRows = [];
+    if (n.role === "companion" && n.geno) {   // a potential parent's heritable talent
+      geneRows.push(["Spiritual Root", rootName(n.geno.rootKey), "root"]);
+      const ph = physName(n.geno.physiqueKey); if (ph) geneRows.push(["Physique", ph, "physique"]);
+    } else if ((n.kin === "Son" || n.kin === "Daughter") && n.geno) {
+      geneRows.push(["Spiritual Root", n._awakened ? rootName(n.geno.rootKey) : "Unrevealed (awakens at 6)", "root"]);
+      const ph = physName(n.geno.physiqueKey); if (n._awakened && ph) geneRows.push(["Physique", ph, "physique"]);
+    }
     body.appendChild(infoRows([
       ["Relation", relLabel(n) + (n.role === "companion" && n.married ? " (married)" : "")], ["Feeling", `${E.npcStatus(n)} (${n.affinity >= 0 ? "+" : ""}${n.affinity})`],
       ...(n.parent ? [["Parent", n.parent]] : []),
+      ...geneRows,
       ...(n.occupation ? [["Occupation", n.occupation]] : []),
     ]));
     for (const act of L.relationActions(c, n)) {

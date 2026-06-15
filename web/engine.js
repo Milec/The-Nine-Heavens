@@ -242,6 +242,47 @@ export function generateCharacter(rng, name, opts = {}) {
   return c;
 }
 
+/* ------------------------------- genetics -------------------------------- */
+// Children inherit a blend of BOTH parents: spiritual-root tier (with mutation),
+// special physiques that can run in a bloodline, looks, and core attributes.
+const GENO_SPECIALS = ["sturdy", "spirit", "yin", "yang", "dao", "immortal"];
+const apprIdx = key => { const i = D.APPEARANCES.findIndex(a => a[0] === key); return i < 0 ? 2 : i; };
+const genomeShape = (rootKey, physiqueKey, appearanceKey, comp, con, soul, luck, charm) =>
+  ({ rootKey, physiqueKey, appearanceKey, comprehension: comp, constitution: con, soul, luck, charm });
+
+// A latent, unrevealed genome for an NPC (a spouse's heritable talent).
+export function rollGenome(rng) {
+  // talent tends to attract talent: a dao companion's root is the better of two draws.
+  const rootKey = [weightedChoice(rng, D.ROOT_TYPES, 4), weightedChoice(rng, D.ROOT_TYPES, 4)]
+    .sort((a, b) => (D.ROOT_TIER[b[0]] || 0) - (D.ROOT_TIER[a[0]] || 0))[0][0];
+  return genomeShape(rootKey, weightedChoice(rng, D.PHYSIQUES, 7)[0], weightedChoice(rng, D.APPEARANCES, 4)[0],
+    rollAttribute(rng), rollAttribute(rng), rollAttribute(rng), rollAttribute(rng), rollAttribute(rng));
+}
+// The player's own heritable genome.
+export const playerGenome = c => genomeShape(c.root ? c.root.key : "waste", c.physiqueKey || "ordinary",
+  c.appearanceKey || "ordinary", c.comprehension, c.constitution, c.soul, c.luck, c.charm);
+
+export function inheritGenome(ga, gb, rng) {
+  const ta = D.ROOT_TIER[ga.rootKey] || 0, tb = D.ROOT_TIER[gb.rootKey] || 0;
+  const hi = Math.max(ta, tb), lo = Math.min(ta, tb);
+  let t; const r = rng.random();
+  if (r < 0.35) t = hi; else if (r < 0.60) t = lo; else t = Math.round((hi + lo) / 2);
+  const m = rng.random();
+  if (m < 0.02) t += 2; else if (m < 0.12) t += 1; else if (m < 0.20) t -= 1;
+  t = clamp(t, 0, 6);
+  let rootKey = D.ROOT_BY_TIER[t] || "triple";
+  if (t === 0 && rng.random() < 0.25) rootKey = "none";          // a tragic rootless child
+  let physiqueKey = "ordinary";
+  if (GENO_SPECIALS.includes(ga.physiqueKey) && rng.random() < 0.45) physiqueKey = ga.physiqueKey;
+  else if (GENO_SPECIALS.includes(gb.physiqueKey) && rng.random() < 0.45) physiqueKey = gb.physiqueKey;
+  else if (rng.random() < 0.03) physiqueKey = rng.choice(GENO_SPECIALS);
+  let ai = Math.round((apprIdx(ga.appearanceKey) + apprIdx(gb.appearanceKey)) / 2) + rng.choice([-1, 0, 0, 1]);
+  ai = clamp(ai, 0, D.APPEARANCES.length - 1);
+  const blend = k => clamp(Math.round((ga[k] + gb[k]) / 2 * rng.uniform(0.55, 0.85)) + rng.randint(0, 8), 6, 140);
+  return genomeShape(rootKey, physiqueKey, D.APPEARANCES[ai][0],
+    blend("comprehension"), blend("constitution"), blend("soul"), blend("luck"), blend("charm"));
+}
+
 export function reincarnate(old, rng, name) {
   const c = generateCharacter(rng, name);
   c.reincarnationCount = old.reincarnationCount + 1;

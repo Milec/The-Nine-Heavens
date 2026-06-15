@@ -120,7 +120,7 @@ export const EVENTS = [
     cond: c => c.relationships.some(n => n.role === "companion" && n.married && n.alive) && c.relationships.filter(n => n.kin === "Son" || n.kin === "Daughter").length < 10,
     text: c => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); return `Your ${sp ? sp.kin.toLowerCase() : "spouse"} ${sp ? sp.name : ""} shares joyful news: a child is coming.`; },
     choices: [
-      { label: "Welcome the child", result: (c, rng, A) => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); const child = A.meet("family", { kin: rng.random() < 0.5 ? "Son" : "Daughter", affinity: 70, born: c.age, parent: sp ? sp.name : null }); A.happy(15); return `A child is born to your line — ${child.name}${sp ? `, ${sp.name}'s ${child.kin.toLowerCase()}` : ""}. A spark of your blood to carry the dao onward.`; } },
+      { label: "Welcome the child", result: (c, rng, A) => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); const child = A.meet("family", { kin: rng.random() < 0.5 ? "Son" : "Daughter", affinity: 70, born: c.age, parent: sp ? sp.name : null }); if (sp) { if (!sp.geno) sp.geno = E.rollGenome(rng); child.geno = E.inheritGenome(E.playerGenome(c), sp.geno, rng); } A.happy(15); return `A child is born to your line — ${child.name}${sp ? `, ${sp.name}'s ${child.kin.toLowerCase()}` : ""}. A spark of your blood to carry the dao onward.`; } },
     ],
   },
   {
@@ -597,7 +597,20 @@ export const EVENTS = [
     cond: c => c.relationships.some(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 6 && !n._awakened),
     text: c => { const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 6 && !n._awakened); return `Your child ${k ? k.name : ""} reaches the age of awakening. The testing-stone is brought out before the family.`; },
     choices: [
-      { label: "Watch with bated breath", result: (c, rng, A) => { const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && !n._awakened); if (!k) return "The moment passes."; k._awakened = true; const lucky = rng.random() < 0.35 + c.luck / 300; if (lucky) { k.power = A.power() * 0.3; k.affinity = Math.min(100, k.affinity + 10); A.happy(15); c.reputation += 3; return `The stone blazes bright — ${k.name} has inherited a true spiritual root! Your bloodline's dao will carry on. (+Happiness)`; } k.affinity = Math.min(100, k.affinity + 5); A.happy(2); return `The stone glows only faintly. ${k.name} has a humble root — but you vow to give them every chance you never had.`; } },
+      { label: "Watch with bated breath", result: (c, rng, A) => {
+        const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && !n._awakened);
+        if (!k) return "The moment passes.";
+        k._awakened = true;
+        const rootKey = (k.geno && k.geno.rootKey) || "waste";   // the root they inherited at birth
+        const row = D.ROOT_TYPES.find(r => r[0] === rootKey);
+        const tier = D.ROOT_TIER[rootKey] || 0;
+        k.power = A.power() * (0.18 + tier * 0.05);
+        k.affinity = Math.min(100, k.affinity + 8);
+        if (rootKey === "none") { A.happy(-4); return `The testing-stone stays dull and grey — ${k.name} has no spiritual root. Your heart aches for them; you resolve they shall walk the body-tempering road instead.`; }
+        if (tier >= 4) { A.happy(18); c.reputation += 5; return `The stone BLAZES like a captured sun — ${k.name} has awakened a ${row[1]}! A heaven-blessed heir; your bloodline's glory is assured. (+Happiness, +Reputation)`; }
+        if (tier >= 2) { A.happy(12); c.reputation += 2; return `The stone shines clean and bright — ${k.name} has a ${row[1]}. A genuine talent to carry the dao onward. (+Happiness)`; }
+        A.happy(4); return `The stone glows only faintly — ${k.name} has a ${row[1]}. A humble root, but you vow to give them every chance you never had.`;
+      } },
     ],
   },
   {
