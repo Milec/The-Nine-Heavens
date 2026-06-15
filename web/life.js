@@ -23,6 +23,9 @@ function augment(c, rng, sex) {
   if (c.abodeRegion == null) c.abodeRegion = null;
   if (c.ownSect === undefined) c.ownSect = null;
   if (c.legacySect === undefined) c.legacySect = null;
+  if (c.bodyRealm == null) c.bodyRealm = 0;
+  if (c.temper == null) c.temper = 0;
+  if (c.longevityBonus == null) c.longevityBonus = 0;
   generateFamily(c, rng);
   return c;
 }
@@ -200,9 +203,9 @@ function awakeningInstance(c, rng, A) {
     `The Spiritual Root Awakening (测灵根). At age ${c.age}, the village elder presses a cold jade testing-stone to your palm before the whole gathered clan.`,
   ];
   if (c.root.key === "none") {
-    lines.push(`The stone stays dull and grey. You have no spiritual root. The road to immortality is sealed to you — you will live and die a mortal.`);
+    lines.push(`The stone stays dull and grey. You have no spiritual root — the gate of qi is shut to you.`);
     A.happy(-20); A.kinAdjust("father", -6); A.kinAdjust("mother", -4);
-    lines.push("Your parents' faces fall. Whispers of pity follow you home.");
+    lines.push("Your parents' faces fall; whispers of pity follow you home. But the road of qi is not the only road — there is yet the path of the body. Temper your flesh, and defy the heavens that spurned you. (See Cultivation.)");
   } else if (tier <= 1) {
     lines.push(`A faint, muddy glow: ${c.root.display}. A poor foundation. No recruiter will come for this — but the door, at least, is not shut.`);
     A.happy(-4);
@@ -242,6 +245,10 @@ export function ageUp(c, rng) {
   // A sect you founded gathers members and prestige, spreads your name, and pays
   // you a stipend from its treasury (its seat is your abode).
   sectYearly(c, rng, events);
+
+  // A body tempers slowly just by living a hard cultivator's life — and for the
+  // rootless, this quiet hardening is the whole of their climb.
+  if (c.alive) for (const m of E.temperBody(c, rng, 0.5)) if (m[0] === "⛰") events.push({ id: "bodyup", auto: true, milestone: true, text: [m] });
 
   // Your spirit beast grows over the year (and its yearly feeding refreshes).
   if (c.beast && c.beast.alive) E.beastGrow(c, rng);
@@ -300,6 +307,8 @@ export function trainBody(c, rng) {
   c.age += 1;
   const msgs = ["You spend the year drilling your body to exhaustion — forms, stances, iron-shirt conditioning."];
   if (rng.random() < 0.6) { cap(c, "constitution", rng.randint(1, 3)); E.recomputeMaxHp(c); msgs.push("Your physique hardens. (+Constitution)"); }
+  // A full year of hard conditioning meaningfully tempers the body.
+  for (const m of E.temperBody(c, rng, 3.0)) if (m[0] === "⛰") msgs.push(m);
   c.health = clampN(c.health + 4, 0, 100); c.happiness = clampN(c.happiness - 2, 0, 100);
   finishYear(c, rng, msgs);
   return msgs;

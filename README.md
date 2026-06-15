@@ -109,6 +109,15 @@ Three more systems round out a cultivator's life:
   the Demon-Haunted Wastes and the Starfall Frontier; the deeper you roam, the
   **deadlier the foes and the richer the spoils** of every wander, hunt, boss and
   Secret Realm.
+- **Body Cultivation (炼体)** — a path **parallel to qi**, and the **salvation of the
+  rootless**: temper your flesh through eight body realms (Mortal Body → Iron Body
+  → Steel Bone → … → **Indestructible God-Body**) for raw power, battle stamina,
+  damage-reduction and **vastly extended life** — no spiritual root required. It
+  stacks atop qi cultivation for those who walk both roads, and is driven by
+  **Constitution and physique** rather than your root, so **your physique is your
+  ceiling**: an ordinary frame tops out at Silver Marrow, while only the legendary
+  **Undying Golden Body** can ever forge a true God-Body. A rootless child the
+  heavens spurned can still temper themselves into a power immortals must respect.
 - **Spirit beast companions (灵兽)** — tame a wild beast, then **raise it**: feed it
   herbs and pills to build its **bond and experience**, and **evolve it through five
   ranks** (Mortal → Spirit → Earth → Heaven → **Mythic Beast**) into ever mightier

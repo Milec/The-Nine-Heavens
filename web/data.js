@@ -411,6 +411,28 @@ export function beastElement(species) {
   return null;
 }
 
+/* Body Cultivation (炼体): a path parallel to qi cultivation, tempering the
+ * mortal frame into something monstrous. It needs no spiritual root — so it is
+ * the salvation of the rootless and the waste-rooted — and stacks atop qi
+ * cultivation for those who would walk both roads. Driven by constitution and
+ * physique, not your root. */
+// [name, cn, temperReq(cumulative), martialBase, hpFrac, lifespanBonus, mitig]
+export const BODY_REALMS = [
+  ["Mortal Body",            "凡体",     0,     0,    0.00,    0, 0.00],
+  ["Tempered Flesh",         "淬体境",   50,    6,    0.10,   30, 0.02],
+  ["Iron Body",              "铁皮境",   180,   35,   0.20,   80, 0.04],
+  ["Steel Bone",             "钢骨境",   500,   160,  0.32,  200, 0.06],
+  ["Silver Marrow",          "银髓境",   1300,  650,  0.45,  500, 0.09],
+  ["Golden Body",            "金身境",   3200,  2400, 0.60, 1300, 0.12],
+  ["Diamond Sun-Body",       "琉璃金身", 8000,  7000, 0.80, 3500, 0.16],
+  ["Indestructible God-Body","不灭神体", 20000, 16000, 1.10, 9000, 0.22],
+];
+export const bodyRealmAt = i => BODY_REALMS[Math.max(0, Math.min(BODY_REALMS.length - 1, i || 0))];
+export const bodyRealmName = i => bodyRealmAt(i)[0];
+// Your physique is your destiny on the body axis: it caps how far you may temper.
+// Only the legendary Undying Golden Body can ever become a true God-Body.
+export const PHYSIQUE_BODY_CAP = { ordinary: 4, sturdy: 5, spirit: 5, yin: 5, yang: 6, dao: 6, immortal: 7 };
+
 /* Ongoing physique (体质) effects, beyond the birth-stat multipliers. These bite
  * throughout life — cultivation speed, breakthroughs, Dao insight, and combat. */
 export const PHYSIQUE_EFFECTS = {

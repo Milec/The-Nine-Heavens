@@ -151,7 +151,7 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),
     maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)),
     atk: P - E.beastPower(c),
-    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0), 0, 0.6),
+    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.7),
     crit: clampN(c.luck / 400 + 0.05, 0, 0.6),
     dodge: clampN(c.luck / 600 + c.soul / 900 + (c.equippedArtifact === "cloud_boots" ? 0.1 : 0) + (ph.dodge || 0), 0, 0.5),
     healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,

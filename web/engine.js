@@ -81,20 +81,58 @@ export function cultivationSpeed(c) {
   return rootMult * comp * (1 + techQiBonus(c)) * realmFactor * 1.8 *
     (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao + phys + abodeQiBonus(c) + ownSectSpeedBonus(c));
 }
+// Martial might from body cultivation — its own power base, independent of qi
+// realm, so a body cultivator (even rootless) can grow truly strong.
+export const bodyMartialBase = c => D.bodyRealmAt(c.bodyRealm || 0)[3];
 export function basePower(c) {
   const rf = c.realm * 10 + c.stage + 1;
-  const base = Math.pow(rf, 2.1);
+  const base = Math.pow(rf, 2.1) + bodyMartialBase(c);
   return base * (1 + c.constitution * 0.8 / 100 + c.soul * 0.5 / 100) + techAtkBonus(c) * rf;
 }
 export function power(c) {
   return basePower(c) * (1 + artifactAtkPct(c) + daoPowerBonus(c)) + beastPower(c);
 }
+
+/* ---------------------------- body cultivation --------------------------- */
+// Tempering speed is driven by constitution and physique — not your root — so it
+// is open to everyone, and the only road left to the rootless.
+export function bodyTemperingSpeed(c) {
+  const phys = D.PHYSIQUES.find(p => p[0] === c.physiqueKey);
+  const bodyMult = phys ? phys[3] : 1.0;
+  const stageDrag = Math.pow(0.93, c.bodyRealm || 0);   // each tier is a little harder
+  return bodyMult * (0.6 + c.constitution / 60) * (1 + c.comprehension / 400) * 2.4 * stageDrag;
+}
+export const bodyRealmCap = c => { const v = D.PHYSIQUE_BODY_CAP[c.physiqueKey]; return Math.min(D.BODY_REALMS.length - 1, v != null ? v : 4); };
+export const canTemperMore = c => (c.bodyRealm || 0) < bodyRealmCap(c);
+// Temper the body, advancing through body realms as the threshold is crossed.
+export function temperBody(c, rng, intensity = 1.0) {
+  const msgs = [];
+  if (!c.alive) return msgs;
+  c.temper = (c.temper || 0) + bodyTemperingSpeed(c) * intensity * rng.uniform(0.9, 1.15);
+  while (canTemperMore(c) && c.temper >= D.BODY_REALMS[(c.bodyRealm || 0) + 1][2]) {
+    c.bodyRealm = (c.bodyRealm || 0) + 1;
+    recomputeMaxHp(c); recomputeMaxAge(c); if (c.hp < c.maxHp) c.hp = c.maxHp;
+    const br = D.BODY_REALMS[c.bodyRealm];
+    note(c, `Body realm broke through to ${br[0]} (${br[1]}).`);
+    msgs.push(`⛰ Your body breaks through to the ${br[0]} (${br[1]})! Flesh and bone reforged.`);
+  }
+  if (!msgs.length) {
+    if (!canTemperMore(c)) msgs.push(`You temper your body, but it has reached the very limit your ${D.PHYSIQUES.find(p => p[0] === c.physiqueKey)[1]} can bear — the ${D.bodyRealmName(c.bodyRealm)}.`);
+    else msgs.push(`You temper your body through pain and iron. (${Math.floor(c.temper)}/${Math.floor(D.BODY_REALMS[(c.bodyRealm || 0) + 1][2])})`);
+  }
+  return msgs;
+}
 export const karmaLabelFor = c => D.karmaLabel(c.karma);
 
 export function recomputeMaxHp(c) {
   const rf = c.realm * 10 + c.stage + 1;
-  c.maxHp = 40 + c.constitution * 1.5 + rf * 12;
+  const br = D.bodyRealmAt(c.bodyRealm || 0);
+  c.maxHp = (40 + c.constitution * 1.5 + rf * 12) * (1 + br[4]) + bodyMartialBase(c) * 0.12;
   c.hp = c.hp > 0 ? Math.min(c.hp, c.maxHp) : c.maxHp;
+}
+// Lifespan = your qi realm's span, lengthened by a tempered body and longevity pills.
+export function recomputeMaxAge(c) {
+  c.maxAge = D.REALMS[c.realm][3] + D.bodyRealmAt(c.bodyRealm || 0)[5] + (c.longevityBonus || 0);
 }
 function note(c, text) { c.log.push([c.age, text]); }
 
@@ -142,7 +180,7 @@ function newCharacter() {
     backgroundKey: "peasant", backgroundName: "", backgroundBlurb: "",
     omen: "", appearanceKey: "ordinary", appearanceName: "", appearanceBlurb: "",
     comprehension: 30, constitution: 30, soul: 30, luck: 30, charm: 30,
-    realm: 0, stage: 0, qi: 0, maxAge: 80,
+    realm: 0, stage: 0, qi: 0, maxAge: 80, bodyRealm: 0, temper: 0, longevityBonus: 0,
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, titles: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0,
@@ -193,7 +231,7 @@ export function generateCharacter(rng, name, opts = {}) {
   for (const a of ["comprehension", "constitution", "soul", "luck", "charm"])
     c[a] = clamp(c[a], 1, 160);
 
-  c.maxAge = D.REALMS[0][3];
+  recomputeMaxAge(c);
   recomputeMaxHp(c);
   note(c, `Born as ${c.name}, ${c.backgroundName}.`);
   note(c, `Spiritual root: ${c.root.display}.`);
@@ -304,7 +342,7 @@ export function attemptBreakthrough(c, rng, opts = {}) {
   if (c.breakthroughPills > 0) { c.breakthroughPills -= 1; msgs.push("  You swallow a Foundation Breakthrough Pill to steady the dao."); }
   c.qi -= qiToNext(c);
   if (rng.random() <= chance) {
-    c.realm += 1; c.stage = 0; c.maxAge = next[3]; recomputeMaxHp(c); c.hp = c.maxHp;
+    c.realm += 1; c.stage = 0; recomputeMaxAge(c); recomputeMaxHp(c); c.hp = c.maxHp;
     msgs.push(`☯ BREAKTHROUGH! You have ascended to ${realmLabel(c)}!`);
     note(c, `Broke through to ${realmName(c)}.`);
     pushAll(msgs, heartDemon(c, rng));
@@ -657,7 +695,7 @@ export function grantPill(c, key, rng, mult = 1) {
   if (key === "breakthrough") { const n = scale(1); c.breakthroughPills += n; return [`  You refine ${n} ${name}(s) -- save for a breakthrough.`]; }
   if (key === "body") { const g = scale(rng.randint(1, 3)); c.constitution = Math.min(160, c.constitution + g); recomputeMaxHp(c); return [`  The ${name} tempers your body. (+${g} Constitution)`]; }
   if (key === "soul") { const g = scale(rng.randint(1, 3)); c.soul = Math.min(160, c.soul + g); return [`  The ${name} refines your spirit. (+${g} Soul Sense)`]; }
-  if (key === "longevity") { const g = Math.round((Math.floor(c.maxAge * rng.uniform(0.05, 0.11)) + 20) * mult); c.maxAge += g; note(c, `Refined a ${name}, +${g} years of life.`); return [`  ✦ The ${name} adds ${g} years to your lifespan!`]; }
+  if (key === "longevity") { const g = Math.round((Math.floor(c.maxAge * rng.uniform(0.05, 0.11)) + 20) * mult); c.longevityBonus = (c.longevityBonus || 0) + g; recomputeMaxAge(c); note(c, `Refined a ${name}, +${g} years of life.`); return [`  ✦ The ${name} adds ${g} years to your lifespan!`]; }
   return ["  Success!"];
 }
 function applyPill(c, key, rng) { return grantPill(c, key, rng, 1); }

@@ -18,6 +18,8 @@ export const ACHIEVEMENTS = [
   ["bossslayer", "Giant-Killer", "Slay a boss-tier foe."],
   ["tamer", "Beast Tamer", "Tame a spirit beast companion."],
   ["beastlord", "Mythic Companion", "Raise a spirit beast to the Mythic rank."],
+  ["bodysaint", "Indestructible", "Temper your body to the Golden Body realm or beyond."],
+  ["rootless_legend", "Defy the Heavens", "Reach Golden Body as a rootless (Mortal Veins) cultivator."],
   ["daoist", "Dao Walker", "Comprehend a great Dao."],
   ["alchemist", "Grand Alchemist", "Refine a Flawless pill."],
   ["legendary", "Living Legend", "Reach Legendary world standing."],

@@ -29,6 +29,7 @@ const GLOSSARY = {
   physique: ["Physique 体质", "Your body's nature. Special physiques grant lasting boons to cultivation, combat, healing or survival (see your sheet)."],
   realm: ["Realm 境界", "Your cultivation stage — from Mortal up the eleven realms to Immortal Ascension. Each realm lengthens your lifespan."],
   abode: ["Cave Abode 洞府", "A home base staked on a spirit vein. Each year it yields spirit herbs and stones and quickens your cultivation; you can also seal yourself inside for a deep seclusion. Build and upgrade it from Activities."],
+  body: ["Body Cultivation 炼体", "A path parallel to qi: temper your flesh into something monstrous. It needs no spiritual root — the salvation of the rootless — and stacks atop qi cultivation. Driven by Constitution and physique, it grants raw power, stamina, damage-reduction and long life. Temper it from the Cultivate tab."],
 };
 function showTip(key) {
   const g = GLOSSARY[key]; if (!g) return;
@@ -40,6 +41,10 @@ function showTip(key) {
 }
 
 const regionMult = c => (D.REGION_BY_KEY[c.region || "azuredomain"] || [, , , 1])[3] || 1;
+// A combatant: a qi cultivator, or a body cultivator who has tempered past mortal.
+const isCultivator = c => c.awakened && (c.root.key !== "none" || (c.bodyRealm || 0) >= 1);
+// Strong enough for bosses / secret realms: Foundation+ in qi, or Steel Bone+ in body.
+const isStrong = c => c.realm >= 2 || (c.bodyRealm || 0) >= 3;
 function applyFavor(c) {
   const f = meta.favor();
   if (f > 0) {
@@ -60,6 +65,7 @@ function checkAchievements() {
   if (c.karma >= 120) award("saint");
   if (c.daos && c.daos.length) award("daoist");
   if (c.beast) award("tamer");
+  if ((c.bodyRealm || 0) >= 5) { award("bodysaint"); if (c.root && c.root.key === "none") award("rootless_legend"); }
   if (c.reincarnationCount >= 5) award("eternal");
   if (c.sectKey && c.sectRank >= D.SECT_RANKS.length - 1) award("sectmaster");
   const t = c.titles || [];
@@ -276,22 +282,46 @@ function openCultivate() {
   const c = state.c;
   openOverlay("Cultivation", body => {
     if (!c.awakened) { body.appendChild(el("p", "note", `Your spiritual root has not yet awakened. The Awakening Ceremony comes at age ${D.AWAKENING_AGE} — keep aging up.`)); return; }
-    if (c.root.key === "none") { body.appendChild(el("p", "note", "You have no spiritual root; the path of qi is closed to you. You may still live a mortal life — see Activities.")); return; }
+    const hasRoot = c.root.key !== "none";
+    const addBtn = (grid, l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
+
+    // ---- Qi cultivation (only with a spiritual root) ----
+    if (hasRoot) {
+      body.appendChild(infoRows([
+        ["Realm", `${E.realmLabel(c)} (${E.realmCn(c)})`, "realm"],
+        ["Qi", `${Math.floor(c.qi)} / ${Math.floor(E.qiToNext(c))}`, "cultivation"],
+        ["Power", Math.floor(E.power(c)), "power"],
+      ]));
+      const g = el("div", "menu-grid");
+      if (E.canBreakthrough(c))
+        addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
+      addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15)));
+      addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true)), { disabled: c.pills <= 0 });
+      addBtn(g, "Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
+      body.appendChild(g);
+    } else {
+      body.appendChild(el("p", "note", "The heavens have shut the gate of qi to you — but the road of the body remains open. Temper your flesh until even immortals must take notice."));
+      body.appendChild(infoRows([["Power", Math.floor(E.power(c)), "power"]]));
+    }
+
+    // ---- Body cultivation (open to all; the rootless walk it alone) ----
+    body.appendChild(el("div", "section-h", "Body Cultivation 炼体"));
+    const br = D.bodyRealmAt(c.bodyRealm || 0), nb = E.canTemperMore(c) ? D.BODY_REALMS[(c.bodyRealm || 0) + 1] : null;
+    const cap = E.bodyRealmCap(c);
     body.appendChild(infoRows([
-      ["Realm", `${E.realmLabel(c)} (${E.realmCn(c)})`],
-      ["Qi", `${Math.floor(c.qi)} / ${Math.floor(E.qiToNext(c))}`],
-      ["Power", Math.floor(E.power(c))],
+      ["Body Realm", `${br[0]} (${br[1]})`, "body"],
+      nb ? ["Tempering", `${Math.floor(c.temper)} / ${nb[2]}`] : ["Tempering", `${D.bodyRealmName(c.bodyRealm)} — your physique's limit`],
+      ["Body limit", `${D.bodyRealmName(cap)} (${c.physiqueName})`],
     ]));
-    const grid = el("div", "menu-grid");
-    const mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
-    if (E.canBreakthrough(c))
-      mk("Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
-    mk("Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15)));
-    mk("Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true)), { disabled: c.pills <= 0 });
-    mk("Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
-    mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : "adventure & battle", doWander, { disabled: c.age < AGE_MIN.wander });
-    mk("Techniques & Mastery", "train your arts", openTechniques, { full: true });
-    body.appendChild(grid);
+    const bg = el("div", "menu-grid");
+    addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5)), { full: true, primary: !hasRoot });
+    body.appendChild(bg);
+
+    // ---- shared ----
+    const sg = el("div", "menu-grid");
+    addBtn(sg, "Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : "adventure & battle", doWander, { disabled: c.age < AGE_MIN.wander || !isCultivator(c) });
+    addBtn(sg, "Techniques & Mastery", "train your arts", openTechniques, { full: true });
+    body.appendChild(sg);
   });
 }
 
@@ -427,8 +457,8 @@ function openActivities() {
     mk("Study Scriptures", sub("study", "build comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng)); }, { disabled: young("study") });
     mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
     mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
-    const canHunt = c.awakened && c.root.key !== "none";
-    const canBoss = canHunt && c.realm >= 2;
+    const canHunt = isCultivator(c);
+    const canBoss = canHunt && isStrong(c);
     mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
     mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
     mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
@@ -718,6 +748,7 @@ function openSheet() {
       ["Name", `${c.name} (${c.sex === "female" ? "♀" : "♂"})`],
       ["Age", `${c.age} / ${c.maxAge}`, "age"],
       ["Realm", c.awakened ? `${E.realmLabel(c)} (${E.realmCn(c)})` : "Unawakened child", "realm"],
+      ["Body Realm", `${D.bodyRealmName(c.bodyRealm || 0)} (${D.bodyRealmAt(c.bodyRealm || 0)[1]})`, "body"],
       ["Health / Happiness", `${Math.floor(c.health)} (${D.vitalLabel(c.health)}) / ${Math.floor(c.happiness)} (${D.vitalLabel(c.happiness)})`, "health"],
       ["Standing", `${c.reputation} (${D.standingLabel(c.reputation)})`, "fame"], ["Karma", `${c.karma >= 0 ? "+" : ""}${c.karma} (${E.karmaLabelFor(c)})`, "karma"],
     ]));
@@ -1240,7 +1271,7 @@ function endActivityYear() {   // an action concluded -- no time passes
 function doWander() {
   if (!ageAllows("wander") || !useAction()) return;
   const c = state.c; closeOverlay();
-  if (c.awakened && c.root.key !== "none" && state.rng.random() < 0.58) {
+  if (isCultivator(c) && state.rng.random() < 0.58) {
     const enemy = C.makeEnemy(c, state.rng, { factorMult: regionMult(c) });
     logMessages([`You roam the wild reaches and are set upon by a ${enemy.name}!`]);
     startBattle(enemy, { title: "Wild Encounter" }, () => endActivityYear());
