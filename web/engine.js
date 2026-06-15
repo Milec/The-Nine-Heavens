@@ -321,6 +321,33 @@ export function ensureNpcProfile(npc, rng, opts = {}) {
   return npc;
 }
 
+// How far an NPC can climb, by the talent of their spiritual root (their destiny,
+// as yours is yours). The rootless cannot gather qi at all.
+const NPC_REALM_CAP = { none: 0, waste: 3, quad: 4, triple: 5, dual: 6, heavenly: 8, variant: 9, chaos: 10 };
+// Advance an NPC one step along their own cultivation each year. Returns "realm"
+// when they break into a new realm, "stage" for a lesser step, else null.
+export function advanceNpc(npc, rng) {
+  if (!npc || !npc.alive || npc.realm == null || !npc.geno) return null;
+  const rootKey = npc.geno.rootKey || "waste";
+  if (rootKey === "none") return null;                 // the rootless cannot gather qi
+  const cap = NPC_REALM_CAP[rootKey] != null ? NPC_REALM_CAP[rootKey] : 4;
+  if (npc.realm >= cap) { npc.power = Math.max(npc.power || 0, Math.round(npcPower(npc) * rng.uniform(1.0, 1.01))); return null; }
+  const tier = D.ROOT_TIER[rootKey] || 0;
+  const speed = (0.30 + tier * 0.22) / Math.pow(1.5, npc.realm);     // talent quickens; high realms slow
+  npc.cultProgress = (npc.cultProgress || 0) + speed * rng.uniform(0.6, 1.25);
+  if (npc.cultProgress < 1) return null;
+  npc.cultProgress -= 1;
+  let broke = false;
+  if (npc.stage < D.REALMS[npc.realm][2] - 1) npc.stage += 1;
+  else { npc.realm += 1; npc.stage = 0; broke = true; }
+  if (broke && rng.random() < 0.4) {                                  // sometimes grasp a new art
+    const unknown = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing" && !(npc.techniques || []).includes(k));
+    if (unknown.length) (npc.techniques = npc.techniques || ["basic_breathing"]).push(rng.choice(unknown));
+  }
+  npc.power = Math.max(npc.power || 0, npcPower(npc));
+  return broke ? "realm" : "stage";
+}
+
 export function reincarnate(old, rng, name) {
   const c = generateCharacter(rng, name);
   c.reincarnationCount = old.reincarnationCount + 1;

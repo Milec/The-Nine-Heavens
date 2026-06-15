@@ -604,7 +604,8 @@ export const EVENTS = [
         const rootKey = (k.geno && k.geno.rootKey) || "waste";   // the root they inherited at birth
         const row = D.ROOT_TYPES.find(r => r[0] === rootKey);
         const tier = D.ROOT_TIER[rootKey] || 0;
-        k.power = A.power() * (0.18 + tier * 0.05);
+        E.ensureNpcProfile(k, rng, { realm: 0 });                // they begin their own cultivation now
+        k.power = Math.max(k.power || 0, A.power() * (0.18 + tier * 0.05));
         k.affinity = Math.min(100, k.affinity + 8);
         if (rootKey === "none") { A.happy(-4); return `The testing-stone stays dull and grey — ${k.name} has no spiritual root. Your heart aches for them; you resolve they shall walk the body-tempering road instead.`; }
         if (tier >= 4) { A.happy(18); c.reputation += 5; return `The stone BLAZES like a captured sun — ${k.name} has awakened a ${row[1]}! A heaven-blessed heir; your bloodline's glory is assured. (+Happiness, +Reputation)`; }

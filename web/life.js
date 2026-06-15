@@ -378,10 +378,19 @@ export function ageUp(c, rng) {
   // rootless, this quiet hardening is the whole of their climb.
   if (c.alive) for (const m of E.temperBody(c, rng, 0.5)) if (m[0] === "⛰") events.push({ id: "bodyup", auto: true, milestone: true, text: [m] });
 
-  // Your awakened children grow into power of their own over the years.
-  for (const k of c.relationships)
-    if ((k.kin === "Son" || k.kin === "Daughter") && k.alive && k._awakened)
-      k.power = Math.max(k.power || 1, E.basePower(c) * 0.18) * rng.uniform(1.0, 1.04);
+  // The world cultivates too: friends, rivals, spouses, masters, disciples and
+  // your own children all advance along their own roads, capped by their talent.
+  let worldUp = null;
+  for (const npc of c.relationships) {
+    if (!npc.alive || npc.role === "nemesis") continue;        // the nemesis grows separately
+    const isKid = npc.kin === "Son" || npc.kin === "Daughter";
+    if (isKid && !npc._awakened) continue;
+    if (npc.realm == null) { if (isKid) E.ensureNpcProfile(npc, rng, { realm: 0 }); else continue; }
+    const step = E.advanceNpc(npc, rng);
+    if (step === "realm" && !worldUp && (npc.role === "companion" || npc.role === "master" || npc.role === "disciple" || isKid || (npc.affinity || 0) >= 60))
+      worldUp = npc;
+  }
+  if (worldUp) events.push({ id: "world_advance", auto: true, text: [`Word reaches you: ${worldUp.name} has broken through to ${E.npcRealmName(worldUp)} (${D.REALMS[worldUp.realm][1]}). The world does not stand still while you cultivate.`] });
 
   // Your spirit beast grows over the year (and its yearly feeding refreshes).
   if (c.beast && c.beast.alive) E.beastGrow(c, rng);
