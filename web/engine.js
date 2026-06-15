@@ -705,6 +705,61 @@ export function grantPill(c, key, rng, mult = 1) {
 }
 function applyPill(c, key, rng) { return grantPill(c, key, rng, 1); }
 
+/* ------------------------------ market (坊市) ---------------------------- */
+// Prices float with the world era — dear in a Drought, cheap in an Age of Abundance.
+export const eraPriceMult = c => D.eraAt(c.era)[7] || 1;
+const TREASURE_BASE = { Mortal: 25, Spirit: 130, Earth: 600, Heaven: 3000, Immortal: 16000 };
+export const priceHerbs = (c, n = 5) => Math.max(2, Math.round((c.realm + 1) * 1.6 * n * eraPriceMult(c)));
+export const pricePill = (c, key) => Math.round((D.PILL_BY_KEY[key][2] * 8 + 15) * eraPriceMult(c));
+export const priceTech = (c, tier) => Math.round([60, 130, 320, 900][tier] * eraPriceMult(c));
+export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.ARTIFACT_BY_KEY[key][2]] || 50) * eraPriceMult(c));
+// Selling fetches a fraction of the buy price.
+export const sellHerbs = (c, n = 5) => Math.max(1, Math.round(priceHerbs(c, n) * 0.45));
+export const sellTreasureValue = (c, key) => Math.max(1, Math.round(priceTreasure(c, key) * 0.4));
+
+export function buyPill(c, key, rng) {
+  const p = pricePill(c, key);
+  if (c.spiritStones < p) return [`You cannot afford the ${D.PILL_BY_KEY[key][1]} (${p} stones).`];
+  c.spiritStones -= p;
+  return [`You buy a ${D.PILL_BY_KEY[key][1]} for ${p} stones.`].concat(grantPill(c, key, rng, 1));
+}
+export function buyHerbs(c, n = 5) {
+  const p = priceHerbs(c, n);
+  if (c.spiritStones < p) return [`You cannot afford ${n} spirit herbs (${p} stones).`];
+  c.spiritStones -= p; c.herbs += n;
+  return [`You buy ${n} spirit herbs for ${p} stones.`];
+}
+export function buyTech(c, key, rng) {
+  const t = D.TECHNIQUES[key]; if (!t) return ["No such manual."];
+  const p = priceTech(c, t[1]);
+  if (c.techniques.includes(key)) return [`You already know ${t[0]}.`];
+  if (c.spiritStones < p) return [`You cannot afford the ${t[0]} manual (${p} stones).`];
+  c.spiritStones -= p; c.techniques.push(key);
+  note(c, `Bought the ${t[0]} manual.`);
+  return [`You buy and study the ${t[0]} manual for ${p} stones. (${t[4]})`];
+}
+export function buyTreasure(c, key) {
+  const a = D.ARTIFACT_BY_KEY[key]; if (!a) return ["No such treasure."];
+  const p = priceTreasure(c, key);
+  if (c.spiritStones < p) return [`You cannot afford the ${a[1]} (${p} stones).`];
+  c.spiritStones -= p;
+  return [`You buy the ${a[1]} for ${p} stones.`].concat(acquireArtifact(c, key));
+}
+export function sellTreasure(c, key) {
+  if (!c.artifacts.includes(key)) return ["You do not own that treasure."];
+  if (c.equippedArtifact === key) return ["Unbind it before selling — you won't part with your signature treasure."];
+  const v = sellTreasureValue(c, key);
+  c.artifacts.splice(c.artifacts.indexOf(key), 1);
+  c.spiritStones += v;
+  return [`You sell the ${D.ARTIFACT_BY_KEY[key][1]} for ${v} stones.`];
+}
+export function sellSpareHerbs(c, n = 5) {
+  if (c.herbs < n) return [`You don't have ${n} spare herbs.`];
+  const v = sellHerbs(c, n);
+  c.herbs -= n; c.spiritStones += v;
+  return [`You sell ${n} spirit herbs for ${v} stones.`];
+}
+
 /* -------------------------------- dao ------------------------------------ */
 export const DAO_MIN_REALM = 5;
 export const daoInsightThreshold = c => 100.0 * (1 + c.daos.length * 0.85);

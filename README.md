@@ -106,6 +106,10 @@ Three more systems round out a cultivator's life:
   your techniques** to disciples, children and your dao companion. Your students
   carry your arts onward, and the teaching **echoes across reincarnation**,
   sharpening the talent of your next life.
+- **Market (坊市)** — a proper trading bazaar: **buy** spirit herbs, finished pills,
+  technique manuals and magic treasures, and **sell** your spare herbs and surplus
+  treasures. Prices **float with the world era** — dear in a Spiritual Drought,
+  cheap in an Age of Abundance — so spirit stones finally have somewhere to go.
 - **Alchemy furnace minigame (炼丹)** — refining is now hands-on: keep the heat
   needle inside a drifting jade band over several phases to build **pill
   quality** (Crude → Fine → Flawless, scaling the effect) while avoiding the

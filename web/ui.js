@@ -20,7 +20,7 @@ const GLOSSARY = {
   charm: ["Charm 魅力", "Social grace. Helps you make friends, draw a dao companion, and sway elders and foes alike."],
   karma: ["Karma 业力", "Merit versus sin. Merit softens the Heavenly Tribulation; deep sin summons a heart-demon and bounty hunters."],
   fame: ["Fame 声望", "How the cultivation world regards your name — Unknown up to Legendary. Fame draws invitations and gifts; infamy brings hunters."],
-  stones: ["Spirit Stones 💎", "The currency of cultivators. Spend them on pills, treasures, auctions and the sect store."],
+  stones: ["Spirit Stones 💎", "The currency of cultivators. Spend them at the Market on herbs, pills, technique manuals and treasures, on your cave abode and sect, or at auctions. Market prices float with the world era."],
   herbs: ["Spirit Herbs 🌿", "Raw materials gathered in the wild and refined into pills at the alchemy furnace."],
   region: ["Region 📍", "Where you roam. Distant regions hold deadlier foes — and far richer spoils."],
   era: ["World Era 天时", "The age the realm is passing through. An Age of Abundance quickens cultivation and calms the roads; a Warring Era or Demon Tide makes the world far deadlier; a Spiritual Drought stifles all qi; a Dawn of Ascension eases breakthroughs. The world turns on across your reincarnations."],
@@ -504,8 +504,62 @@ function openActivities() {
     mk("Travel the World", young("travel") ? `from age ${AGE_MIN.travel}` : (D.REGION_BY_KEY[c.region] ? D.REGION_BY_KEY[c.region][1] : "regions"), openTravel, { disabled: young("travel") });
     const ab = D.abodeAt(c.abode || 0);
     mk("Your Cave Abode", ab ? `${ab[2]} · home base` : "establish a home base", openAbode, { full: true });
+    mk("Visit the Market", "坊市 · buy & sell", openMarket);
     mk("Treasures & Beast", "your assets", openAssets);
     body.appendChild(grid);
+  });
+}
+function genMarket(c) {
+  const rng = state.rng;
+  const unknown = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing" && !c.techniques.includes(k));
+  const tech = unknown.length ? rng.choice(unknown) : null;
+  const keys = D.ARTIFACTS.map(a => a[0]);
+  const treasures = [];
+  for (let i = 0; i < 2 && keys.length; i++) treasures.push(keys.splice(Math.floor(rng.random() * keys.length), 1)[0]);
+  return { year: c.age, tech, treasures, sold: {} };
+}
+function marketDo(fn) {
+  if (!state.c.alive) return;
+  logMessages(fn());
+  renderProfile(); save();
+  openMarket();
+}
+function openMarket() {
+  const c = state.c;
+  if (!state.market || state.market.year !== c.age) state.market = genMarket(c);
+  const M = state.market;
+  openOverlay("Market 坊市", body => {
+    const pm = E.eraPriceMult(c);
+    body.appendChild(el("p", "note", `Spirit stones: ${c.spiritStones} · herbs: ${c.herbs}. Prices ${pm > 1.05 ? "run high" : pm < 0.95 ? "are low" : "are fair"} in the ${D.eraAt(c.era)[1]}.`));
+    const row = (emoji, title, sub, btnLabel, can, fn) => {
+      const r = el("div", "listrow" + (can ? "" : " disabled"));
+      r.innerHTML = `<div class="lr-ava">${emoji}</div><div class="lr-main"><div class="lr-title">${escapeHtml(title)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
+      if (can) r.onclick = () => marketDo(fn);
+      body.appendChild(r);
+    };
+    body.appendChild(el("div", "section-h", "Buy"));
+    row("🌿", "Spirit Herbs ×5", `${E.priceHerbs(c, 5)} stones`, "", c.spiritStones >= E.priceHerbs(c, 5), () => E.buyHerbs(c, 5));
+    for (const p of D.PILL_RECIPES) {
+      const price = E.pricePill(c, p[0]);
+      row("⚗️", p[1], `${price} stones · ${p[4]}`, "", c.spiritStones >= price, () => E.buyPill(c, p[0], state.rng));
+    }
+    if (M.tech && !c.techniques.includes(M.tech)) {
+      const price = E.priceTech(c, D.TECHNIQUES[M.tech][1]);
+      row("📖", D.TECHNIQUES[M.tech][0] + " (manual)", `${price} stones · ${D.TECHNIQUES[M.tech][4]}`, "", c.spiritStones >= price, () => E.buyTech(c, M.tech, state.rng));
+    }
+    for (const k of M.treasures) {
+      if (M.sold[k]) continue;
+      const price = E.priceTreasure(c, k);
+      row("⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.ARTIFACT_BY_KEY[k][2]})`, `${price} stones · ${D.ARTIFACT_BY_KEY[k][5]}`, "", c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); });
+    }
+    // Sell
+    const spareTreasures = c.artifacts.filter(k => k !== c.equippedArtifact);
+    if (c.herbs >= 5 || spareTreasures.length) {
+      body.appendChild(el("div", "section-h", "Sell"));
+      if (c.herbs >= 5) row("🌿", "Sell Spirit Herbs ×5", `+${E.sellHerbs(c, 5)} stones`, "", true, () => E.sellSpareHerbs(c, 5));
+      for (const k of spareTreasures) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.ARTIFACT_BY_KEY[k][2]})`, "", true, () => E.sellTreasure(c, k));
+    }
+    backBtn(body, openActivities);
   });
 }
 function openAbode() {
