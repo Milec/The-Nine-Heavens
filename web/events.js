@@ -17,6 +17,16 @@ import * as E from "./engine.js";
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const cap = (c, k, v) => { c[k] = Math.min(160, c[k] + v); };
 
+// Whoever would nurse a sick child: a parent, else a sibling, else a fellow
+// orphan or friend (so even a parentless child isn't left to suffer alone).
+const feverCaregiver = c => c.relationships.find(n => n.alive && n.kin === "Mother")
+  || c.relationships.find(n => n.alive && n.kin === "Father")
+  || c.relationships.find(n => n.alive && (n.kin === "Brother" || n.kin === "Sister"))
+  || c.relationships.find(n => n.alive && n.role === "friend")
+  || null;
+const carerLabel = car => car.kin === "Mother" ? "your mother" : car.kin === "Father" ? "your father" : car.name;
+const carerSubject = car => car.kin === "Mother" ? "Your mother" : car.kin === "Father" ? "Your father" : car.name;
+
 export const EVENTS = [
   /* ----------------------------- childhood ------------------------------ */
   {
@@ -32,7 +42,7 @@ export const EVENTS = [
     id: "child_fever", weight: 7, minAge: 1, maxAge: 7, awakened: false,
     text: () => "A burning fever grips you for days. The village has no healer.",
     choices: [
-      { label: "Let mother nurse you", result: (c, rng, A) => { A.heal(-6); A.happy(4); const m = A.kin("mother"); return `${m ? m.name + " sits" : "Your mother sits"} by your bed each night. You pull through, weak but loved.`; } },
+      { label: c => { const car = feverCaregiver(c); return car ? `Let ${carerLabel(car)} nurse you` : "Be taken in by a kindly villager"; }, result: (c, rng, A) => { A.heal(-6); A.happy(4); const car = feverCaregiver(c); if (car) car.affinity = clampN((car.affinity || 0) + 2, -100, 100); const who = car ? carerSubject(car) : "A kindly old villager"; const verb = car && car.role === "friend" ? "watches over you" : "sits by your bed"; return `${who} ${verb} each night. You pull through, weak but loved.`; } },
       { label: "Endure it alone", result: (c, rng, A) => { if (rng.random() < 0.5) { A.heal(-14); c.constitution = Math.min(160, c.constitution + 3); return "You sweat it out in silence. The illness tempers something in you. (+Constitution)"; } A.heal(-20); A.happy(-6); return "The fever nearly takes you. You recover, but it leaves a frailty behind."; } },
     ],
   },
