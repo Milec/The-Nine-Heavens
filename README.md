@@ -139,6 +139,10 @@ Three more systems round out a cultivator's life:
   ceiling**: an ordinary frame tops out at Silver Marrow, while only the legendary
   **Undying Golden Body** can ever forge a true God-Body. A rootless child the
   heavens spurned can still temper themselves into a power immortals must respect.
+- **Allies at your side** — bonds aren't only sentiment: the dao companion or
+  disciple who **lives with you** (and your spirit beast) **fights alongside you**
+  each round in battle, the harder the deeper your bond — though a Heavenly
+  Tribulation you must still face alone.
 - **Spirit beast companions (灵兽)** — tame a wild beast, then **raise it**: feed it
   herbs and pills to build its **bond and experience**, and **evolve it through five
   ranks** (Mortal → Spirit → Earth → Heaven → **Mythic Beast**) into ever mightier

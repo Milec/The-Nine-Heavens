@@ -55,6 +55,18 @@ export function playerSkills(c) {
   return list;
 }
 
+// A bonded companion or disciple who lives with you fights at your side (not in
+// a solo Heavenly Tribulation). Returns {name, affinity} or null.
+function bondedAlly(c, enemyDef) {
+  if (enemyDef && enemyDef.tribulation) return null;
+  const cand = (c.relationships || [])
+    .filter(n => n.alive && n.resides && (n.role === "companion" || n.role === "disciple") && (n.affinity || 0) >= 20)
+    .sort((a, b) => (b.affinity || 0) - (a.affinity || 0));
+  if (!cand.length) return null;
+  const a = cand[0];
+  return { name: a.name, affinity: a.affinity || 50, role: a.role };
+}
+
 /* --------------------------- enemy generation ---------------------------- */
 const BEAST_FOES = ["Iron-Fang Wolf", "Rock-Shell Tortoise", "Cloud Leopard", "Venom Serpent", "Crimson Ape", "Ghost-Faced Spider", "Flame-Mane Lion", "Thunder Roc", "Frost Python", "Nine-Tailed Fox", "Abyssal Drake", "Stone-Hide Rhino", "Tide-Maned Hippocamp", "Gale Talon Eagle"];
 const ROGUE_FOES = ["Masked Rogue", "Demonic Outrider", "Bandit Qi-user", "Rival Disciple", "Fallen Puppet", "Corpse Refiner", "Poison-Hand Assassin", "Renegade Sword-Cultivator"];
@@ -160,6 +172,7 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     beastElement: (c.beast && c.beast.alive) ? (c.beast.element || null) : null,
     beastBond: (c.beast && c.beast.alive) ? (c.beast.bond != null ? c.beast.bond : 50) : 0,
     beastRank: (c.beast && c.beast.alive) ? (c.beast.rank || 1) : 0,
+    ally: bondedAlly(c, enemyDef),
   };
   const ep = enemyDef.power;
   const hpMult = enemyDef.hpMult || 2.3;
@@ -319,6 +332,13 @@ function takeRound(B, actionId) {
       const fx = BEAST_BITE[P.beastElement];
       if (fx && !(fx[0] === "burn" && En.burnImmune)) { addStatus(En, fx[0], fx[1] + 1, fx[2]); lines.push(`   ${En.name} suffers the beast's ${fx[0]}!`); }
     }
+  }
+
+  // A bonded companion or disciple fights at your side, the harder the closer your bond.
+  if (P.ally && En.hp > 0 && actionId !== "flee") {
+    const affMult = 0.6 + (P.ally.affinity / 100) * 0.5;          // 0.6 .. 1.1
+    const ad = Math.round(P.atk * 0.09 * affMult * B.rng.uniform(0.85, 1.15));
+    En.hp -= ad; lines.push(`⚔ ${P.ally.name} ${P.ally.role === "companion" ? "fights at your side" : "strikes for the sect"} — ${ad} dmg.`);
   }
 
   if (En.hp <= 0) { B.over = true; B.outcome = "win"; lines.push(`🏆 ${En.name} is defeated!`); B.turn++; return { lines, over: true, outcome: "win" }; }

@@ -584,7 +584,7 @@ function openAbode() {
         ["Seclusion strength", `${cur[7].toFixed(2)}× (vs 0.15 normal)${mate ? " · ×1.15 dual" : ""}`],
       ]));
       const who = [mate && `${mate.name} (companion)`, tenders.length && `${tenders.length} disciple${tenders.length > 1 ? "s" : ""}`, c.beast && c.beast.alive && `${c.beast.name} the ${c.beast.species}`].filter(Boolean);
-      body.appendChild(el("p", "note", who.length ? `Residents: ${who.join(", ")}. Invite a dao companion or disciples from Relationships to tend the fields and defend your home.` : "No one lives here yet. Invite a dao companion or disciples (from Relationships) to share your home, tend its fields, and help defend it."));
+      body.appendChild(el("p", "note", who.length ? `Residents: ${who.join(", ")}. They tend the fields, help defend your home — and the most devoted fights at your side in battle.` : "No one lives here yet. Invite a dao companion or disciples (from Relationships) to share your home, tend its fields, help defend it, and fight at your side."));
       if (c.ownSect) body.appendChild(el("p", "note", `🏯 This abode is the mountain seat of your sect, the ${c.ownSect.name} (${D.sectTier(c.ownSect.prestige)[1]}). A grander seat houses more disciples.`));
       else if (L.canFoundSect(c)) body.appendChild(el("p", "note", "🏯 Your abode is now grand enough to serve as the seat of your own sect — found one from the Sect tab."));
       const sec = el("button", "mbtn full primary");
@@ -1145,6 +1145,12 @@ function unitPanel(u, isPlayer) {
   let html = `<div class="cu-top"><span class="cu-name">${elemIcon} ${escapeHtml(u.name)}</span><span class="cu-status">${statusChips(u)}</span></div>`;
   html += `<div class="hpbar"><div class="hpfill${isPlayer ? " you" : ""}" style="width:${clampPct(u.hp, u.maxHp)}%"></div><span>${Math.max(0, Math.round(u.hp))}/${Math.round(u.maxHp)}</span></div>`;
   if (isPlayer) html += `<div class="qibar"><div class="qifill" style="width:${clampPct(u.qi, u.maxQi)}%"></div><span>Qi ${Math.round(u.qi)}/${Math.round(u.maxQi)}</span></div>`;
+  if (isPlayer) {
+    const c = u.ref, side = [];
+    if (c.beast && c.beast.alive) side.push(`🐾 ${escapeHtml(c.beast.name)}`);
+    if (u.ally) side.push(`⚔ ${escapeHtml(u.ally.name)}`);
+    if (side.length) html += `<div class="cu-status" style="margin-top:4px">at your side: ${side.join(" · ")}</div>`;
+  }
   p.innerHTML = html;
   return p;
 }
