@@ -175,6 +175,23 @@ export function relationshipLabel(a) {
 }
 
 export const ROLE_LABEL = { master:"Master", rival:"Rival", friend:"Sworn Friend", companion:"Dao Companion", enemy:"Enemy" };
+// A married companion's kin label, by their sex.
+export const spouseLabel = n => n.sex === "female" ? "Wife" : n.sex === "male" ? "Husband" : "Dao Partner";
+export const HAREM_CAP = 6;   // how many dao companions you may gather at once
+
+/* World Eras (天时): the realm turns through long ages that colour every life —
+ * shifting how fast qi gathers, how dangerous the roads are, and which fates
+ * tend to befall a cultivator. The world keeps turning across reincarnations. */
+// [key, name, cn, blurb, cultMult, dangerMult, breakBonus, priceMult]
+export const ERAS = [
+  ["abundance", "Age of Abundance", "盛世", "Spirit qi runs thick and the realm is at peace; cultivation flourishes and fortune comes easily.", 1.15, 0.85, 0.00, 0.80],
+  ["warring",   "Warring Era",      "乱世", "The great sects clash and war-bands roam; blood is cheap and the strong devour the weak.", 1.00, 1.30, 0.00, 1.25],
+  ["demontide", "Demon Tide",       "魔潮", "Devil-path cultivators and corpse-fiends surge from the wastes; the righteous stand besieged.", 0.95, 1.45, 0.00, 1.20],
+  ["drought",   "Spiritual Drought","灵气枯竭", "The heavens' qi thins to a trickle; every breakthrough is dearly bought and lifespans matter.", 0.78, 1.00, -0.03, 1.50],
+  ["dawn",      "Dawn of Ascension","飞升之兆", "Auspicious signs fill the sky; the long-shut path to immortality seems, for a while, to stand open.", 1.25, 1.10, 0.06, 1.00],
+];
+export const ERA_BY_KEY = Object.fromEntries(ERAS.map(e => [e[0], e]));
+export const eraAt = key => ERA_BY_KEY[key] || ERAS[0];
 export const TOURNAMENT_TITLES = [[1,"Champion"],[2,"Runner-up"],[4,"Top Four"],[8,"Top Eight"]];
 
 export const ARTIFACT_GRADES = ["Mortal","Spirit","Earth","Heaven","Immortal"];
@@ -380,6 +397,62 @@ export const SECT_CAPACITY = [0, 30, 80, 200, 500, 1200, 3000];
 // Parts for auto-generating a sect name when the founder leaves it to fate.
 export const SECT_NAME_ADJ = ["Azure", "Cloud", "Heaven", "Nine-Heaven", "Profound", "Jade", "Golden", "Mystic", "Boundless", "Crimson", "Spirit", "Void", "Thousand-Star", "Purple", "Divine", "Immortal", "Eternal", "Cangming"];
 export const SECT_NAME_NOUN = ["Cloud Sect", "Sword Sect", "Sky Pavilion", "Heaven Palace", "Dao Sect", "Spirit Hall", "Mystic Gate", "Origin Sect", "Star Pavilion", "Sacred Hall", "Profound Sect", "Cloud Pavilion", "Sword Pavilion"];
+
+/* Spirit beast companions (灵兽) grow with you: feed them and fight at their side
+ * to raise their bond and exp, evolving them through five ranks into ever
+ * mightier forms with their own elemental bite. */
+export const BEAST_EXP_REQ = [0, 25, 70, 160, 340];   // exp to advance FROM rank r (1..4)
+export const beastRankName = rank => ["Mortal Beast", "Spirit Beast", "Earth Beast", "Heaven Beast", "Mythic Beast"][Math.max(0, Math.min(4, (rank || 1) - 1))];
+export function beastEvolvedName(base, rank) {
+  switch (rank) {
+    case 2: return `Awakened ${base}`;
+    case 3: return `Elder ${base}`;
+    case 4: return `${base} Sovereign`;
+    case 5: return `Mythic ${base}`;
+    default: return base;
+  }
+}
+// Infer a beast's innate element from its species name (null if none fits).
+export function beastElement(species) {
+  const s = (species || "").toLowerCase();
+  if (/fire|flame|crimson|ember|phoenix|vermilion/.test(s)) return "Fire";
+  if (/frost|ice|snow|cold/.test(s)) return "Ice";
+  if (/thunder|lightning|storm|roc|bolt/.test(s)) return "Lightning";
+  if (/wind|cloud|gale|leopard/.test(s)) return "Wind";
+  if (/stone|rock|tortoise|qilin|bone|earth/.test(s)) return "Earth";
+  if (/python|serpent|jade|macaque|hare|wood/.test(s)) return "Wood";
+  if (/water|tide|abyss|kraken|dragon/.test(s)) return "Water";
+  if (/fox|shadow|ghost|dark/.test(s)) return "Dark";
+  if (/tiger|metal|sword|iron|fang|wolf/.test(s)) return "Metal";
+  if (/light|sparrow|crane|roc/.test(s)) return "Light";
+  return null;
+}
+
+/* Body Cultivation (炼体): a path parallel to qi cultivation, tempering the
+ * mortal frame into something monstrous. It needs no spiritual root — so it is
+ * the salvation of the rootless and the waste-rooted — and stacks atop qi
+ * cultivation for those who would walk both roads. Driven by constitution and
+ * physique, not your root. */
+// [name, cn, temperReq(cumulative), martialBase, hpFrac, lifespanBonus, mitig]
+// Note: martialBase is deliberately kept well below the comparable qi realm's
+// power — a body cultivator's strength is survivability, not raw offense. Even a
+// maxed God-Body (~5500) sits below Nascent Soul/Spirit-Severing qi power and far
+// under the true immortal realms; their edge is monstrous HP and damage-reduction.
+export const BODY_REALMS = [
+  ["Mortal Body",            "凡体",     0,     0,    0.00,    0, 0.00],
+  ["Tempered Flesh",         "淬体境",   50,    5,    0.10,   30, 0.02],
+  ["Iron Body",              "铁皮境",   180,   30,   0.22,   80, 0.05],
+  ["Steel Bone",             "钢骨境",   500,   120,  0.36,  200, 0.08],
+  ["Silver Marrow",          "银髓境",   1300,  400,  0.50,  500, 0.11],
+  ["Golden Body",            "金身境",   3200,  1100, 0.68, 1300, 0.14],
+  ["Diamond Sun-Body",       "琉璃金身", 8000,  2600, 0.90, 3500, 0.18],
+  ["Indestructible God-Body","不灭神体", 20000, 5500, 1.20, 9000, 0.24],
+];
+export const bodyRealmAt = i => BODY_REALMS[Math.max(0, Math.min(BODY_REALMS.length - 1, i || 0))];
+export const bodyRealmName = i => bodyRealmAt(i)[0];
+// Your physique is your destiny on the body axis: it caps how far you may temper.
+// Only the legendary Undying Golden Body can ever become a true God-Body.
+export const PHYSIQUE_BODY_CAP = { ordinary: 4, sturdy: 5, spirit: 5, yin: 6, yang: 6, dao: 6, immortal: 7 };
 
 /* Ongoing physique (体质) effects, beyond the birth-stat multipliers. These bite
  * throughout life — cultivation speed, breakthroughs, Dao insight, and combat. */

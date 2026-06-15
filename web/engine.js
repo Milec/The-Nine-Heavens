@@ -71,6 +71,9 @@ export const abodeAlchemyBonus = c => Math.max(0, (c.abode || 0) - 2) * 0.04;
 // Leading your own thriving sect quickens your dao (its formations and the
 // devotion of your disciples), scaling with the sect's prestige tier.
 export const ownSectSpeedBonus = c => c.ownSect ? D.sectTier(c.ownSect.prestige)[3] : 0;
+// The world era's pull on cultivation (Abundance quickens, Drought stifles).
+export const eraCultMult = c => D.eraAt(c.era)[4];
+export const eraBreakBonus = c => D.eraAt(c.era)[6];
 
 export function cultivationSpeed(c) {
   const rootMult = c.root ? c.root.multiplier : 0.1;
@@ -79,31 +82,78 @@ export function cultivationSpeed(c) {
   const timeDao = c.daos.includes("time") ? 0.25 : 0.0;
   const phys = D.physEffect(c).cultivate || 0;
   return rootMult * comp * (1 + techQiBonus(c)) * realmFactor * 1.8 *
-    (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao + phys + abodeQiBonus(c) + ownSectSpeedBonus(c));
+    (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao + phys + abodeQiBonus(c) + ownSectSpeedBonus(c)) *
+    eraCultMult(c);
 }
+// Martial might from body cultivation — its own power base, independent of qi
+// realm, so a body cultivator (even rootless) can grow truly strong.
+export const bodyMartialBase = c => D.bodyRealmAt(c.bodyRealm || 0)[3];
 export function basePower(c) {
   const rf = c.realm * 10 + c.stage + 1;
-  const base = Math.pow(rf, 2.1);
+  const base = Math.pow(rf, 2.1) + bodyMartialBase(c);
   return base * (1 + c.constitution * 0.8 / 100 + c.soul * 0.5 / 100) + techAtkBonus(c) * rf;
 }
 export function power(c) {
   return basePower(c) * (1 + artifactAtkPct(c) + daoPowerBonus(c)) + beastPower(c);
 }
+
+/* ---------------------------- body cultivation --------------------------- */
+// Tempering speed is driven by constitution and physique — not your root — so it
+// is open to everyone, and the only road left to the rootless.
+export function bodyTemperingSpeed(c) {
+  const phys = D.PHYSIQUES.find(p => p[0] === c.physiqueKey);
+  const bodyMult = phys ? phys[3] : 1.0;
+  const stageDrag = Math.pow(0.93, c.bodyRealm || 0);   // each tier is a little harder
+  return bodyMult * (0.6 + c.constitution / 60) * (1 + c.comprehension / 400) * 2.4 * stageDrag;
+}
+export const bodyRealmCap = c => { const v = D.PHYSIQUE_BODY_CAP[c.physiqueKey]; return Math.min(D.BODY_REALMS.length - 1, v != null ? v : 4); };
+export const canTemperMore = c => (c.bodyRealm || 0) < bodyRealmCap(c);
+// Temper the body, advancing through body realms as the threshold is crossed.
+export function temperBody(c, rng, intensity = 1.0) {
+  const msgs = [];
+  if (!c.alive) return msgs;
+  c.temper = (c.temper || 0) + bodyTemperingSpeed(c) * intensity * rng.uniform(0.9, 1.15);
+  while (canTemperMore(c) && c.temper >= D.BODY_REALMS[(c.bodyRealm || 0) + 1][2]) {
+    c.bodyRealm = (c.bodyRealm || 0) + 1;
+    recomputeMaxHp(c); recomputeMaxAge(c); if (c.hp < c.maxHp) c.hp = c.maxHp;
+    const br = D.BODY_REALMS[c.bodyRealm];
+    note(c, `Body realm broke through to ${br[0]} (${br[1]}).`);
+    msgs.push(`⛰ Your body breaks through to the ${br[0]} (${br[1]})! Flesh and bone reforged.`);
+  }
+  if (!msgs.length) {
+    if (!canTemperMore(c)) msgs.push(`You temper your body, but it has reached the very limit your ${D.PHYSIQUES.find(p => p[0] === c.physiqueKey)[1]} can bear — the ${D.bodyRealmName(c.bodyRealm)}.`);
+    else msgs.push(`You temper your body through pain and iron. (${Math.floor(c.temper)}/${Math.floor(D.BODY_REALMS[(c.bodyRealm || 0) + 1][2])})`);
+  }
+  return msgs;
+}
 export const karmaLabelFor = c => D.karmaLabel(c.karma);
 
 export function recomputeMaxHp(c) {
   const rf = c.realm * 10 + c.stage + 1;
-  c.maxHp = 40 + c.constitution * 1.5 + rf * 12;
+  const br = D.bodyRealmAt(c.bodyRealm || 0);
+  c.maxHp = (40 + c.constitution * 1.5 + rf * 12) * (1 + br[4]) + bodyMartialBase(c) * 0.12;
   c.hp = c.hp > 0 ? Math.min(c.hp, c.maxHp) : c.maxHp;
+}
+// Lifespan = your qi realm's span, lengthened by a tempered body and longevity pills.
+export function recomputeMaxAge(c) {
+  c.maxAge = D.REALMS[c.realm][3] + D.bodyRealmAt(c.bodyRealm || 0)[5] + (c.longevityBonus || 0);
 }
 function note(c, text) { c.log.push([c.age, text]); }
 
 export function beastTier(b) {
-  if (b.power < 200) return "Rank 1";
-  if (b.power < 2000) return "Rank 2";
-  if (b.power < 20000) return "Rank 3";
-  if (b.power < 200000) return "Rank 4";
-  return "Rank 5";
+  const r = b.rank || (b.power < 200 ? 1 : b.power < 2000 ? 2 : b.power < 20000 ? 3 : b.power < 200000 ? 4 : 5);
+  return D.beastRankName(r);
+}
+// Back-fill the progression fields on a beast (older saves / freshly-tamed).
+export function normalizeBeast(b) {
+  if (!b) return b;
+  if (b.rank == null) b.rank = (b.power < 200 ? 1 : b.power < 2000 ? 2 : b.power < 20000 ? 3 : b.power < 200000 ? 4 : 5);
+  if (b.bond == null) b.bond = b.loyalty != null ? b.loyalty : 50;
+  if (b.baseSpecies == null) b.baseSpecies = b.species;
+  if (b.element === undefined) b.element = D.beastElement(b.species);
+  if (b.exp == null) b.exp = 0;
+  if (b.fedThisYear == null) b.fedThisYear = 0;
+  return b;
 }
 
 /* ------------------------- birth generation ------------------------------ */
@@ -134,7 +184,7 @@ function newCharacter() {
     backgroundKey: "peasant", backgroundName: "", backgroundBlurb: "",
     omen: "", appearanceKey: "ordinary", appearanceName: "", appearanceBlurb: "",
     comprehension: 30, constitution: 30, soul: 30, luck: 30, charm: 30,
-    realm: 0, stage: 0, qi: 0, maxAge: 80,
+    realm: 0, stage: 0, qi: 0, maxAge: 80, bodyRealm: 0, temper: 0, longevityBonus: 0,
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, titles: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0,
@@ -185,7 +235,7 @@ export function generateCharacter(rng, name, opts = {}) {
   for (const a of ["comprehension", "constitution", "soul", "luck", "charm"])
     c[a] = clamp(c[a], 1, 160);
 
-  c.maxAge = D.REALMS[0][3];
+  recomputeMaxAge(c);
   recomputeMaxHp(c);
   note(c, `Born as ${c.name}, ${c.backgroundName}.`);
   note(c, `Spiritual root: ${c.root.display}.`);
@@ -279,6 +329,7 @@ export function breakthroughChance(c) {
   // A serene dao heart (high happiness) steadies the assault; misery shakes it.
   if (typeof c.happiness === "number") chance += (c.happiness - 50) / 600.0;
   chance += D.physEffect(c).breakthrough || 0;   // Dao Embryo eases breakthroughs
+  chance += eraBreakBonus(c);                     // a Dawn of Ascension eases the heavens
   return clamp(chance, 0.02, 0.97);
 }
 
@@ -296,7 +347,7 @@ export function attemptBreakthrough(c, rng, opts = {}) {
   if (c.breakthroughPills > 0) { c.breakthroughPills -= 1; msgs.push("  You swallow a Foundation Breakthrough Pill to steady the dao."); }
   c.qi -= qiToNext(c);
   if (rng.random() <= chance) {
-    c.realm += 1; c.stage = 0; c.maxAge = next[3]; recomputeMaxHp(c); c.hp = c.maxHp;
+    c.realm += 1; c.stage = 0; recomputeMaxAge(c); recomputeMaxHp(c); c.hp = c.maxHp;
     msgs.push(`☯ BREAKTHROUGH! You have ascended to ${realmLabel(c)}!`);
     note(c, `Broke through to ${realmName(c)}.`);
     pushAll(msgs, heartDemon(c, rng));
@@ -568,17 +619,60 @@ function tameChance(c, beastPow, rng) {
 export function tryTame(c, species, beastPow, rng) {
   if (c.beast !== null) return [];
   if (rng.random() < tameChance(c, beastPow, rng)) {
-    c.beast = { name: beastName(species, rng), species, power: beastPow * rng.uniform(0.6, 0.9), loyalty: 50, alive: true };
+    c.beast = normalizeBeast({ name: beastName(species, rng), species, baseSpecies: species, element: D.beastElement(species), power: beastPow * rng.uniform(0.6, 0.9), bond: 50, rank: 1, exp: 0, fedThisYear: 0, alive: true });
+    const el = c.beast.element ? ` Its nature runs to ${c.beast.element}.` : "";
     note(c, `Tamed a ${species} as a spirit beast companion.`);
-    return [`  ✦ You subdue the ${species} and bind it as a spirit beast companion! (${c.beast.name}, ${beastTier(c.beast)})`];
+    return [`  ✦ You subdue the ${species} and bind it as a spirit beast companion! (${c.beast.name}, ${beastTier(c.beast)})${el}`];
   }
   return ["  The beast breaks free and flees before you can bind it."];
 }
-function beastGrow(c, rng) {
+export function beastGrow(c, rng) {
   const b = c.beast; if (!b || !b.alive) return;
-  b.power *= rng.uniform(1.0, 1.04);
-  const target = power(c) * 0.6;
-  if (b.power < target) b.power += (target - b.power) * 0.05;
+  normalizeBeast(b);
+  b.fedThisYear = 0;
+  b.power *= rng.uniform(1.0, 1.03);
+  // higher-ranked beasts pace closer to their master's strength.
+  const target = power(c) * (0.45 + 0.09 * (b.rank || 1));
+  if (b.power < target) b.power += (target - b.power) * 0.06;
+  // a year fighting and roaming at your side earns a little experience.
+  b.exp = (b.exp || 0) + 1 + Math.floor((b.bond || 50) / 40);
+}
+
+export const beastAdvanceReady = c => {
+  const b = c.beast; if (!b || !b.alive) return false; normalizeBeast(b);
+  return (b.rank || 1) < 5 && b.exp >= D.BEAST_EXP_REQ[b.rank || 1] && b.bond >= 55;
+};
+
+// Feed your beast (free care; capped per year). Herbs give steady growth; a pill
+// gives a richer boost. Raises power, bond and experience toward its next rank.
+export function feedBeast(c, rng, usePill = false) {
+  const b = c.beast; if (!b || !b.alive) return ["You have no spirit beast to feed."];
+  normalizeBeast(b);
+  if (b.fedThisYear >= 3) return [`${b.name} is sated for now — it will take more food next year.`];
+  if (usePill) {
+    if (c.pills <= 0) return ["You have no pills to feed it."];
+    c.pills -= 1; b.exp += 28; b.bond = clamp(b.bond + 12, 0, 100); b.power *= 1.04; b.fedThisYear += 1;
+    return [`You feed ${b.name} a spirit pill. Its eyes blaze; it grows visibly stronger and nuzzles you. (bond ${Math.round(b.bond)}/100)`];
+  }
+  if (c.herbs < 2) return ["You need at least 2 spirit herbs to feed your beast."];
+  c.herbs -= 2; b.exp += 10; b.bond = clamp(b.bond + 5, 0, 100); b.power += power(c) * 0.012; b.fedThisYear += 1;
+  return [`You feed ${b.name} a bundle of spirit herbs. It chuffs contentedly. (bond ${Math.round(b.bond)}/100, exp ${b.exp}/${D.BEAST_EXP_REQ[b.rank] || "—"})`];
+}
+
+// Evolve the beast to its next rank — a dramatic surge in power and a new form.
+export function advanceBeast(c, rng) {
+  const b = c.beast; if (!b || !b.alive) return ["You have no spirit beast."];
+  normalizeBeast(b);
+  if ((b.rank || 1) >= 5) return [`${b.name} has reached the Mythic Beast pinnacle; it can rise no further.`];
+  if (b.exp < D.BEAST_EXP_REQ[b.rank]) return [`${b.name} is not ready to evolve — keep feeding it and fighting at its side. (exp ${b.exp}/${D.BEAST_EXP_REQ[b.rank]})`];
+  if (b.bond < 55) return [`Your bond with ${b.name} is too shallow for it to entrust you with its breakthrough. (bond ${Math.round(b.bond)}/100, need 55)`];
+  b.exp -= D.BEAST_EXP_REQ[b.rank];
+  b.rank += 1;
+  b.species = D.beastEvolvedName(b.baseSpecies, b.rank);
+  b.power *= 1.3 + 0.05 * b.rank;
+  b.bond = clamp(b.bond - 10, 0, 100);
+  note(c, `${b.name} evolved into ${b.species} (${D.beastRankName(b.rank)}).`);
+  return [`✦ ${b.name} threshes in a cocoon of spirit-light and emerges transformed — now a ${b.species}, a ${D.beastRankName(b.rank)}! Its power surges.`];
 }
 
 /* ------------------------------ alchemy ---------------------------------- */
@@ -606,10 +700,65 @@ export function grantPill(c, key, rng, mult = 1) {
   if (key === "breakthrough") { const n = scale(1); c.breakthroughPills += n; return [`  You refine ${n} ${name}(s) -- save for a breakthrough.`]; }
   if (key === "body") { const g = scale(rng.randint(1, 3)); c.constitution = Math.min(160, c.constitution + g); recomputeMaxHp(c); return [`  The ${name} tempers your body. (+${g} Constitution)`]; }
   if (key === "soul") { const g = scale(rng.randint(1, 3)); c.soul = Math.min(160, c.soul + g); return [`  The ${name} refines your spirit. (+${g} Soul Sense)`]; }
-  if (key === "longevity") { const g = Math.round((Math.floor(c.maxAge * rng.uniform(0.05, 0.11)) + 20) * mult); c.maxAge += g; note(c, `Refined a ${name}, +${g} years of life.`); return [`  ✦ The ${name} adds ${g} years to your lifespan!`]; }
+  if (key === "longevity") { const g = Math.round((Math.floor(c.maxAge * rng.uniform(0.05, 0.11)) + 20) * mult); c.longevityBonus = (c.longevityBonus || 0) + g; recomputeMaxAge(c); note(c, `Refined a ${name}, +${g} years of life.`); return [`  ✦ The ${name} adds ${g} years to your lifespan!`]; }
   return ["  Success!"];
 }
 function applyPill(c, key, rng) { return grantPill(c, key, rng, 1); }
+
+/* ------------------------------ market (坊市) ---------------------------- */
+// Prices float with the world era — dear in a Drought, cheap in an Age of Abundance.
+export const eraPriceMult = c => D.eraAt(c.era)[7] || 1;
+const TREASURE_BASE = { Mortal: 25, Spirit: 130, Earth: 600, Heaven: 3000, Immortal: 16000 };
+export const priceHerbs = (c, n = 5) => Math.max(2, Math.round((c.realm + 1) * 1.6 * n * eraPriceMult(c)));
+export const pricePill = (c, key) => Math.round((D.PILL_BY_KEY[key][2] * 8 + 15) * eraPriceMult(c));
+export const priceTech = (c, tier) => Math.round([60, 130, 320, 900][tier] * eraPriceMult(c));
+export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.ARTIFACT_BY_KEY[key][2]] || 50) * eraPriceMult(c));
+// Selling fetches a fraction of the buy price.
+export const sellHerbs = (c, n = 5) => Math.max(1, Math.round(priceHerbs(c, n) * 0.45));
+export const sellTreasureValue = (c, key) => Math.max(1, Math.round(priceTreasure(c, key) * 0.4));
+
+export function buyPill(c, key, rng) {
+  const p = pricePill(c, key);
+  if (c.spiritStones < p) return [`You cannot afford the ${D.PILL_BY_KEY[key][1]} (${p} stones).`];
+  c.spiritStones -= p;
+  return [`You buy a ${D.PILL_BY_KEY[key][1]} for ${p} stones.`].concat(grantPill(c, key, rng, 1));
+}
+export function buyHerbs(c, n = 5) {
+  const p = priceHerbs(c, n);
+  if (c.spiritStones < p) return [`You cannot afford ${n} spirit herbs (${p} stones).`];
+  c.spiritStones -= p; c.herbs += n;
+  return [`You buy ${n} spirit herbs for ${p} stones.`];
+}
+export function buyTech(c, key, rng) {
+  const t = D.TECHNIQUES[key]; if (!t) return ["No such manual."];
+  const p = priceTech(c, t[1]);
+  if (c.techniques.includes(key)) return [`You already know ${t[0]}.`];
+  if (c.spiritStones < p) return [`You cannot afford the ${t[0]} manual (${p} stones).`];
+  c.spiritStones -= p; c.techniques.push(key);
+  note(c, `Bought the ${t[0]} manual.`);
+  return [`You buy and study the ${t[0]} manual for ${p} stones. (${t[4]})`];
+}
+export function buyTreasure(c, key) {
+  const a = D.ARTIFACT_BY_KEY[key]; if (!a) return ["No such treasure."];
+  const p = priceTreasure(c, key);
+  if (c.spiritStones < p) return [`You cannot afford the ${a[1]} (${p} stones).`];
+  c.spiritStones -= p;
+  return [`You buy the ${a[1]} for ${p} stones.`].concat(acquireArtifact(c, key));
+}
+export function sellTreasure(c, key) {
+  if (!c.artifacts.includes(key)) return ["You do not own that treasure."];
+  if (c.equippedArtifact === key) return ["Unbind it before selling — you won't part with your signature treasure."];
+  const v = sellTreasureValue(c, key);
+  c.artifacts.splice(c.artifacts.indexOf(key), 1);
+  c.spiritStones += v;
+  return [`You sell the ${D.ARTIFACT_BY_KEY[key][1]} for ${v} stones.`];
+}
+export function sellSpareHerbs(c, n = 5) {
+  if (c.herbs < n) return [`You don't have ${n} spare herbs.`];
+  const v = sellHerbs(c, n);
+  c.herbs -= n; c.spiritStones += v;
+  return [`You sell ${n} spirit herbs for ${v} stones.`];
+}
 
 /* -------------------------------- dao ------------------------------------ */
 export const DAO_MIN_REALM = 5;

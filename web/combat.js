@@ -21,6 +21,8 @@ export function elementMult(att, def) {
 }
 const ELEMENT_ICON = { Metal: "⚔️", Wood: "🌿", Water: "💧", Fire: "🔥", Earth: "⛰️", Ice: "❄️", Lightning: "⚡", Thunder: "⚡", Dark: "🌑", Light: "✨", Wind: "🌪️", Void: "🕳️", Chaos: "☯️" };
 export const elementIcon = e => ELEMENT_ICON[e] || "✊";
+// A high-rank beast's elemental bite: [statusType, turns, value].
+const BEAST_BITE = { Fire: ["burn", 3, 0.05], Ice: ["stun", 1, 0], Wood: ["bleed", 3, 0.05], Lightning: ["weaken", 2, 0.2], Dark: ["bleed", 3, 0.06], Metal: ["weaken", 2, 0.18], Water: ["weaken", 2, 0.18], Wind: ["weaken", 1, 0.15] };
 
 /* --------------------------- skill definitions --------------------------- */
 // dmg values are a FRACTION of the attacker's power (so they scale at any realm).
@@ -51,6 +53,18 @@ export function playerSkills(c) {
   const list = [SKILLS.strike, SKILLS.guard];
   for (const t of c.techniques) if (SKILL_BY_TECH[t]) list.push(SKILL_BY_TECH[t]);
   return list;
+}
+
+// A bonded companion or disciple who lives with you fights at your side (not in
+// a solo Heavenly Tribulation). Returns {name, affinity} or null.
+function bondedAlly(c, enemyDef) {
+  if (enemyDef && enemyDef.tribulation) return null;
+  const cand = (c.relationships || [])
+    .filter(n => n.alive && n.resides && (n.role === "companion" || n.role === "disciple") && (n.affinity || 0) >= 20)
+    .sort((a, b) => (b.affinity || 0) - (a.affinity || 0));
+  if (!cand.length) return null;
+  const a = cand[0];
+  return { name: a.name, affinity: a.affinity || 50, role: a.role };
 }
 
 /* --------------------------- enemy generation ---------------------------- */
@@ -149,12 +163,16 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),
     maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)),
     atk: P - E.beastPower(c),
-    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0), 0, 0.6),
+    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.7),
     crit: clampN(c.luck / 400 + 0.05, 0, 0.6),
     dodge: clampN(c.luck / 600 + c.soul / 900 + (c.equippedArtifact === "cloud_boots" ? 0.1 : 0) + (ph.dodge || 0), 0, 0.5),
     healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,
     element: (c.awakened && c.root.elements.length) ? c.root.elements[0] : (ph.element || null),
     shield: 0, statuses: [], beast: E.beastPower(c),
+    beastElement: (c.beast && c.beast.alive) ? (c.beast.element || null) : null,
+    beastBond: (c.beast && c.beast.alive) ? (c.beast.bond != null ? c.beast.bond : 50) : 0,
+    beastRank: (c.beast && c.beast.alive) ? (c.beast.rank || 1) : 0,
+    ally: bondedAlly(c, enemyDef),
   };
   const ep = enemyDef.power;
   const hpMult = enemyDef.hpMult || 2.3;
@@ -303,10 +321,24 @@ function takeRound(B, actionId) {
     }
   }
 
-  // Beast ally assists each round.
+  // Beast ally assists each round — harder the deeper your bond, and with the
+  // bite of its own element. A high-rank beast can inflict an elemental affliction.
   if (P.beast > 0 && En.hp > 0 && actionId !== "flee") {
-    const bd = Math.round(P.beast * 0.22 * B.rng.uniform(0.8, 1.2) * elementMult(null, En.element));
-    En.hp -= bd; lines.push(`🐾 ${c.beast.name} lunges in for ${bd} dmg.`);
+    const bondMult = 0.7 + (P.beastBond / 100) * 0.6;            // 0.7 .. 1.3
+    const em = elementMult(P.beastElement, En.element);
+    const bd = Math.round(P.beast * 0.22 * bondMult * B.rng.uniform(0.8, 1.2) * em);
+    En.hp -= bd; lines.push(`🐾 ${c.beast.name} lunges in for ${bd} dmg${em > 1.05 ? " 🔆" : ""}.`);
+    if (P.beastRank >= 3 && P.beastElement && En.hp > 0 && B.rng.random() < 0.25) {
+      const fx = BEAST_BITE[P.beastElement];
+      if (fx && !(fx[0] === "burn" && En.burnImmune)) { addStatus(En, fx[0], fx[1] + 1, fx[2]); lines.push(`   ${En.name} suffers the beast's ${fx[0]}!`); }
+    }
+  }
+
+  // A bonded companion or disciple fights at your side, the harder the closer your bond.
+  if (P.ally && En.hp > 0 && actionId !== "flee") {
+    const affMult = 0.6 + (P.ally.affinity / 100) * 0.5;          // 0.6 .. 1.1
+    const ad = Math.round(P.atk * 0.09 * affMult * B.rng.uniform(0.85, 1.15));
+    En.hp -= ad; lines.push(`⚔ ${P.ally.name} ${P.ally.role === "companion" ? "fights at your side" : "strikes for the sect"} — ${ad} dmg.`);
   }
 
   if (En.hp <= 0) { B.over = true; B.outcome = "win"; lines.push(`🏆 ${En.name} is defeated!`); B.turn++; return { lines, over: true, outcome: "win" }; }

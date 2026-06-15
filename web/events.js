@@ -12,6 +12,7 @@
  */
 
 import * as D from "./data.js";
+import * as E from "./engine.js";
 
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const cap = (c, k, v) => { c[k] = Math.min(160, c[k] + v); };
@@ -88,28 +89,56 @@ export const EVENTS = [
   },
   {
     id: "romance", weight: 5, minAge: 16, maxAge: 9000,
-    cond: c => !c.relationships.some(n => n.role === "companion" && n.alive) && c.charm > 30,
-    text: c => `Beneath the lantern-light at a gathering, ${c.sex === "female" ? "a striking young cultivator" : "a graceful young cultivator"} catches your eye — and holds it.`,
+    cond: c => c.charm > 25 && c.relationships.filter(n => n.role === "companion" && n.alive).length < D.HAREM_CAP,
+    text: c => `Beneath the lantern-light at a gathering, a graceful young cultivator catches your eye — and holds it.`,
     choices: [
-      { label: "Pursue them", result: (c, rng, A) => { if (rng.random() < 0.35 + c.charm / 200) { const n = A.meet("companion", { affinity: 30 }); A.happy(12); return `Words become walks, walks become promises. ${n.name} may yet become your dao companion.`; } A.happy(-5); return "Your heart races; their eyes slide past you to another. Rejection stings like cold rain."; } },
+      { label: "Pursue them", result: (c, rng, A) => { if (rng.random() < 0.4 + c.charm / 200) { const n = A.meet("companion", { affinity: 28 }); A.happy(12); return `Words become walks, walks become promises. ${n.name} may yet become your dao companion — court them in your Relationships.`; } A.happy(-5); return "Your heart races; their eyes slide past you to another. Rejection stings like cold rain."; } },
       { label: "Focus on the dao", result: (c, rng, A) => { A.qi(0.2); cap(c, "soul", 1); return "Love is a beautiful distraction you cannot afford. You return to your cultivation."; } },
     ],
   },
   {
-    id: "marriage", weight: 7, minAge: 16, maxAge: 9000, once: true,
-    cond: c => c.relationships.some(n => n.role === "companion" && n.alive && n.affinity >= 60),
-    text: c => { const n = c.relationships.find(x => x.role === "companion" && x.alive); return `Under a blood-red moon, ${n ? n.name : "your beloved"} takes your hands: "Walk the long road to immortality at my side — forever."`; },
+    id: "marriage", weight: 7, minAge: 16, maxAge: 9000,
+    cond: c => c.relationships.some(n => n.role === "companion" && n.alive && !n.married && n.affinity >= 55),
+    text: c => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity >= 55); return `Under a blood-red moon, ${n ? n.name : "your beloved"} takes your hands: "Walk the long road to immortality at my side — as my spouse, forever."`; },
     choices: [
-      { label: "Pledge yourselves as dao companions", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive); if (n) { n.kin = "Dao Partner"; n.affinity = Math.min(100, n.affinity + 20); } if (!c.titles.includes("Dao Companion")) c.titles.push("Dao Companion"); A.happy(20); return `You are bound, soul to soul. Two dao-hearts beating as one against the indifferent heavens.`; } },
-      { label: "You are not ready", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive); if (n) n.affinity = Math.max(-100, n.affinity - 15); A.happy(-8); return "You hesitate, and something in their eyes dims. The moment passes, perhaps forever."; } },
+      { label: "Pledge yourselves — wed", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity >= 55); return n ? A.marry(n) : "The moment slips away."; } },
+      { label: "You are not ready", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity >= 55); if (n) n.affinity = Math.max(-100, n.affinity - 12); A.happy(-8); return "You hesitate, and something in their eyes dims. Perhaps another night."; } },
     ],
   },
   {
-    id: "have_child", weight: 5, minAge: 18, maxAge: 9000, once: false,
-    cond: c => c.relationships.some(n => n.role === "companion" && n.alive && n.affinity >= 50) && c.relationships.filter(n => n.kin === "Son" || n.kin === "Daughter").length < 4,
-    text: () => "Your dao companion shares joyful news: a child is coming.",
+    id: "have_child", weight: 5, minAge: 18, maxAge: 9000,
+    cond: c => c.relationships.some(n => n.role === "companion" && n.married && n.alive) && c.relationships.filter(n => n.kin === "Son" || n.kin === "Daughter").length < 10,
+    text: c => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); return `Your ${sp ? sp.kin.toLowerCase() : "spouse"} ${sp ? sp.name : ""} shares joyful news: a child is coming.`; },
     choices: [
-      { label: "Welcome the child", result: (c, rng, A) => { const child = A.meet("family", { kin: rng.random() < 0.5 ? "Son" : "Daughter", affinity: 70, born: c.age }); A.happy(15); return `A child is born to your line — ${child.name}. A spark of your blood to carry the dao onward.`; } },
+      { label: "Welcome the child", result: (c, rng, A) => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); const child = A.meet("family", { kin: rng.random() < 0.5 ? "Son" : "Daughter", affinity: 70, born: c.age, parent: sp ? sp.name : null }); A.happy(15); return `A child is born to your line — ${child.name}${sp ? `, ${sp.name}'s ${child.kin.toLowerCase()}` : ""}. A spark of your blood to carry the dao onward.`; } },
+    ],
+  },
+  {
+    id: "grandchild", weight: 4, minAge: 36, maxAge: 9000, cooldown: 10,
+    cond: c => c.relationships.some(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 18),
+    auto: (c, rng, A) => { const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 18); A.happy(10); c.reputation += 2; return `Joyful news from your ${k ? k.kin.toLowerCase() : "child"} ${k ? k.name : ""}: a grandchild is born, and the ${c.name.split(" ")[0]} bloodline flows on into a new generation. (+Happiness)`; },
+  },
+  {
+    id: "harem_jealousy", weight: 4, minAge: 16, maxAge: 9000,
+    cond: c => c.relationships.filter(n => n.role === "companion" && n.alive).length >= 2,
+    text: c => { const ls = c.relationships.filter(n => n.role === "companion" && n.alive); return `Two of your dao companions, ${ls[0].name} and ${ls[1].name}, fall to bitter quarrelling over your divided attentions.`; },
+    choices: [
+      { label: "Soothe them with wisdom and grace", result: (c, rng, A) => { if (rng.random() < 0.4 + (c.charm + c.soul) / 400) { A.happy(8); for (const n of c.relationships) if (n.role === "companion" && n.alive) n.affinity = Math.min(100, n.affinity + 4); return "You speak to each heart in turn, and turn rivalry into sisterly accord. Your household finds harmony — for now."; } A.happy(-6); const ls = c.relationships.filter(n => n.role === "companion" && n.alive); ls.forEach(n => n.affinity = Math.max(-100, n.affinity - 6)); return "Your clumsy words please no one; both feel slighted, and the chill in your home deepens."; } },
+      { label: "Let them sort it out themselves", result: (c, rng, A) => { A.happy(-4); const ls = c.relationships.filter(n => n.role === "companion" && n.alive); ls.forEach(n => n.affinity = Math.max(-100, n.affinity - 4)); return "You stay out of it. The feud simmers; both grow a little cooler toward you."; } },
+    ],
+  },
+  {
+    id: "harem_harmony", weight: 3, minAge: 16, maxAge: 9000,
+    cond: c => c.relationships.filter(n => n.role === "companion" && n.married && n.alive).length >= 2 && (c.charm + c.soul) >= 120,
+    auto: (c, rng, A) => { A.happy(7); for (const n of c.relationships) if (n.role === "companion" && n.married && n.alive) n.affinity = Math.min(100, n.affinity + 3); return "Your dao companions move through your household like one mind in many bodies — a rare and harmonious union that is the envy of the cultivation world. (+Happiness)"; },
+  },
+  {
+    id: "lover_neglected", weight: 3, minAge: 16, maxAge: 9000,
+    cond: c => c.relationships.some(n => n.role === "companion" && n.alive && !n.married && n.affinity < 30),
+    text: c => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity < 30); return `${n ? n.name : "A companion"}, long left wanting for your attention, asks quietly whether your heart is truly in this.`; },
+    choices: [
+      { label: "Rekindle the romance", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity < 30); if (n) n.affinity = Math.min(100, n.affinity + 18); A.happy(4); return `You set everything aside for them, and the warmth returns to ${n ? n.name : "their"} eyes.`; } },
+      { label: "Let them go", result: (c, rng, A) => { const n = c.relationships.find(x => x.role === "companion" && x.alive && !x.married && x.affinity < 30); if (n) { n.role = "friend"; n.kin = null; } A.happy(-4); return `You part ways gently. ${n ? n.name : "They"} remains a friend, but the romance fades to memory.`; } },
     ],
   },
 
@@ -760,6 +789,39 @@ export const EVENTS = [
       { label: "Send them on their way", result: (c, rng, A) => { A.happy(-1); return "You can barely feed yourself. The runaway shrugs, unsurprised, and vanishes into the dark."; } },
     ],
   },
+  /* ----------------------- the turning world (eras) ------------------- */
+  {
+    id: "era_abundance_tide", weight: 6, awakened: true, cond: c => c.era === "abundance" && c.root.key !== "none",
+    auto: (c, rng, A) => { A.qi(rng.uniform(0.3, 0.7)); A.happy(4); return "In this Age of Abundance the very air is sweet with spirit qi; you breathe deep and your cultivation surges with the prosperous tide."; },
+  },
+  {
+    id: "era_warring_band", weight: 6, minAge: 12, maxAge: 9000, awakened: true, cond: c => c.era === "warring" && c.root.key !== "none",
+    text: () => "These are warring years — a roving war-band of sect deserters falls upon the road you travel, blades already wet.",
+    choices: [
+      { label: "Cut your way through", result: (c, rng, A) => { const res = A.fight(["War-Band Marauders", A.power() * rng.uniform(0.95, 1.3), (c.realm + 1) * 7, "rogue"]); if (c.alive) { A.stones(rng.randint(8, 24)); c.reputation += 2; res.push("You leave the road littered and ride on the richer for it."); } return ["Steel rings on steel."].concat(res); } },
+      { label: "Pay them off and pass", result: (c, rng, A) => { const cost = Math.min(c.spiritStones, 10 + c.realm * 4); A.stones(-cost); A.happy(-2); return `You buy passage with ${cost} stones. In a warring era, coin spent is blood saved.`; } },
+    ],
+  },
+  {
+    id: "era_demontide_surge", weight: 7, minAge: 12, maxAge: 9000, awakened: true, cond: c => c.era === "demontide" && c.root.key !== "none",
+    text: () => "The Demon Tide runs high: a corpse-fiend war-party boils out of a blood-fog, hungering for the living.",
+    choices: [
+      { label: "Purge them with righteous force", result: (c, rng, A) => { const res = A.fight(["Corpse-Fiend Horde", A.power() * rng.uniform(1.0, 1.35), (c.realm + 1) * 8, "rogue"]); if (c.alive) { A.karma(8); c.reputation += 4; res.push("You burn the fiends to ash. In these dark years, such deeds are not forgotten. (+Karma, +Reputation)"); } return ["You stand against the tide of the dead."].concat(res); } },
+      { label: "Embrace the tide — take a blood-art", result: (c, rng, A) => { A.karma(-18); A.qi(0.9); if (!c.techniques.includes("blood_refine")) c.techniques.push("blood_refine"); return "You drink deep of the era's red power, carving a forbidden blood-art into your soul. Fast strength, and a long reckoning."; } },
+    ],
+  },
+  {
+    id: "era_drought_spring", weight: 6, awakened: true, cond: c => c.era === "drought" && c.root.key !== "none",
+    text: () => "In this Spiritual Drought, qi is precious as water in a desert. You catch the faint trace of a hidden, half-dry spirit spring.",
+    choices: [
+      { label: "Seek it out and guard it", result: (c, rng, A) => { if (rng.random() < 0.5 + c.comprehension / 300) { A.qi(rng.uniform(0.4, 0.9)); A.herbs(rng.randint(2, 6)); return "You find the spring and drink its thinning qi in secret for a season — a rare gift in a starving age."; } A.happy(-3); return "The trail goes cold; the spring has already run dry. Such is the drought."; } },
+      { label: "Hoard your reserves instead", result: (c, rng, A) => { cap(c, "soul", 1); return "You conserve what qi you have and wait the lean years out. Patience is its own cultivation."; } },
+    ],
+  },
+  {
+    id: "era_dawn_sign", weight: 6, minRealm: 3, awakened: true, cond: c => c.era === "dawn",
+    auto: (c, rng, A) => { A.qi(rng.uniform(0.4, 1.0)); cap(c, "comprehension", 2); A.happy(5); return "Auspicious light wreathes the heavens in this Dawn of Ascension. The dao feels close enough to touch; your understanding deepens and a breakthrough seems near. (+Comprehension)"; },
+  },
   {
     id: "drought_blessing", weight: 4, minAge: 10, maxAge: 9000, awakened: true,
     cond: c => c.realm >= 1,
@@ -803,6 +865,27 @@ export const EVENTS = [
   {
     id: "abode_bloom", weight: 4, awakened: true, cond: c => (c.abode || 0) >= 3,
     auto: (c, rng, A) => { const h = rng.randint(3, 8) + (c.abode || 0); A.herbs(h); if (rng.random() < 0.3) { c.pills += 1; return `A rare spirit herb blooms in your abode's fields, potent enough to refine on the spot. (+${h} herbs, +1 pill)`; } return `The spirit vein beneath your abode surges; your herb fields run riot with growth. (+${h} herbs)`; },
+  },
+  /* ----------------------- spirit beast companion --------------------- */
+  {
+    id: "beast_forage_find", weight: 4, awakened: true, cond: c => c.beast && c.beast.alive,
+    auto: (c, rng, A) => { const b = c.beast; const r = b.rank || 1; if (rng.random() < 0.3) { A.herbs(rng.randint(2, 6) * r); return `${b.name} returns from the wilds dragging a mouthful of rare spirit herbs, tail wagging.`; } if (rng.random() < 0.4 && b.exp != null) { b.exp += 4; b.bond = Math.min(100, (b.bond || 50) + 2); return `${b.name} hunts a fierce wild beast all on its own and returns bloodied but proud. (bond & exp grow)`; } A.stones(rng.randint(2, 8) * r); return `${b.name} unearths a glittering cache of spirit stones buried near your path.`; },
+  },
+  {
+    id: "beast_peril", weight: 3, awakened: true, cond: c => c.beast && c.beast.alive,
+    text: c => `A larger, savage beast corners your ${c.beast.name} in the wild, fangs bared to kill.`,
+    choices: [
+      { label: "Rush to your beast's defense", result: (c, rng, A) => { const res = A.fight(["a Savage Alpha-Beast", A.power() * rng.uniform(0.9, 1.25), (c.realm + 1) * 6, "beast"]); if (c.alive && c.beast) { c.beast.bond = Math.min(100, (c.beast.bond || 50) + 12); if (c.beast.exp != null) c.beast.exp += 8; res.push(`${c.beast.name} presses to your side, fierce gratitude in its eyes. Your bond deepens.`); } return [`You will not lose ${c.beast.name}. You charge in.`].concat(res); } },
+      { label: "Let it prove itself alone", result: (c, rng, A) => { const b = c.beast; const win = rng.random() < 0.4 + (b.bond || 50) / 250 + (b.rank || 1) * 0.08; if (win) { b.bond = Math.min(100, (b.bond || 50) + 4); if (b.exp != null) b.exp += 10; return `${b.name} fights with savage cunning and tears its way free. It returns stronger for the trial.`; } b.power *= 0.85; b.bond = Math.max(0, (b.bond || 50) - 8); A.happy(-5); return `${b.name} barely survives, limping home wounded. It will need time — and feeding — to recover.`; } },
+    ],
+  },
+  {
+    id: "wild_beast_call", weight: 4, awakened: true, cond: c => !c.beast && c.root.key !== "none" && c.realm >= 1,
+    text: () => "A wounded spirit-beast cub, abandoned by its pack, creeps to the edge of your camp and watches you with wary, hungry eyes.",
+    choices: [
+      { label: "Earn its trust with food and patience", result: (c, rng, A) => { if (rng.random() < 0.45 + c.charm / 250 + c.soul / 400) { const sp = rng.choice(D.SPIRIT_BEASTS); c.beast = E.normalizeBeast({ name: sp.split(" ").slice(-1)[0], species: sp, baseSpecies: sp, element: D.beastElement(sp), power: E.power(c) * rng.uniform(0.25, 0.4), bond: 60, rank: 1, exp: 0, fedThisYear: 0, alive: true }); A.happy(8); A.note(`Befriended a wild ${sp} cub.`); return `Day by day it draws closer, until one dawn it simply will not leave your side. You have a new companion: a ${sp}! (See Treasures & Beast.)`; } A.happy(-2); return "The cub is too skittish; one wrong move and it bolts into the trees, gone for good."; } },
+      { label: "Leave it to the wild", result: () => "You let nature take its course. The cub watches you go, then turns back to the forest." },
+    ],
   },
   {
     id: "sect_glory", weight: 4, awakened: true, cond: c => !!c.ownSect,

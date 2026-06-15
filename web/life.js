@@ -23,6 +23,11 @@ function augment(c, rng, sex) {
   if (c.abodeRegion == null) c.abodeRegion = null;
   if (c.ownSect === undefined) c.ownSect = null;
   if (c.legacySect === undefined) c.legacySect = null;
+  if (c.generation == null) c.generation = 1;
+  if (c.era == null) { c.era = D.ERAS[Math.floor(rng.random() * D.ERAS.length)][0]; c.eraYears = 20 + Math.floor(rng.random() * 35); }
+  if (c.bodyRealm == null) c.bodyRealm = 0;
+  if (c.temper == null) c.temper = 0;
+  if (c.longevityBonus == null) c.longevityBonus = 0;
   generateFamily(c, rng);
   return c;
 }
@@ -54,6 +59,7 @@ export function reincarnateLife(old, rng, name) {
     note(c, `The arts you passed to ${inherited} student(s) in a former life sharpen your innate insight. (+Comprehension)`);
   }
   carryLegacySect(c, old, rng);
+  c.era = old.era; c.eraYears = old.eraYears;   // the world keeps turning across rebirth
   return c;
 }
 
@@ -102,11 +108,11 @@ function carryLegacySect(c, old, rng) {
 export function mingle(c, rng) {
   const pull = c.charm + (["striking", "peerless", "immortal"].includes(c.appearanceKey) ? 20 : 0);
   const roll = rng.random();
-  // Romance only blooms once you've come of age.
-  if (c.age >= 16 && roll < 0.22 + pull / 500 && !c.relationships.some(n => n.role === "companion" && n.alive)) {
+  // Romance blooms once you've come of age; you may gather more than one love.
+  if (c.age >= 16 && roll < 0.22 + pull / 500 && c.relationships.filter(n => n.role === "companion" && n.alive).length < D.HAREM_CAP) {
     const n = meetPerson(c, rng, "companion", { affinity: 18 + Math.floor(pull / 7) });
     c.happiness = clampN(c.happiness + 6, 0, 100);
-    return [`✦ You cross paths with ${n.name}, and a spark kindles. A potential dao companion.`];
+    return [`✦ You cross paths with ${n.name}, and a spark kindles. A new romance — court them, and a dao companion they may become.`];
   }
   if (roll < 0.65) {
     const n = meetPerson(c, rng, "friend", { affinity: 14 + Math.floor(c.charm / 9) });
@@ -160,14 +166,112 @@ function learnRandomTech(c, rng) {
 }
 function meetPerson(c, rng, role, opts = {}) {
   const surname = c.name.split(" ")[0];
-  const name = (opts.kin && ["Son", "Daughter"].includes(opts.kin))
-    ? `${surname} ${E.givenName(rng)}` : E.npcName(rng);
+  const child = opts.kin && ["Son", "Daughter"].includes(opts.kin);
+  const name = child ? `${surname} ${E.givenName(rng)}` : E.npcName(rng);
   const n = mkNpc(role, name, opts.affinity != null ? opts.affinity : 20);
-  n.power = E.power(c) * rng.uniform(0.5, 1.4);
+  n.power = child ? 1 : E.power(c) * rng.uniform(0.5, 1.4);
   if (opts.kin) n.kin = opts.kin;
   if (opts.born != null) n.born = opts.born;
+  if (opts.parent) n.parent = opts.parent;
+  // Romantic partners have a sex (mostly the opposite of yours; love is love).
+  if (role === "companion") n.sex = opts.sex || (rng.random() < 0.82 ? (c.sex === "female" ? "male" : "female") : c.sex);
+  if (child) n.sex = opts.kin === "Son" ? "male" : "female";
   c.relationships.push(n);
   return n;
+}
+
+/* ----------------------------- romance & kin ----------------------------- */
+export const livingLovers = c => c.relationships.filter(n => n.role === "companion" && n.alive);
+export const livingSpouses = c => c.relationships.filter(n => n.role === "companion" && n.married && n.alive);
+export const childrenOf = c => c.relationships.filter(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive);
+
+// Take a courted companion as your wedded dao companion. Harems welcome.
+export function marry(c, npc, rng) {
+  if (npc.married) return [`You and ${npc.name} are already wed.`];
+  npc.married = true;
+  npc.kin = D.spouseLabel(npc);
+  npc.affinity = clampN(npc.affinity + 15, -100, 100);
+  c.happiness = clampN(c.happiness + 18, 0, 100);
+  c.karma += 1; c.reputation += 3;
+  if (!c.titles.includes("Wed")) c.titles.push("Wed");
+  const n = livingSpouses(c).length;
+  if (n >= 3) { c.titles = c.titles.filter(t => !/^Harem of/.test(t)); c.titles.push(`Harem of ${n}`); }
+  note(c, `Wed ${npc.name}${n > 1 ? ` (now ${n} dao companions)` : ""}.`);
+  const others = n > 1 ? ` Your other ${n - 1} dao companion${n - 1 > 1 ? "s" : ""} look on — some glowing with joy, some with a flicker of jealousy.` : "";
+  return [`✦ Beneath a blood-red moon, you and ${npc.name} pledge to walk the long road to immortality together — wed at last, ${npc.kin.toLowerCase()} and spouse.${others}`];
+}
+
+// Grown children who could carry on the bloodline if you die.
+export const childAge = (c, k) => c.age - (k.born != null ? k.born : c.age);
+export const eligibleHeirs = c => c.relationships.filter(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && childAge(c, n) >= 16);
+
+// Continue your bloodline: play on as a grown child, inheriting the family's
+// estate, fortune and the sect your forebear founded. Distinct from rebirth —
+// this is the next generation, not the same soul reborn.
+export function succeedAsHeir(old, child, rng) {
+  const surname = old.name.split(" ")[0];
+  // Bloodline talent: a mighty parent tends to beget a gifted child.
+  const tierBonus = Math.min(4, Math.floor((old.realm + (old.bodyRealm || 0)) / 3));
+  const opts = {};
+  const fineRoots = ["quad", "triple", "dual", "heavenly", "variant"];
+  if (rng.random() < 0.25 + tierBonus * 0.09) opts.rootKey = fineRoots[Math.min(fineRoots.length - 1, 1 + Math.floor(rng.random() * (tierBonus + 1)))];
+  const c = E.generateCharacter(rng, child.name, opts);
+  augment(c, rng, child.sex);
+  c.awakened = true;                                   // a grown heir is long past the Awakening
+  c.age = Math.max(16, childAge(old, child));
+  c.generation = (old.generation || 1) + 1;
+  c.era = old.era; c.eraYears = old.eraYears;          // the same world the forebear knew
+  // inherit the family estate and a share of the fortune
+  c.abode = old.abode || 0; c.abodeRegion = old.abodeRegion || null;
+  if (old.ownSect) c.ownSect = Object.assign({}, old.ownSect, { founded: c.age, _tier: null });
+  c.spiritStones += Math.floor((old.spiritStones || 0) * 0.6);
+  c.herbs += Math.floor((old.herbs || 0) * 0.5);
+  c.pills += old.pills || 0;
+  if (old.equippedArtifact) { c.artifacts.push(old.equippedArtifact); c.equippedArtifact = old.equippedArtifact; }
+  c.reputation += Math.floor((old.reputation || 0) * 0.3) + 5;
+  c.comprehension = Math.min(160, c.comprehension + Math.min(20, old.realm * 2));   // inherited insight
+  // The heir has cultivated since their own childhood — simulate that youth so
+  // they begin at a realm befitting their age and talent (no tribulation risk).
+  const years = Math.min(Math.max(0, c.age - 6), 200);
+  for (let y = 0; y < years; y++) {
+    c.qi += E.cultivationSpeed(c) * rng.uniform(0.85, 1.15);
+    while (c.qi >= E.qiToNext(c)) {
+      if (c.stage < E.realmStages(c) - 1) { c.qi -= E.qiToNext(c); c.stage += 1; }
+      else if (c.realm < D.REALMS.length - 1) { c.qi -= E.qiToNext(c); c.realm += 1; c.stage = 0; }
+      else { c.qi = E.qiToNext(c) * 0.5; break; }
+    }
+    E.temperBody(c, rng, 0.5);
+  }
+  // the heir's family: a revered ancestor, the surviving co-parent, and siblings
+  c.relationships = [];
+  c.relationships.push({ name: old.name, role: "family", kin: "Honoured Ancestor", affinity: 85, alive: false, power: 0, realm: old.realm });
+  const co = old.relationships.find(n => n.role === "companion" && n.alive && n.name === child.parent)
+    || old.relationships.find(n => n.role === "companion" && n.married && n.alive);
+  if (co) c.relationships.push({ name: co.name, role: "family", kin: co.sex === "female" ? "Mother" : "Father", affinity: 78, alive: true, power: co.power || 0, realm: 1 });
+  for (const sib of old.relationships)
+    if ((sib.kin === "Son" || sib.kin === "Daughter") && sib.alive && sib !== child)
+      c.relationships.push({ name: sib.name, role: "family", kin: sib.sex === "female" ? "Sister" : "Brother", affinity: rng.randint(45, 70), alive: true, power: sib.power || 1 });
+  E.recomputeMaxAge(c); E.recomputeMaxHp(c);
+  note(c, `Took up the legacy of ${old.name} as the ${ordinal(c.generation)} generation of the ${surname} line.`);
+  if (c.ownSect) note(c, `Inherited leadership of the ${c.ownSect.name}.`);
+  return c;
+}
+const ordinal = n => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+
+// Try for a child with a wedded spouse; bears them into your line.
+export function tryForChild(c, npc, rng) {
+  if (childrenOf(c).length >= 10) return ["Your line is already vast — ten children is legacy enough for any cultivator."];
+  if (c.age < 18) return ["You are not yet of an age to raise children."];
+  if (rng.random() < 0.55 + c.luck / 400) {
+    const son = rng.random() < 0.5;
+    const child = meetPerson(c, rng, "family", { kin: son ? "Son" : "Daughter", affinity: 70, born: c.age, parent: npc.name });
+    npc.affinity = clampN(npc.affinity + 6, -100, 100);
+    c.happiness = clampN(c.happiness + 12, 0, 100);
+    note(c, `${npc.name} bore you a ${son ? "son" : "daughter"}, ${child.name}.`);
+    return [`✦ Joy fills your household: ${npc.name} gives you a ${son ? "son" : "daughter"} — ${child.name}. A new spark of your bloodline enters the world.`];
+  }
+  c.happiness = clampN(c.happiness + 3, 0, 100);
+  return [`A tender season with ${npc.name}, though no child comes of it just yet.`];
 }
 
 function makeApi(c, rng) {
@@ -188,6 +292,9 @@ function makeApi(c, rng) {
     kinAdjust: (label, d) => { const n = c.relationships.find(x => x.kin === label && x.alive); if (n) n.affinity = clampN(n.affinity + d, -100, 100); },
     makeNemesis: grudge => makeNemesis(c, rng, grudge),
     nemesis: () => getNemesis(c),
+    marry: npc => marry(c, npc, rng),
+    spouses: () => livingSpouses(c),
+    lovers: () => livingLovers(c),
   };
 }
 
@@ -200,9 +307,9 @@ function awakeningInstance(c, rng, A) {
     `The Spiritual Root Awakening (测灵根). At age ${c.age}, the village elder presses a cold jade testing-stone to your palm before the whole gathered clan.`,
   ];
   if (c.root.key === "none") {
-    lines.push(`The stone stays dull and grey. You have no spiritual root. The road to immortality is sealed to you — you will live and die a mortal.`);
+    lines.push(`The stone stays dull and grey. You have no spiritual root — the gate of qi is shut to you.`);
     A.happy(-20); A.kinAdjust("father", -6); A.kinAdjust("mother", -4);
-    lines.push("Your parents' faces fall. Whispers of pity follow you home.");
+    lines.push("Your parents' faces fall; whispers of pity follow you home. But the road of qi is not the only road — there is yet the path of the body. Temper your flesh, and defy the heavens that spurned you. (See Cultivation.)");
   } else if (tier <= 1) {
     lines.push(`A faint, muddy glow: ${c.root.display}. A poor foundation. No recruiter will come for this — but the door, at least, is not shut.`);
     A.happy(-4);
@@ -224,6 +331,15 @@ export function ageUp(c, rng) {
   c.age += 1;
   const events = [];
 
+  // The world turns: an era runs its course and gives way to the next.
+  c.eraYears = (c.eraYears == null ? 30 : c.eraYears) - 1;
+  if (c.eraYears <= 0) {
+    const opts = D.ERAS.filter(e => e[0] !== c.era);
+    const next = opts[Math.floor(rng.random() * opts.length)];
+    c.era = next[0]; c.eraYears = 25 + Math.floor(rng.random() * 30);
+    events.push({ id: "era_" + c.era, auto: true, milestone: true, text: [`☷ The age turns: the realm enters the ${next[1]} (${next[2]}). ${next[3]}`] });
+  }
+
   // A full natural year of background cultivation, once your root has awakened.
   // This (scaled by your spiritual root) is the main driver of progress, so
   // lifespan stays the binding constraint and talent decides how far you climb.
@@ -242,6 +358,18 @@ export function ageUp(c, rng) {
   // A sect you founded gathers members and prestige, spreads your name, and pays
   // you a stipend from its treasury (its seat is your abode).
   sectYearly(c, rng, events);
+
+  // A body tempers slowly just by living a hard cultivator's life — and for the
+  // rootless, this quiet hardening is the whole of their climb.
+  if (c.alive) for (const m of E.temperBody(c, rng, 0.5)) if (m[0] === "⛰") events.push({ id: "bodyup", auto: true, milestone: true, text: [m] });
+
+  // Your awakened children grow into power of their own over the years.
+  for (const k of c.relationships)
+    if ((k.kin === "Son" || k.kin === "Daughter") && k.alive && k._awakened)
+      k.power = Math.max(k.power || 1, E.basePower(c) * 0.18) * rng.uniform(1.0, 1.04);
+
+  // Your spirit beast grows over the year (and its yearly feeding refreshes).
+  if (c.beast && c.beast.alive) E.beastGrow(c, rng);
 
   // Your nemesis cultivates too, always shadowing your strength.
   const nem = getNemesis(c);
@@ -297,6 +425,8 @@ export function trainBody(c, rng) {
   c.age += 1;
   const msgs = ["You spend the year drilling your body to exhaustion — forms, stances, iron-shirt conditioning."];
   if (rng.random() < 0.6) { cap(c, "constitution", rng.randint(1, 3)); E.recomputeMaxHp(c); msgs.push("Your physique hardens. (+Constitution)"); }
+  // A full year of hard conditioning meaningfully tempers the body.
+  for (const m of E.temperBody(c, rng, 3.0)) if (m[0] === "⛰") msgs.push(m);
   c.health = clampN(c.health + 4, 0, 100); c.happiness = clampN(c.happiness - 2, 0, 100);
   finishYear(c, rng, msgs);
   return msgs;
@@ -377,7 +507,15 @@ export function relationActions(c, npc) {
   if (npc.role === "family" && (npc.realm || 0) >= 2) acts.push({ id: "guidance", label: "Seek their guidance" });
   if (npc.role === "family" && (c.backgroundKey === "noble" || c.backgroundKey === "royal")) acts.push({ id: "askhelp", label: "Ask for resources" });
   if (npc.role === "rival" || npc.role === "friend") acts.push({ id: "spar", label: "Spar" });
-  if (npc.role === "companion") acts.push({ id: "dual", label: "Dual cultivate" });
+  if (npc.role === "companion") {
+    if (!npc.married) {
+      acts.push({ id: "court", label: "Woo them with sweet words" });
+      if (npc.affinity >= 55) acts.push({ id: "propose", label: "Propose marriage 💍" });
+    } else {
+      acts.push({ id: "dual", label: "Dual cultivate" });
+      if (c.age >= 18 && childrenOf(c).length < 10) acts.push({ id: "trychild", label: "Try for a child" });
+    }
+  }
   if ((npc.role === "companion" || npc.role === "disciple") && (c.abode || 0) > 0)
     acts.push(npc.resides ? { id: "sendaway", label: "Have them leave your abode" } : { id: "invite", label: "Invite to live at your abode" });
   if (npc.role === "enemy") { acts.push({ id: "insult", label: "Threaten them" }); acts.push({ id: "reconcile", label: "Make peace" }); acts.push({ id: "duel", label: "Challenge to a duel" }); }
@@ -407,7 +545,18 @@ export function doRelationAction(c, npc, action, rng) {
       adj(win ? rng.randint(2, 6) : rng.randint(-3, 2)); happy(1);
       return [win ? `You best ${npc.name} in a friendly bout; they respect you for it.` : `${npc.name} gets the better of you. Humbling, but instructive.`];
     }
-    case "dual": adj(rng.randint(3, 7)); happy(4); return [`You and ${npc.name} share a tender, quiet hour. Your bond deepens. (${E.npcStatus(npc)})`];
+    case "dual": adj(rng.randint(3, 7)); happy(4); return [`You and ${npc.name} share a tender, quiet hour of dual cultivation. Your bond deepens. (${E.npcStatus(npc)})`];
+    case "court": {
+      const g = rng.randint(4, 9) + Math.floor(c.charm / 25); adj(g); happy(3);
+      const lines = [`You court ${npc.name} with sweet words, moonlit walks and small gifts of the heart. (${E.npcStatus(npc)})`];
+      if (npc.affinity >= 55 && !npc.married) lines.push(`${npc.name}'s eyes shine when they meet yours — they would say yes, were you to ask.`);
+      return lines;
+    }
+    case "propose":
+      if (npc.married) return [`You and ${npc.name} are already wed.`];
+      if (npc.affinity < 55) { adj(-4); happy(-4); return [`You drop to one knee too soon — ${npc.name} falters, then gently declines. You court them a while longer.`]; }
+      return marry(c, npc, rng);
+    case "trychild": return tryForChild(c, npc, rng);
     case "invite": npc.resides = true; adj(rng.randint(4, 8)); happy(3); return [`${npc.name} moves into your cave abode. ${npc.role === "disciple" ? "They will tend its spirit fields and grow in its dense qi." : "It feels far more like a home now."}`];
     case "sendaway": npc.resides = false; adj(-rng.randint(1, 3)); return [`${npc.name} packs their things and leaves your abode.`];
     case "insult": adj(-rng.randint(4, 10)); happy(1); return [`You hurl threats at ${npc.name}. The feud festers.`];
@@ -466,7 +615,7 @@ function abodeYearly(c, rng, events) {
   const residents = abodeResidents(c);
   const tenders = residents.filter(n => n.role === "disciple").length;
   if (tenders) herbs += tenders * Math.max(1, Math.round(abode[5] * 0.3));   // disciples tend the herb fields
-  if (c.beast && c.beast.alive) { herbs += 1 + Math.floor((c.abode || 0) / 2); stones += Math.floor(c.abode || 0); }  // beast forages
+  if (c.beast && c.beast.alive) { herbs += (c.beast.rank || 1) + Math.floor((c.abode || 0) / 2); stones += Math.floor(c.abode || 0); }  // beast forages (better the higher its rank)
   c.herbs += Math.round(herbs * danger);
   c.spiritStones += Math.round(stones * danger);
   // Living among your own spirit vein steadies the heart; resident disciples

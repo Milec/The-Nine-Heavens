@@ -8,7 +8,7 @@ import * as meta from "./meta.js";
 /* Plain-language explanations for every stat, shown as tap hints + a glossary. */
 const GLOSSARY = {
   age: ["Age", "Your years lived, and your lifespan ceiling. Reaching a new realm extends how long you can live."],
-  deeds: ["Deeds", "Actions you can take this year. Only the ⊕ Age Up button passes a year and fires life events — and refreshes your deeds."],
+  deeds: ["Deeds", "Each year you have three separate budgets of deeds — ☯ Cultivation, ⚔ Activities and ❤ Social — three of each. They never pass time; only the ⊕ Age Up button passes a year, fires life events, and refreshes all your deeds."],
   cultivation: ["Cultivation (Qi)", "Progress toward your next stage. Fills as you cultivate; at a realm's peak you attempt a breakthrough to the next realm."],
   power: ["Power ✦", "Your overall combat strength, drawn from your realm, body, soul, techniques, bound treasure, beast and Daos."],
   health: ["Health", "Your physical condition (0–100). Wounds and illness lower it; rest, pills and spirit springs restore it. Hit zero and you die."],
@@ -20,15 +20,17 @@ const GLOSSARY = {
   charm: ["Charm 魅力", "Social grace. Helps you make friends, draw a dao companion, and sway elders and foes alike."],
   karma: ["Karma 业力", "Merit versus sin. Merit softens the Heavenly Tribulation; deep sin summons a heart-demon and bounty hunters."],
   fame: ["Fame 声望", "How the cultivation world regards your name — Unknown up to Legendary. Fame draws invitations and gifts; infamy brings hunters."],
-  stones: ["Spirit Stones 💎", "The currency of cultivators. Spend them on pills, treasures, auctions and the sect store."],
+  stones: ["Spirit Stones 💎", "The currency of cultivators. Spend them at the Market on herbs, pills, technique manuals and treasures, on your cave abode and sect, or at auctions. Market prices float with the world era."],
   herbs: ["Spirit Herbs 🌿", "Raw materials gathered in the wild and refined into pills at the alchemy furnace."],
   region: ["Region 📍", "Where you roam. Distant regions hold deadlier foes — and far richer spoils."],
+  era: ["World Era 天时", "The age the realm is passing through. An Age of Abundance quickens cultivation and calms the roads; a Warring Era or Demon Tide makes the world far deadlier; a Spiritual Drought stifles all qi; a Dawn of Ascension eases breakthroughs. The world turns on across your reincarnations."],
   wanted: ["Wanted", "Low standing or heavy sin puts a price on your head; bounty hunters will hunt you down."],
   breakthrough: ["Breakthrough", "You stand at a realm wall. Attempt it from the Cultivate tab to ascend — risky, and from Golden Core up it summons a Heavenly Tribulation."],
   root: ["Spiritual Root 灵根", "Your innate talent for cultivation — the single biggest factor in how far you can ever climb. Revealed at the age-6 Awakening."],
   physique: ["Physique 体质", "Your body's nature. Special physiques grant lasting boons to cultivation, combat, healing or survival (see your sheet)."],
   realm: ["Realm 境界", "Your cultivation stage — from Mortal up the eleven realms to Immortal Ascension. Each realm lengthens your lifespan."],
   abode: ["Cave Abode 洞府", "A home base staked on a spirit vein. Each year it yields spirit herbs and stones and quickens your cultivation; you can also seal yourself inside for a deep seclusion. Build and upgrade it from Activities."],
+  body: ["Body Cultivation 炼体", "A path parallel to qi: temper your flesh into something monstrous. It needs no spiritual root — the salvation of the rootless — and stacks atop qi cultivation. Driven by Constitution and physique, it grants raw power, stamina, damage-reduction and long life. Temper it from the Cultivate tab."],
 };
 function showTip(key) {
   const g = GLOSSARY[key]; if (!g) return;
@@ -40,11 +42,25 @@ function showTip(key) {
 }
 
 const regionMult = c => (D.REGION_BY_KEY[c.region || "azuredomain"] || [, , , 1])[3] || 1;
+// Combat danger combines where you are (region) with when you live (world era).
+const eraDanger = c => D.eraAt(c.era)[5];
+const worldDanger = c => regionMult(c) * eraDanger(c);
+// A combatant: a qi cultivator, or a body cultivator who has tempered past mortal.
+const isCultivator = c => c.awakened && (c.root.key !== "none" || (c.bodyRealm || 0) >= 1);
+// Strong enough for bosses / secret realms: Foundation+ in qi, or Steel Bone+ in body.
+const isStrong = c => c.realm >= 2 || (c.bodyRealm || 0) >= 3;
 function applyFavor(c) {
   const f = meta.favor();
   if (f > 0) {
     c.comprehension = Math.min(160, c.comprehension + Math.min(15, f));
     c.luck = Math.min(160, c.luck + Math.min(10, Math.floor(f / 2)));
+  }
+  // Each past Ascension echoes down the ages, gifting future souls greater talent.
+  const asc = meta.stat("ascensions");
+  if (asc > 0) {
+    c.comprehension = Math.min(160, c.comprehension + Math.min(20, asc * 4));
+    c.soul = Math.min(160, c.soul + Math.min(15, asc * 3));
+    c.luck = Math.min(160, c.luck + Math.min(15, asc * 3));
   }
   return f;
 }
@@ -60,10 +76,15 @@ function checkAchievements() {
   if (c.karma >= 120) award("saint");
   if (c.daos && c.daos.length) award("daoist");
   if (c.beast) award("tamer");
+  const spouses = c.relationships.filter(n => n.role === "companion" && n.married && n.alive).length;
+  if (spouses >= 1) award("companion");
+  if (spouses >= 3) award("harem");
+  if (c.relationships.filter(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive).length >= 5) award("dynasty");
+  if ((c.generation || 1) > 1) award("bloodline");
+  if ((c.bodyRealm || 0) >= 5) { award("bodysaint"); if (c.root && c.root.key === "none") award("rootless_legend"); }
   if (c.reincarnationCount >= 5) award("eternal");
   if (c.sectKey && c.sectRank >= D.SECT_RANKS.length - 1) award("sectmaster");
   const t = c.titles || [];
-  if (t.includes("Dao Companion")) award("companion");
   if (t.some(x => x.startsWith("Nemesis Slain"))) award("nemesis");
   if (t.includes("Tournament Champion")) award("champion");
   if (t.includes("Secret Realm Delver")) award("delver");
@@ -132,20 +153,25 @@ function renderProfile() {
   const chips = $("pf-chips"); chips.innerHTML = "";
   const add = (label, val, cls, tip) => { const ch = el("span", "chip" + (cls ? " " + cls : "") + (tip ? " tappable" : ""), `${label} <b>${val}</b>`); if (tip) ch.onclick = () => showTip(tip); chips.appendChild(ch); };
   add("Age", `${c.age}/${c.maxAge}`, "", "age");
-  const dl = deedsLeft();
-  add("Deeds", "●".repeat(dl) + "○".repeat(Math.max(0, ACTIONS_PER_YEAR - dl)), dl <= 0 ? "warn" : "good", "deeds");
+  for (const cat of ["cult", "act", "social"]) {
+    const n = deedsLeft(cat);
+    add(DEED_ICON[cat], "●".repeat(n) + "○".repeat(Math.max(0, DEEDS_PER_CAT - n)), n <= 0 ? "warn" : "good", "deeds");
+  }
   if (c.awakened) add("✦", Math.floor(E.power(c)), "", "power");
   add("Fame", D.standingLabel(c.reputation), c.reputation >= 90 ? "good" : c.reputation <= -12 ? "bad" : "", "fame");
   add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`, c.karma >= 40 ? "good" : c.karma <= -40 ? "bad" : "", "karma");
   add("💎", c.spiritStones, "", "stones");
   if (c.herbs) add("🌿", c.herbs, "", "herbs");
   if (D.REGION_BY_KEY[c.region]) add("📍", D.REGION_BY_KEY[c.region][2], "", "region");
+  if (c.era) add("☷", D.eraAt(c.era)[2], D.eraAt(c.era)[5] > 1.2 ? "bad" : D.eraAt(c.era)[4] > 1.1 ? "good" : "", "era");
   if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", "bad", "wanted");
+  if (c.ascended) add("✸", "Ascended Immortal", "good", "realm");
   if (c.awakened && E.canBreakthrough(c)) add("⚑ Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, "warn", "breakthrough");
 
   const ageTab = $("tabbar").querySelector(".tab-age");
   ageTab.classList.toggle("ready", c.awakened && E.canBreakthrough(c));
-  ageTab.classList.toggle("spent", dl <= 0 && c.alive);
+  const allSpent = ["cult", "act", "social"].every(cat => deedsLeft(cat) <= 0);
+  ageTab.classList.toggle("spent", allSpent && c.alive);
   save();
   checkAchievements();
 }
@@ -163,9 +189,14 @@ function closeOverlay() { $("overlay").classList.add("hidden"); }
 
 /* ----------------------- time model: deeds per year ---------------------- *
  * Only Age Up advances the year. Other actions are instantaneous but limited
- * to a few "deeds" per year so you can't do everything at once. */
-const ACTIONS_PER_YEAR = 3;
-const deedsLeft = () => (state.actionsLeft == null ? ACTIONS_PER_YEAR : state.actionsLeft);
+ * to a few "deeds" per year so you can't do everything at once. Deeds are split
+ * into three separate budgets — Cultivation, Activities and Social — so a year
+ * of training doesn't crowd out adventuring or tending your relationships. */
+const DEEDS_PER_CAT = 3;
+const DEED_LABEL = { cult: "Cultivation", act: "Activities", social: "Social" };
+const DEED_ICON = { cult: "☯", act: "⚔", social: "❤" };
+const defaultDeeds = () => ({ cult: DEEDS_PER_CAT, act: DEEDS_PER_CAT, social: DEEDS_PER_CAT });
+const deedsLeft = cat => (state.deeds && state.deeds[cat] != null) ? state.deeds[cat] : DEEDS_PER_CAT;
 
 /* Reasonable minimum ages for certain endeavours (a 6-year-old shouldn't be
  * raiding Secret Realms or travelling the world alone). */
@@ -184,15 +215,16 @@ function ageAllows(key) {
   return false;
 }
 
-function useAction() {
+function useAction(cat = "act") {
   if (!state.c || !state.c.alive) return false;
-  if (deedsLeft() <= 0) {
+  if (!state.deeds) state.deeds = defaultDeeds();
+  if (deedsLeft(cat) <= 0) {
     closeOverlay();
-    logMessages(["· You have done all you can this year. Tap ⊕ Age Up to let a year pass. ·"]);
+    logMessages([`· You have used all your ${DEED_LABEL[cat]} deeds this year. Tap ⊕ Age Up to let a year pass — or spend a different kind of deed. ·`]);
     renderProfile();
     return false;
   }
-  state.actionsLeft = deedsLeft() - 1;
+  state.deeds[cat] = deedsLeft(cat) - 1;
   return true;
 }
 // Run an effect without letting it advance the year (undo any internal aging).
@@ -204,8 +236,8 @@ function preserveAge(fn) {
   return r;
 }
 /* a deed: costs one of the year's actions; never ages you */
-function runTimed(fn) {
-  if (!useAction()) return;
+function runTimed(fn, cat = "act") {
+  if (!useAction(cat)) return;
   const msgs = preserveAge(fn);
   closeOverlay();
   logMessages(msgs && msgs.length ? msgs : ["You spend a season in focused effort."]);
@@ -225,7 +257,7 @@ function doAgeUp() {
   if (!state.c.alive) { startOrDeath(); return; }
   closeOverlay();
   const { events } = L.ageUp(state.c, state.rng);
-  state.actionsLeft = ACTIONS_PER_YEAR;   // a fresh year, fresh deeds
+  state.deeds = defaultDeeds();   // a fresh year, fresh deeds
   logYear(state.c.age);
   if (!events.length) logMessages([idleFlavor()]);
   processQueue(events.slice());
@@ -276,39 +308,74 @@ function openCultivate() {
   const c = state.c;
   openOverlay("Cultivation", body => {
     if (!c.awakened) { body.appendChild(el("p", "note", `Your spiritual root has not yet awakened. The Awakening Ceremony comes at age ${D.AWAKENING_AGE} — keep aging up.`)); return; }
-    if (c.root.key === "none") { body.appendChild(el("p", "note", "You have no spiritual root; the path of qi is closed to you. You may still live a mortal life — see Activities.")); return; }
+    const hasRoot = c.root.key !== "none";
+    const addBtn = (grid, l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
+
+    // ---- Qi cultivation (only with a spiritual root) ----
+    if (hasRoot) {
+      body.appendChild(infoRows([
+        ["Realm", `${E.realmLabel(c)} (${E.realmCn(c)})`, "realm"],
+        ["Qi", `${Math.floor(c.qi)} / ${Math.floor(E.qiToNext(c))}`, "cultivation"],
+        ["Power", Math.floor(E.power(c)), "power"],
+      ]));
+      const g = el("div", "menu-grid");
+      if (E.canBreakthrough(c))
+        addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
+      addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult"));
+      addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult"), { disabled: c.pills <= 0 });
+      addBtn(g, "Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1), "cult"), { disabled: !E.canComprehend(c) });
+      body.appendChild(g);
+    } else {
+      body.appendChild(el("p", "note", "The heavens have shut the gate of qi to you — but the road of the body remains open. Temper your flesh until even immortals must take notice."));
+      body.appendChild(infoRows([["Power", Math.floor(E.power(c)), "power"]]));
+    }
+
+    // ---- Body cultivation (open to all; the rootless walk it alone) ----
+    body.appendChild(el("div", "section-h", "Body Cultivation 炼体"));
+    const br = D.bodyRealmAt(c.bodyRealm || 0), nb = E.canTemperMore(c) ? D.BODY_REALMS[(c.bodyRealm || 0) + 1] : null;
+    const cap = E.bodyRealmCap(c);
     body.appendChild(infoRows([
-      ["Realm", `${E.realmLabel(c)} (${E.realmCn(c)})`],
-      ["Qi", `${Math.floor(c.qi)} / ${Math.floor(E.qiToNext(c))}`],
-      ["Power", Math.floor(E.power(c))],
+      ["Body Realm", `${br[0]} (${br[1]})`, "body"],
+      nb ? ["Tempering", `${Math.floor(c.temper)} / ${nb[2]}`] : ["Tempering", `${D.bodyRealmName(c.bodyRealm)} — your physique's limit`],
+      ["Body limit", `${D.bodyRealmName(cap)} (${c.physiqueName})`],
     ]));
-    const grid = el("div", "menu-grid");
-    const mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
-    if (E.canBreakthrough(c))
-      mk("Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
-    mk("Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15)));
-    mk("Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true)), { disabled: c.pills <= 0 });
-    mk("Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1)), { disabled: !E.canComprehend(c) });
-    mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : "adventure & battle", doWander, { disabled: c.age < AGE_MIN.wander });
-    mk("Techniques & Mastery", "train your arts", openTechniques, { full: true });
-    body.appendChild(grid);
+    const bg = el("div", "menu-grid");
+    addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5), "cult"), { full: true, primary: !hasRoot });
+    body.appendChild(bg);
+
+    // ---- shared ----
+    const sg = el("div", "menu-grid");
+    addBtn(sg, "Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : "adventure & battle", doWander, { disabled: c.age < AGE_MIN.wander || !isCultivator(c) });
+    addBtn(sg, "Techniques & Mastery", "train your arts", openTechniques, { full: true });
+    body.appendChild(sg);
   });
 }
 
 function openPeople() {
   const c = state.c;
   openOverlay("Relationships", body => {
-    const fam = L.livingFamily(c), bonds = L.livingBonds(c);
-    if (fam.length) { body.appendChild(el("div", "section-h", "Family")); fam.forEach(n => body.appendChild(personRow(n))); }
+    const all = c.relationships.filter(n => n.alive);
+    const family = all.filter(n => n.role === "family" && n.kin !== "Son" && n.kin !== "Daughter");
+    const loves = all.filter(n => n.role === "companion").sort((a, b) => (b.married ? 1 : 0) - (a.married ? 1 : 0) || b.affinity - a.affinity);
+    const kids = all.filter(n => n.kin === "Son" || n.kin === "Daughter");
+    const bonds = all.filter(n => n.role !== "family" && n.role !== "companion");
+    const section = (title, list) => { if (list.length) { body.appendChild(el("div", "section-h", title)); list.forEach(n => body.appendChild(personRow(n))); } };
+    section("Family", family);
+    if (loves.length) {
+      const sp = loves.filter(n => n.married).length;
+      body.appendChild(el("div", "section-h", `Spouses & Lovers${sp ? ` · ${sp} wed` : ""}`));
+      loves.forEach(n => body.appendChild(personRow(n)));
+    }
+    section(kids.length ? `Children · ${kids.length}` : "Children", kids);
     body.appendChild(el("div", "section-h", "Bonds"));
-    if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or companions yet."));
+    if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or sworn enemies yet."));
     bonds.forEach(n => body.appendChild(personRow(n)));
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
-    b.onclick = () => { if (!ageAllows("mingle") || !useAction()) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
+    b.onclick = () => { if (!ageAllows("mingle") || !useAction("social")) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
     body.appendChild(b);
     if (c.realm >= 4 && L.getDisciples(c).length < 3) {
       const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>a deed · pass on your arts</small>";
-      d.onclick = () => { if (!ageAllows("disciple") || !useAction()) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
+      d.onclick = () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
       body.appendChild(d);
     }
   });
@@ -323,20 +390,25 @@ function openTeachPicker(npc) {
       const known = (npc.learned || []).includes(t);
       const row = el("div", "listrow" + (known ? " disabled" : ""));
       row.innerHTML = `<div class="lr-ava">📖</div><div class="lr-main"><div class="lr-title">${escapeHtml(D.TECHNIQUES[t][0])}</div><div class="lr-sub">${known ? "already learned" : D.TECHNIQUES[t][4]}</div></div>`;
-      if (!known) row.onclick = () => { logMessages(L.teachTo(c, npc, t)); renderProfile(); openPerson(npc); };
+      if (!known) row.onclick = () => { if (!useAction("social")) return; logMessages(L.teachTo(c, npc, t)); renderProfile(); openPerson(npc); };
       body.appendChild(row);
     }
     backBtn(body, () => openPerson(npc));
   });
 }
+function relLabel(n) {
+  if (n.role === "companion") return n.married ? (n.kin || "Spouse") : "Sweetheart";
+  return n.kin || E.npcRoleLabel(n);
+}
 function personRow(n) {
-  const row = el("div", "listrow");
+  const row = el("div", "listrow" + (n.role === "companion" && n.married ? " bound" : ""));
   const aff = Math.max(-100, Math.min(100, n.affinity));
   const col = aff < 0 ? "var(--red)" : aff < 40 ? "var(--muted)" : aff < 75 ? "var(--jade)" : "var(--pink)";
   const w = (aff + 100) / 2;
+  const extra = n.occupation ? " · " + n.occupation : (n.parent ? " · child of " + escapeHtml(n.parent) : "");
   row.innerHTML = `<div class="lr-ava">${personEmoji(n)}</div><div class="lr-main">
-    <div class="lr-title">${escapeHtml(n.name)} <span class="lr-sub" style="display:inline">· ${n.kin || E.npcRoleLabel(n)}</span></div>
-    <div class="lr-sub">${E.npcStatus(n)}${n.occupation ? " · " + n.occupation : ""}</div>
+    <div class="lr-title">${escapeHtml(n.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(relLabel(n))}</span></div>
+    <div class="lr-sub">${E.npcStatus(n)}${extra}</div>
     <div class="affbar"><div style="width:${w}%;background:${col}"></div></div></div>`;
   row.onclick = () => openPerson(n);
   return row;
@@ -344,22 +416,24 @@ function personRow(n) {
 function personEmoji(n) {
   if (n.kin === "Father") return "👨"; if (n.kin === "Mother") return "👩";
   if (n.kin === "Brother") return "👦"; if (n.kin === "Sister") return "👧";
-  if (n.kin === "Son") return "🧒"; if (n.kin === "Daughter") return "🧒";
-  return ({ master: "🧓", rival: "😼", friend: "🙂", companion: "💞", enemy: "😠", nemesis: "👿", disciple: "🙇" })[n.role] || "🧑";
+  if (n.kin === "Son") return "👦"; if (n.kin === "Daughter") return "👧";
+  if (n.role === "companion") return n.married ? "💍" : "💞";
+  return ({ master: "🧓", rival: "😼", friend: "🙂", enemy: "😠", nemesis: "👿", disciple: "🙇" })[n.role] || "🧑";
 }
 function openPerson(n) {
   const c = state.c;
   openOverlay(n.name, body => {
     body.appendChild(infoRows([
-      ["Relation", n.kin || E.npcRoleLabel(n)], ["Feeling", `${E.npcStatus(n)} (${n.affinity >= 0 ? "+" : ""}${n.affinity})`],
+      ["Relation", relLabel(n) + (n.role === "companion" && n.married ? " (married)" : "")], ["Feeling", `${E.npcStatus(n)} (${n.affinity >= 0 ? "+" : ""}${n.affinity})`],
+      ...(n.parent ? [["Parent", n.parent]] : []),
       ...(n.occupation ? [["Occupation", n.occupation]] : []),
     ]));
     for (const act of L.relationActions(c, n)) {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
       b.onclick = () => {
-        if (act.id === "teach") { openTeachPicker(n); return; }
+        if (act.id === "teach") { openTeachPicker(n); return; }   // picker spends the deed on teach
         if (act.id === "duel") {  // an interactive duel to the finish
-          if (!ageAllows("duel")) return;
+          if (!ageAllows("duel") || !useAction("social")) return;
           const isNemesis = n.role === "nemesis";
           const enemy = isNemesis
             ? C.makeBoss(c, state.rng, { name: n.name, power: n.power, element: n.element })
@@ -382,6 +456,7 @@ function openPerson(n) {
           });
           return;
         }
+        if (!useAction("social")) return;
         const res = L.doRelationAction(c, n, act.id, state.rng);
         logMessages(res); renderProfile();
         if (!c.alive) { closeOverlay(); checkDeath(); return; }
@@ -410,7 +485,7 @@ function openTechniques() {
         <div class="lr-title">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${rank[0]} (+${Math.round(rank[2] * 100)}%)</span></div>
         <div class="lr-sub">${eff}${s.qi ? ` · ⊙${s.qi} qi` : " · free"}${next ? ` · ${pts}/${next[1]} → ${next[0]}` : " · perfected"}</div>
         <div class="affbar"><div style="width:${pctTo}%;background:var(--gold2)"></div></div></div>`;
-      row.onclick = () => runTimed(() => L.trainTechnique(c, state.rng, t));
+      row.onclick = () => runTimed(() => L.trainTechnique(c, state.rng, t), "cult");
       body.appendChild(row);
     }
   });
@@ -423,12 +498,12 @@ function openActivities() {
     // young: below the action's minimum age
     const young = key => c.age < (AGE_MIN[key] || 0);
     const sub = (key, normal) => young(key) ? `from age ${AGE_MIN[key]}` : normal;
-    mk("Train the Body", sub("train", "build constitution"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng)); }, { disabled: young("train") });
-    mk("Study Scriptures", sub("study", "build comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng)); }, { disabled: young("study") });
+    mk("Train the Body", sub("train", "build constitution"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult"); }, { disabled: young("train") });
+    mk("Study Scriptures", sub("study", "build comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "cult"); }, { disabled: young("study") });
     mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
     mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
-    const canHunt = c.awakened && c.root.key !== "none";
-    const canBoss = canHunt && c.realm >= 2;
+    const canHunt = isCultivator(c);
+    const canBoss = canHunt && isStrong(c);
     mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
     mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
     mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
@@ -437,8 +512,62 @@ function openActivities() {
     mk("Travel the World", young("travel") ? `from age ${AGE_MIN.travel}` : (D.REGION_BY_KEY[c.region] ? D.REGION_BY_KEY[c.region][1] : "regions"), openTravel, { disabled: young("travel") });
     const ab = D.abodeAt(c.abode || 0);
     mk("Your Cave Abode", ab ? `${ab[2]} · home base` : "establish a home base", openAbode, { full: true });
+    mk("Visit the Market", "坊市 · buy & sell", openMarket);
     mk("Treasures & Beast", "your assets", openAssets);
     body.appendChild(grid);
+  });
+}
+function genMarket(c) {
+  const rng = state.rng;
+  const unknown = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing" && !c.techniques.includes(k));
+  const tech = unknown.length ? rng.choice(unknown) : null;
+  const keys = D.ARTIFACTS.map(a => a[0]);
+  const treasures = [];
+  for (let i = 0; i < 2 && keys.length; i++) treasures.push(keys.splice(Math.floor(rng.random() * keys.length), 1)[0]);
+  return { year: c.age, tech, treasures, sold: {} };
+}
+function marketDo(fn) {
+  if (!state.c.alive) return;
+  logMessages(fn());
+  renderProfile(); save();
+  openMarket();
+}
+function openMarket() {
+  const c = state.c;
+  if (!state.market || state.market.year !== c.age) state.market = genMarket(c);
+  const M = state.market;
+  openOverlay("Market 坊市", body => {
+    const pm = E.eraPriceMult(c);
+    body.appendChild(el("p", "note", `Spirit stones: ${c.spiritStones} · herbs: ${c.herbs}. Prices ${pm > 1.05 ? "run high" : pm < 0.95 ? "are low" : "are fair"} in the ${D.eraAt(c.era)[1]}.`));
+    const row = (emoji, title, sub, btnLabel, can, fn) => {
+      const r = el("div", "listrow" + (can ? "" : " disabled"));
+      r.innerHTML = `<div class="lr-ava">${emoji}</div><div class="lr-main"><div class="lr-title">${escapeHtml(title)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
+      if (can) r.onclick = () => marketDo(fn);
+      body.appendChild(r);
+    };
+    body.appendChild(el("div", "section-h", "Buy"));
+    row("🌿", "Spirit Herbs ×5", `${E.priceHerbs(c, 5)} stones`, "", c.spiritStones >= E.priceHerbs(c, 5), () => E.buyHerbs(c, 5));
+    for (const p of D.PILL_RECIPES) {
+      const price = E.pricePill(c, p[0]);
+      row("⚗️", p[1], `${price} stones · ${p[4]}`, "", c.spiritStones >= price, () => E.buyPill(c, p[0], state.rng));
+    }
+    if (M.tech && !c.techniques.includes(M.tech)) {
+      const price = E.priceTech(c, D.TECHNIQUES[M.tech][1]);
+      row("📖", D.TECHNIQUES[M.tech][0] + " (manual)", `${price} stones · ${D.TECHNIQUES[M.tech][4]}`, "", c.spiritStones >= price, () => E.buyTech(c, M.tech, state.rng));
+    }
+    for (const k of M.treasures) {
+      if (M.sold[k]) continue;
+      const price = E.priceTreasure(c, k);
+      row("⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.ARTIFACT_BY_KEY[k][2]})`, `${price} stones · ${D.ARTIFACT_BY_KEY[k][5]}`, "", c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); });
+    }
+    // Sell
+    const spareTreasures = c.artifacts.filter(k => k !== c.equippedArtifact);
+    if (c.herbs >= 5 || spareTreasures.length) {
+      body.appendChild(el("div", "section-h", "Sell"));
+      if (c.herbs >= 5) row("🌿", "Sell Spirit Herbs ×5", `+${E.sellHerbs(c, 5)} stones`, "", true, () => E.sellSpareHerbs(c, 5));
+      for (const k of spareTreasures) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.ARTIFACT_BY_KEY[k][2]})`, "", true, () => E.sellTreasure(c, k));
+    }
+    backBtn(body, openActivities);
   });
 }
 function openAbode() {
@@ -463,17 +592,17 @@ function openAbode() {
         ["Seclusion strength", `${cur[7].toFixed(2)}× (vs 0.15 normal)${mate ? " · ×1.15 dual" : ""}`],
       ]));
       const who = [mate && `${mate.name} (companion)`, tenders.length && `${tenders.length} disciple${tenders.length > 1 ? "s" : ""}`, c.beast && c.beast.alive && `${c.beast.name} the ${c.beast.species}`].filter(Boolean);
-      body.appendChild(el("p", "note", who.length ? `Residents: ${who.join(", ")}. Invite a dao companion or disciples from Relationships to tend the fields and defend your home.` : "No one lives here yet. Invite a dao companion or disciples (from Relationships) to share your home, tend its fields, and help defend it."));
+      body.appendChild(el("p", "note", who.length ? `Residents: ${who.join(", ")}. They tend the fields, help defend your home — and the most devoted fights at your side in battle.` : "No one lives here yet. Invite a dao companion or disciples (from Relationships) to share your home, tend its fields, help defend it, and fight at your side."));
       if (c.ownSect) body.appendChild(el("p", "note", `🏯 This abode is the mountain seat of your sect, the ${c.ownSect.name} (${D.sectTier(c.ownSect.prestige)[1]}). A grander seat houses more disciples.`));
       else if (L.canFoundSect(c)) body.appendChild(el("p", "note", "🏯 Your abode is now grand enough to serve as the seat of your own sect — found one from the Sect tab."));
       const sec = el("button", "mbtn full primary");
       sec.innerHTML = `Cultivate in Seclusion<small>a deed · seal yourself in for a deep cultivation</small>`;
-      sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng));
+      sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng), "cult");
       body.appendChild(sec);
       if (c.pills > 0) {
         const secp = el("button", "mbtn full");
         secp.innerHTML = `Seclusion + Qi Pill<small>a deed · ${c.pills} pill(s) left</small>`;
-        secp.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng, true));
+        secp.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng, true), "cult");
         body.appendChild(secp);
       }
     } else {
@@ -547,12 +676,45 @@ function openAchievements(backFn) {
     if (backFn) backBtn(body, backFn);
   });
 }
+function openBeast() {
+  const c = state.c;
+  if (!c.beast) { openAssets(); return; }
+  E.normalizeBeast(c.beast);
+  const b = c.beast;
+  openOverlay(`${b.name} 灵兽`, body => {
+    const req = D.BEAST_EXP_REQ[b.rank];
+    body.appendChild(infoRows([
+      ["Species", b.species],
+      ["Rank", `${E.beastTier(b)} (${b.rank}/5)`],
+      ["Element", b.element || "—"],
+      ["Power", Math.floor(b.power)],
+      ["Bond", `${Math.round(b.bond)} / 100`],
+      ["Experience", b.rank < 5 ? `${b.exp} / ${req}` : "max rank"],
+    ]));
+    body.appendChild(el("p", "note", `In battle ${b.name} strikes each round for a share of its power, with its element's advantage and — from Earth Beast rank — a chance to inflict its elemental bite. Feeding raises its bond and experience; fed and battle-hardened, it can evolve into a mightier form. (Fed ${b.fedThisYear}/3 this year.)`));
+    const grid = el("div", "menu-grid");
+    const mk = (l, s, h, opt = {}) => { const x = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); x.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) x.disabled = true; else x.onclick = h; grid.appendChild(x); };
+    const fedOut = b.fedThisYear >= 3;
+    mk("Feed Herbs", fedOut ? "sated this year" : "2 herbs · +bond, +exp", () => runFree(() => E.feedBeast(c, state.rng, false)), { disabled: fedOut || c.herbs < 2 });
+    mk("Feed a Pill", fedOut ? "sated this year" : `${c.pills} pills · big boost`, () => runFree(() => E.feedBeast(c, state.rng, true)), { disabled: fedOut || c.pills <= 0 });
+    if (E.beastAdvanceReady(c))
+      mk("✦ Evolve Your Beast", "advance to the next rank", () => { runFree(() => E.advanceBeast(c, state.rng)); if (c.beast && c.beast.rank >= 5) award("beastlord"); }, { full: true, primary: true });
+    body.appendChild(grid);
+    backBtn(body, openAssets);
+  });
+}
 function openAssets() {
   const c = state.c;
   openOverlay("Treasures & Beast", body => {
     body.appendChild(el("div", "section-h", "Spirit Beast"));
-    if (c.beast) body.appendChild(el("p", "note", `${c.beast.name} the ${c.beast.species} — ${E.beastTier(c.beast)}, power ${Math.floor(c.beast.power)}.`));
-    else body.appendChild(el("p", "note", "None. Best a wild beast while wandering to try taming one."));
+    if (c.beast) {
+      E.normalizeBeast(c.beast);
+      const b = c.beast;
+      const row = el("div", "listrow" + (E.beastAdvanceReady(c) ? " bound" : ""));
+      row.innerHTML = `<div class="lr-ava">${b.element ? C.elementIcon(b.element) : "🐾"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(b.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(b.species)}</span></div><div class="lr-sub">${E.beastTier(b)}${b.element ? " · " + b.element : ""} · power ${Math.floor(b.power)} · bond ${Math.round(b.bond)}/100${E.beastAdvanceReady(c) ? " · ✦ ready to evolve!" : ""}</div></div>`;
+      row.onclick = () => openBeast();
+      body.appendChild(row);
+    } else body.appendChild(el("p", "note", "None. Best a wild beast while wandering to try taming one."));
     body.appendChild(el("div", "section-h", "Magic Treasures (法宝)"));
     if (!c.artifacts.length) body.appendChild(el("p", "note", "You own no treasures yet."));
     for (const key of c.artifacts) {
@@ -636,7 +798,7 @@ function renderOwnSect(c, body) {
   const mk = (l, sub, h, full, primary) => { const b = el("button", "mbtn" + (full ? " full" : "") + (primary ? " primary" : "")); b.innerHTML = `${l}<small>${sub}</small>`; b.onclick = h; grid.appendChild(b); };
   mk("Hold a Recruitment", s.members < cap ? "a deed · draw new disciples" : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng)), true, s.members < cap);
   if (c.realm >= 4 && L.getDisciples(c).length < 4)
-    mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction()) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
+    mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
   body.appendChild(grid);
   const dis = el("button", "mbtn full danger"); dis.innerHTML = "Disband the Sect<small>lower your banner</small>"; dis.onclick = () => runFree(() => L.disbandSect(c)); body.appendChild(dis);
 }
@@ -682,11 +844,13 @@ function openSheet() {
     const gloss = el("button", "mbtn full"); gloss.innerHTML = "ⓘ Glossary<small>tap any stat below, or here, to learn what it means</small>";
     gloss.onclick = () => openGlossary(openSheet); body.appendChild(gloss);
     body.appendChild(infoRows([
-      ["Name", `${c.name} (${c.sex === "female" ? "♀" : "♂"})`],
+      ["Name", `${c.name} (${c.sex === "female" ? "♀" : "♂"})${(c.generation || 1) > 1 ? ` · gen ${c.generation}` : ""}`],
       ["Age", `${c.age} / ${c.maxAge}`, "age"],
       ["Realm", c.awakened ? `${E.realmLabel(c)} (${E.realmCn(c)})` : "Unawakened child", "realm"],
+      ["Body Realm", `${D.bodyRealmName(c.bodyRealm || 0)} (${D.bodyRealmAt(c.bodyRealm || 0)[1]})`, "body"],
       ["Health / Happiness", `${Math.floor(c.health)} (${D.vitalLabel(c.health)}) / ${Math.floor(c.happiness)} (${D.vitalLabel(c.happiness)})`, "health"],
       ["Standing", `${c.reputation} (${D.standingLabel(c.reputation)})`, "fame"], ["Karma", `${c.karma >= 0 ? "+" : ""}${c.karma} (${E.karmaLabelFor(c)})`, "karma"],
+      ...(c.era ? [["World Era", `${D.eraAt(c.era)[1]} (${D.eraAt(c.era)[2]})`, "era"]] : []),
     ]));
     body.appendChild(el("div", "section-h", "Born With"));
     body.appendChild(infoRows([
@@ -751,7 +915,7 @@ function deathScreen() {
     const rein = el("button", "mbtn full primary");
     rein.innerHTML = "Reincarnate<small>be reborn carrying your soul's legacy</small>";
     rein.onclick = () => {
-      state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.actionsLeft = ACTIONS_PER_YEAR; state.deadHandled = false; closeOverlay();
+      state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.deeds = defaultDeeds(); state.deadHandled = false; closeOverlay();
       logBanner("☯ THE WHEEL OF REBIRTH TURNS ☯");
       const msgs = [`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), dimly recalling a former life.`, "Age up to live this new life. Your past climb has sharpened your innate talent."];
       if (state.c.legacySect) msgs.push(`Far away, the ${state.c.legacySect.name} you founded in a past life still keeps your banner — reach the Nascent Soul realm with a worthy abode, and you may reclaim it.`);
@@ -759,10 +923,41 @@ function deathScreen() {
       renderProfile();
     };
     body.appendChild(rein);
+    const heirs = L.eligibleHeirs(c);
+    if (heirs.length) {
+      const h = el("button", "mbtn full");
+      h.innerHTML = `Continue as your Heir<small>play on as your child · inherit the family's legacy</small>`;
+      h.onclick = () => heirs.length === 1 ? beginHeir(c, heirs[0]) : openHeirPicker(c, heirs);
+      body.appendChild(h);
+    }
     const fresh = el("button", "mbtn full"); fresh.innerHTML = "Let the Soul Rest<small>roll a brand-new, unrelated soul</small>";
     fresh.onclick = () => { clearSave(); startScreen(); };
     body.appendChild(fresh);
   }, false);
+}
+function openHeirPicker(old, heirs) {
+  openOverlay("Choose your Heir", body => {
+    body.appendChild(el("p", "note", "Which of your children will carry the bloodline onward?"));
+    for (const k of heirs) {
+      const row = el("div", "listrow");
+      row.innerHTML = `<div class="lr-ava">${k.sex === "female" ? "👧" : "👦"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(k.name)}</div><div class="lr-sub">${k.kin}, age ${L.childAge(old, k)}${k._awakened ? " · awakened" : ""}</div></div>`;
+      row.onclick = () => beginHeir(old, k);
+      body.appendChild(row);
+    }
+  }, false);
+}
+function beginHeir(old, child) {
+  const heir = L.succeedAsHeir(old, child, state.rng);
+  state.c = heir; state.rng = new E.RNG(); applyFavor(heir);
+  state.deeds = defaultDeeds(); state.deadHandled = false; closeOverlay();
+  $("log").innerHTML = "";
+  logBanner("⚑ THE BLOODLINE ENDURES ⚑");
+  const surname = old.name.split(" ")[0];
+  logMessages([
+    `${heir.name} takes up the mantle of the ${surname} family — now ${heir.generation} generations strong.`,
+    `You inherit the family estate and a share of its fortune${heir.ownSect ? `, and leadership of the ${heir.ownSect.name} your forebear founded` : ""}. Carry the lineage onward.`,
+  ]);
+  renderProfile(); save();
 }
 
 /* ------------------------------ birth ------------------------------------ */
@@ -775,7 +970,7 @@ function renderBirth(c) {
     `Physique — ${c.physiqueName}`, "  " + c.physiqueBlurb, "",
     `Appearance — ${c.appearanceName}`, "  " + c.appearanceBlurb, "",
     `The family's spiritual root is still a mystery. The Awakening Ceremony comes at age ${D.AWAKENING_AGE}.`,
-    `✦ Each year you may perform up to ${ACTIONS_PER_YEAR} deeds (cultivate, fight, brew, travel...). Only the ⊕ Age Up button passes a year and fires life events — and refreshes your deeds.`,
+    `✦ Each year you have three deeds of each kind — ☯ Cultivation, ⚔ Activities, and ❤ Social. Only the ⊕ Age Up button passes a year and fires life events — and refreshes them all.`,
     "ⓘ Tip: tap any stat (Age, Karma, Fame…) or the ⓘ Glossary in your sheet to learn what it means.",
   ]);
 }
@@ -784,7 +979,7 @@ function renderBirth(c) {
 // Commit a finished character and begin the life.
 function beginLife(c) {
   state.c = c; state.rng = new E.RNG();
-  applyFavor(c); state.actionsLeft = ACTIONS_PER_YEAR; state.deadHandled = false;
+  applyFavor(c); state.deeds = defaultDeeds(); state.deadHandled = false;
   closeOverlay(); $("log").innerHTML = ""; renderBirth(c); renderProfile();
 }
 
@@ -928,7 +1123,7 @@ function creatorPreviewCard(c) {
 }
 function resumeFrom(sv) {
   state.c = sv.c; state.rng = new E.RNG(0); state.rng.s = sv.s >>> 0; state.deadHandled = false;
-  state.actionsLeft = ACTIONS_PER_YEAR;
+  state.deeds = defaultDeeds();
   // Back-compat: ensure life-sim fields exist on older saves.
   const c = state.c;
   if (typeof c.happiness !== "number") c.happiness = 55;
@@ -958,6 +1153,12 @@ function unitPanel(u, isPlayer) {
   let html = `<div class="cu-top"><span class="cu-name">${elemIcon} ${escapeHtml(u.name)}</span><span class="cu-status">${statusChips(u)}</span></div>`;
   html += `<div class="hpbar"><div class="hpfill${isPlayer ? " you" : ""}" style="width:${clampPct(u.hp, u.maxHp)}%"></div><span>${Math.max(0, Math.round(u.hp))}/${Math.round(u.maxHp)}</span></div>`;
   if (isPlayer) html += `<div class="qibar"><div class="qifill" style="width:${clampPct(u.qi, u.maxQi)}%"></div><span>Qi ${Math.round(u.qi)}/${Math.round(u.maxQi)}</span></div>`;
+  if (isPlayer) {
+    const c = u.ref, side = [];
+    if (c.beast && c.beast.alive) side.push(`🐾 ${escapeHtml(c.beast.name)}`);
+    if (u.ally) side.push(`⚔ ${escapeHtml(u.ally.name)}`);
+    if (side.length) html += `<div class="cu-status" style="margin-top:4px">at your side: ${side.join(" · ")}</div>`;
+  }
   p.innerHTML = html;
   return p;
 }
@@ -977,13 +1178,77 @@ function doBreakthrough() {
   logMessages(msgs);
   if (c.alive && c._tribulationPending) {
     c._tribulationPending = false;
-    startBattle(C.makeTribulation(c, state.rng), { title: "Heavenly Tribulation ⚡" }, () => { renderProfile(); save(); checkDeath(); });
-  } else { renderProfile(); save(); checkDeath(); }
+    startBattle(C.makeTribulation(c, state.rng), { title: "Heavenly Tribulation ⚡" }, () => afterBreakthrough());
+  } else { afterBreakthrough(); }
+}
+function afterBreakthrough() {
+  const c = state.c;
+  renderProfile(); save();
+  if (c.alive && c.realm >= D.REALMS.length - 1 && !c.ascended) { ascensionFinale(); return; }
+  checkDeath();
+}
+function ascensionFinale() {
+  const c = state.c;
+  c.ascended = true;
+  if (!c.titles.includes("Ascended Immortal")) c.titles.push("Ascended Immortal");
+  meta.bump("ascensions");
+  award("ascend");
+  logBanner("✸ YOU ASCEND TO THE NINE HEAVENS ✸");
+  logMessages([
+    `Having shattered the final wall and survived the last tribulation, ${c.name} sheds the dust of the mortal world.`,
+    "A great gate of golden light tears open the sky. Immortal music swells; the heavens themselves bow to acknowledge a new immortal.",
+    "Few in ten thousand years walk this road to its end. You are one of them.",
+  ]);
+  openOverlay("Ascension 飞升", body => {
+    body.appendChild(el("div", "center-card", `<div style="font-size:2.6rem">✸🌟✸</div>`));
+    body.appendChild(el("div", "title-zh", "飞升"));
+    body.appendChild(el("p", "note", `<b>${escapeHtml(c.name)}</b> has reached <b>${E.realmLabel(c)}</b> and stands before the Heavenly Gate — a true Ascended Immortal. Your bloodline, your sect, and the world will tell this tale for ten thousand years.`));
+    body.appendChild(el("p", "note", "Every soul you raise hereafter is born the more gifted for this triumph."));
+    const go = el("button", "mbtn full primary");
+    go.innerHTML = "Step through the Heavenly Gate<small>ascend in glory — conclude this saga</small>";
+    go.onclick = () => { closeOverlay(); concludeAscension(); };
+    body.appendChild(go);
+    const stay = el("button", "mbtn full");
+    stay.innerHTML = "Linger in the mortal world<small>walk among mortals as an immortal a while longer</small>";
+    stay.onclick = () => { closeOverlay(); logMessages(["You turn from the gate, unwilling yet to leave the mortal world and those within it. The immortal heavens can wait."]); renderProfile(); };
+    body.appendChild(stay);
+  }, false);
+}
+// A triumphant close — the immortal departs; the saga continues through legacy.
+function concludeAscension() {
+  const c = state.c;
+  c.alive = false; c.causeOfDeath = "ascension to the Nine Heavens"; state.deadHandled = true;
+  c.log.push([c.age, "Ascended to the Nine Heavens."]);
+  logBanner("✸ A LEGEND PASSES INTO IMMORTALITY ✸");
+  openOverlay("Ascended", body => {
+    body.appendChild(el("div", "center-card", `<div style="font-size:2.6rem">🌅</div>`));
+    body.appendChild(el("p", "note", `<b>${escapeHtml(c.name)}</b> ascends beyond the mortal world, leaving behind a legend — and a bloodline, a sect, and a name that endures.`));
+    body.appendChild(el("p", "note", `Heavenly Favor and the echo of your Ascension will bless every soul you raise hereafter.`));
+    const rein = el("button", "mbtn full primary");
+    rein.innerHTML = "Begin a New Saga<small>be reborn, carrying your soul's legacy</small>";
+    rein.onclick = () => {
+      state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.deeds = defaultDeeds(); state.deadHandled = false; closeOverlay();
+      logBanner("☯ THE WHEEL OF REBIRTH TURNS ☯");
+      logMessages([`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), the heir of an ascended immortal's legend.`]);
+      renderProfile();
+    };
+    body.appendChild(rein);
+    const heirs = L.eligibleHeirs(c);
+    if (heirs.length) {
+      const h = el("button", "mbtn full");
+      h.innerHTML = `Continue as your Heir<small>play on as your child · inherit the legacy</small>`;
+      h.onclick = () => heirs.length === 1 ? beginHeir(c, heirs[0]) : openHeirPicker(c, heirs);
+      body.appendChild(h);
+    }
+    const fresh = el("button", "mbtn full"); fresh.innerHTML = "Let the Soul Rest<small>roll a brand-new soul</small>";
+    fresh.onclick = () => { clearSave(); startScreen(); };
+    body.appendChild(fresh);
+  }, false);
 }
 function doBossFight() {
   if (!ageAllows("boss") || !useAction()) return;
   const c = state.c; closeOverlay();
-  const boss = C.makeBoss(c, state.rng, { factorMult: regionMult(c) });
+  const boss = C.makeBoss(c, state.rng, { factorMult: worldDanger(c) });
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
   startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
 }
@@ -1062,13 +1327,13 @@ function realmStage() {
   if (R.idx >= R.depth) { realmComplete(); return; }
   const stageNo = R.idx + 1, last = R.idx === R.depth - 1;
   if (last) {
-    const guardian = C.makeBoss(c, state.rng, { name: "the Realm Guardian", factor: 1.4 + state.rng.random() * 0.2, element: "Earth", factorMult: regionMult(c) });
+    const guardian = C.makeBoss(c, state.rng, { name: "the Realm Guardian", factor: 1.4 + state.rng.random() * 0.2, element: "Earth", factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — ${guardian.name} bars the inner sanctum!`]);
     startBattle(guardian, { title: "Secret Realm · Guardian", startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
     return;
   }
   if (state.rng.random() < 0.6) {
-    const enemy = C.makeEnemy(c, state.rng, { factor: 0.8 + R.idx * 0.15, factorMult: regionMult(c) });
+    const enemy = C.makeEnemy(c, state.rng, { factor: 0.8 + R.idx * 0.15, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — a ${enemy.name} lurks in the mist.`]);
     startBattle(enemy, { title: `Secret Realm · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
   } else {
@@ -1207,8 +1472,8 @@ function endActivityYear() {   // an action concluded -- no time passes
 function doWander() {
   if (!ageAllows("wander") || !useAction()) return;
   const c = state.c; closeOverlay();
-  if (c.awakened && c.root.key !== "none" && state.rng.random() < 0.58) {
-    const enemy = C.makeEnemy(c, state.rng, { factorMult: regionMult(c) });
+  if (isCultivator(c) && state.rng.random() < 0.58) {
+    const enemy = C.makeEnemy(c, state.rng, { factorMult: worldDanger(c) });
     logMessages([`You roam the wild reaches and are set upon by a ${enemy.name}!`]);
     startBattle(enemy, { title: "Wild Encounter" }, () => endActivityYear());
   } else {
@@ -1218,7 +1483,7 @@ function doWander() {
 function doHunt() {
   if (!ageAllows("hunt") || !useAction()) return;
   const c = state.c; closeOverlay();
-  const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]), factorMult: regionMult(c) });
+  const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]), factorMult: worldDanger(c) });
   logMessages([`You track a ${enemy.name} through the spirit-wilds and corner it.`]);
   startBattle(enemy, { title: "Beast Hunt" }, () => endActivityYear());
 }

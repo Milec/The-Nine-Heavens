@@ -92,10 +92,24 @@ heart for those bold (or greedy) enough to reach it.
 
 Three more systems round out a cultivator's life:
 
+- **Romance, marriage & family (道侣)** — meet potential loves by mingling or at
+  gatherings, **court** them with sweet words until their heart is yours, then
+  **propose and wed** them as your dao companion. Take **more than one** — a full
+  xianxia **harem** of up to six spouses (with jealousy to manage, or harmony to
+  cherish). **Try for children** with any spouse: sons and daughters who carry
+  your bloodline, take your surname, awaken their own roots, learn your arts, and
+  — through reincarnation — sharpen the soul of your next life. And when you die,
+  you may **play on as your grown heir** — a true bloodline succession that
+  **inherits the family estate, a share of the fortune, and the very sect your
+  forebear founded** — carrying the dynasty across the generations.
 - **Lineage (传承)** — at the Golden Core you may **take disciples**, and **teach
   your techniques** to disciples, children and your dao companion. Your students
   carry your arts onward, and the teaching **echoes across reincarnation**,
   sharpening the talent of your next life.
+- **Market (坊市)** — a proper trading bazaar: **buy** spirit herbs, finished pills,
+  technique manuals and magic treasures, and **sell** your spare herbs and surplus
+  treasures. Prices **float with the world era** — dear in a Spiritual Drought,
+  cheap in an Age of Abundance — so spirit stones finally have somewhere to go.
 - **Alchemy furnace minigame (炼丹)** — refining is now hands-on: keep the heat
   needle inside a drifting jade band over several phases to build **pill
   quality** (Crude → Fine → Flawless, scaling the effect) while avoiding the
@@ -105,10 +119,37 @@ Three more systems round out a cultivator's life:
   sinks to *Notorious*). Fame draws **sect invitations, grand banquets and
   admirers' gifts**; infamy and heavy sin mark you **Wanted**, summoning bounty
   hunters and slamming doors in your face.
+- **World Eras (天时)** — the realm turns through long ages that colour every
+  life: an **Age of Abundance** (qi flows thick, cultivation flourishes), a
+  **Warring Era** and **Demon Tide** (the world grows far deadlier, with their own
+  perils and temptations), a **Spiritual Drought** (every breakthrough dearly
+  bought), and a rare **Dawn of Ascension** (the heavens ease your breakthroughs).
+  An era shifts the global pace of cultivation, the danger of the roads, and
+  which fates befall you — and the world keeps turning across your reincarnations.
 - **Regions of the world (地域)** — **travel** from the gentle Azure Heartlands to
   the Demon-Haunted Wastes and the Starfall Frontier; the deeper you roam, the
   **deadlier the foes and the richer the spoils** of every wander, hunt, boss and
   Secret Realm.
+- **Body Cultivation (炼体)** — a path **parallel to qi**, and the **salvation of the
+  rootless**: temper your flesh through eight body realms (Mortal Body → Iron Body
+  → Steel Bone → … → **Indestructible God-Body**) for raw power, battle stamina,
+  damage-reduction and **vastly extended life** — no spiritual root required. It
+  stacks atop qi cultivation for those who walk both roads, and is driven by
+  **Constitution and physique** rather than your root, so **your physique is your
+  ceiling**: an ordinary frame tops out at Silver Marrow, while only the legendary
+  **Undying Golden Body** can ever forge a true God-Body. A rootless child the
+  heavens spurned can still temper themselves into a power immortals must respect.
+- **Allies at your side** — bonds aren't only sentiment: the dao companion or
+  disciple who **lives with you** (and your spirit beast) **fights alongside you**
+  each round in battle, the harder the deeper your bond — though a Heavenly
+  Tribulation you must still face alone.
+- **Spirit beast companions (灵兽)** — tame a wild beast, then **raise it**: feed it
+  herbs and pills to build its **bond and experience**, and **evolve it through five
+  ranks** (Mortal → Spirit → Earth → Heaven → **Mythic Beast**) into ever mightier
+  forms. Each beast has an **innate element**, so in battle its every-round assist
+  lands with Wu Xing advantage — and from the Earth-Beast rank up it inflicts its
+  own **elemental bite** (burn, freeze, bleed…). A beast also **forages at your
+  abode**, better the higher its rank.
 - **Multi-phase bosses** — boss-tier foes (named cultivators, realm guardians, the
   tournament champion, your nemesis) **enter a second phase at half health** and
   **telegraph a devastating element-themed ultimate** — guard, heal, or be
@@ -133,6 +174,12 @@ Three more systems round out a cultivator's life:
   you**: it endures under a steward disciple, and your **reincarnated soul can
   return to reclaim it** — its prestige and disciples a lifetime's head-start —
   or watch it slowly fade across the generations if you never come back.
+- **Ascension to the Nine Heavens (飞升)** — the rarest end of the whole climb.
+  Survive the final tribulation into **Immortal Ascension** and a Heavenly Gate
+  opens: a triumphant capstone where you may **step through in glory** (a victory
+  ending that carries on through your legacy) or **linger** among mortals a while
+  longer. Every Ascension echoes down the ages, gifting **all your future souls**
+  greater talent — the ultimate prize of the meta-game.
 - **Achievements & Legacy** — feats persist across **every reincarnation and new
   soul**. Each achievement earns **Heavenly Favor** that blesses the innate
   Comprehension and Fortune of all your future lives — true meta-progression.
