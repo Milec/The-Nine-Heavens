@@ -495,8 +495,12 @@ export function relationActions(c, npc) {
   if (npc.role === "disciple") {
     const acts = [{ id: "talk", label: "Check on your disciple" }];
     if (teachableTechs(c).length) acts.push({ id: "teach", label: "Teach a technique" });
+    acts.push({ id: "guide", label: "Impart cultivation insight" });
+    acts.push({ id: "mission", label: "Send on a trial mission" });
+    if (c.artifacts && c.artifacts.some(k => k !== c.equippedArtifact)) acts.push({ id: "bestow", label: "Bestow a treasure" });
     acts.push({ id: "gift", label: "Give a gift (5 stones)" });
     acts.push({ id: "spar", label: "Spar" });
+    if ((c.abode || 0) > 0) acts.push(npc.resides ? { id: "sendaway", label: "Have them leave your abode" } : { id: "invite", label: "Invite to live at your abode" });
     return acts;
   }
   const acts = [];
@@ -504,6 +508,12 @@ export function relationActions(c, npc) {
   if ((npc.role === "companion" || npc.kin === "Son" || npc.kin === "Daughter") && teachableTechs(c).length)
     acts.push({ id: "teach", label: "Teach a technique" });
   if (npc.role !== "enemy") acts.push({ id: "gift", label: "Give a gift (5 stones)" });
+  if (npc.role === "master") {
+    acts.push({ id: "seekteaching", label: "Ask to be taught an art" });
+    acts.push({ id: "mguidance", label: "Seek their guidance" });
+    acts.push({ id: "spar", label: "Spar (a lesson in arms)" });
+    acts.push({ id: "askmaster", label: "Beg a parting gift" });
+  }
   if (npc.role === "family" && (npc.realm || 0) >= 2) acts.push({ id: "guidance", label: "Seek their guidance" });
   if (npc.role === "family" && (c.backgroundKey === "noble" || c.backgroundKey === "royal")) acts.push({ id: "askhelp", label: "Ask for resources" });
   if (npc.role === "rival" || npc.role === "friend") acts.push({ id: "spar", label: "Spar" });
@@ -536,6 +546,52 @@ export function doRelationAction(c, npc, action, rng) {
       adj(2);
       if (rng.random() < 0.5) { cap(c, "comprehension", 1); return [`${npc.name} shares hard-won cultivation wisdom. (+Comprehension)`]; }
       return [`${npc.name} tells old stories of the family's cultivators.`];
+    }
+    // ---- with your master ----
+    case "seekteaching": {
+      const unknown = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing" && !c.techniques.includes(k));
+      if (!unknown.length) { adj(2); cap(c, "comprehension", 1); return [`${npc.name} has no art left to teach that you do not already know, but offers a subtle pointer. (+Comprehension)`]; }
+      if (rng.random() < 0.4 + npc.affinity / 250 + c.comprehension / 400) {
+        const t = rng.choice(unknown); c.techniques.push(t); adj(3); happy(3);
+        note(c, `${npc.name} taught you ${D.TECHNIQUES[t][0]}.`);
+        return [`${npc.name} judges you ready and imparts the ${D.TECHNIQUES[t][0]}. (${D.TECHNIQUES[t][4]})`];
+      }
+      adj(1); return [`"Not yet," ${npc.name} says. "Temper your foundation, and ask again." (Raise your bond and comprehension.)`];
+    }
+    case "mguidance": {
+      adj(rng.randint(2, 4));
+      if (rng.random() < 0.5) { cap(c, "comprehension", rng.randint(1, 2)); return [`${npc.name} unravels a knot in your understanding of the dao. (+Comprehension)`]; }
+      if (c.awakened && c.root.key !== "none") { c.qi += E.qiToNext(c) * 0.15; advanceStages(c); return [`${npc.name} corrects your qi-circulation; your cultivation settles and deepens.`]; }
+      cap(c, "soul", 1); return [`${npc.name} speaks of their own master, long ago. The lineage's weight steadies your heart. (+Soul)`];
+    }
+    case "askmaster": {
+      if (rng.random() < 0.4 + npc.affinity / 300) {
+        const r = rng.random();
+        if (r < 0.4) { const g = rng.randint(15, 50); c.spiritStones += g; adj(-2); return [`${npc.name} presses ${g} spirit stones into your hand. "Spend it on your cultivation, not wine."`]; }
+        if (r < 0.7) { c.pills += rng.randint(1, 3); adj(-2); return [`${npc.name} gifts you a small jar of pills from their own stores.`]; }
+        return [`${npc.name} bestows a treasure upon you.`].concat(E.acquireArtifact(c, E.randomArtifact(c, rng)));
+      }
+      adj(-2); return [`${npc.name} swats the back of your head. "A cultivator earns their own fortune."`];
+    }
+    // ---- with your disciple ----
+    case "guide": {
+      npc.power = (npc.power || 1) * rng.uniform(1.05, 1.12); adj(rng.randint(3, 7)); happy(2);
+      if (rng.random() < 0.3) { c.reputation += 1; if (c.ownSect) c.ownSect.prestige += 3; }
+      return [`You personally guide ${npc.name}'s cultivation; they grow stronger and more devoted to you. (${E.npcStatus(npc)})`];
+    }
+    case "mission": {
+      const r = rng.random();
+      if (r < 0.55) { const g = rng.randint(8, 24) * (c.realm + 1); c.spiritStones += g; npc.power = (npc.power || 1) * 1.04; adj(3); if (c.ownSect) c.ownSect.prestige += 4; return [`${npc.name} returns from the trial victorious, laying ${g} spirit stones at your feet and the richer for the experience.`]; }
+      if (r < 0.82) { const h = rng.randint(3, 8); c.herbs += h; adj(2); return [`${npc.name} returns from the trial with ${h} spirit herbs and a head full of road-tales.`]; }
+      npc.power = Math.max(1, (npc.power || 1) * 0.85); adj(-2); happy(-3); return [`${npc.name} returns from the trial battered and humbled, having barely escaped with their life. You tend their wounds.`];
+    }
+    case "bestow": {
+      const spare = c.artifacts.find(k => k !== c.equippedArtifact);
+      if (!spare) return ["You have no spare treasure to bestow."];
+      c.artifacts.splice(c.artifacts.indexOf(spare), 1);
+      npc.power = (npc.power || 1) * 1.25 + 10; adj(rng.randint(8, 15)); happy(4); c.karma += 2;
+      note(c, `Bestowed the ${D.ARTIFACT_BY_KEY[spare][1]} upon ${npc.name}.`);
+      return [`You bestow the ${D.ARTIFACT_BY_KEY[spare][1]} upon ${npc.name}. They kowtow, overcome, and grow markedly stronger. (+Karma)`];
     }
     case "askhelp":
       if (rng.random() < 0.6) { const g = rng.randint(20, 80); c.spiritStones += g; adj(-2); return [`Your influential family sends ${g} spirit stones — with a lecture about responsibility.`]; }

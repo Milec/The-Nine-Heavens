@@ -318,6 +318,12 @@ function openCultivate() {
         ["Qi", `${Math.floor(c.qi)} / ${Math.floor(E.qiToNext(c))}`, "cultivation"],
         ["Power", Math.floor(E.power(c)), "power"],
       ]));
+      if (c.root.elements && c.root.elements.length) {
+        const attune = Math.round(Math.min(0.45, Math.max(0.12, 0.10 + c.root.multiplier * 0.07)) * 100);
+        const matchups = c.root.elements.map(e => { const m = C.elementMatchup(e); return m && (m.strong || m.weak) ? `${e} (▲${m.strong || "—"} ▼${m.weak || "—"})` : `${e} (exotic ▲all)`; }).join(", ");
+        const plural = c.root.elements.length > 1;
+        body.appendChild(el("p", "note", `Element${plural ? "s" : ""}: ${matchups}. Your arts of ${plural ? "these elements" : "this element"} strike +${attune}% (attuned) and you resist ${plural ? "them" : "it"}. ▲ strong vs · ▼ weak vs.`));
+      }
       const g = el("div", "menu-grid");
       if (E.canBreakthrough(c))
         addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });

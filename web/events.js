@@ -632,6 +632,24 @@ export const EVENTS = [
     ],
   },
   {
+    id: "master_trial", weight: 5, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "master" && n.alive),
+    text: c => { const m = c.relationships.find(n => n.role === "master" && n.alive); return `${m ? m.name : "Your master"} sets you a trial to prove your progress — a test of will and blade both.`; },
+    choices: [
+      { label: "Undertake the trial", result: (c, rng, A) => { const m = c.relationships.find(n => n.role === "master" && n.alive); if (rng.random() < 0.4 + c.comprehension / 250) { cap(c, "comprehension", 2); const t = A.learnTech(); if (m) m.affinity = Math.min(100, (m.affinity || 0) + 8); return [`You pass ${m ? m.name + "'s" : "the"} trial with flying colours.`, t ? `Pleased, your master rewards you with the ${t}.` : "Your master nods, and your understanding deepens. (+Comprehension)"]; } A.happy(-3); if (m) m.affinity = Math.max(-100, (m.affinity || 0) - 2); return [`You stumble at the trial. ${m ? m.name : "Your master"} sighs: "Again. And again, until it is right."`]; } },
+      { label: "Beg off — you are not ready", result: (c, rng, A) => { const m = c.relationships.find(n => n.role === "master" && n.alive); if (m) m.affinity = Math.max(-100, (m.affinity || 0) - 5); A.happy(-2); return [`${m ? m.name : "Your master"} frowns at your timidity, but lets it pass.`]; } },
+    ],
+  },
+  {
+    id: "disciple_rivalry", weight: 4, awakened: true,
+    cond: c => c.relationships.filter(n => n.role === "disciple" && n.alive).length >= 2,
+    text: c => { const d = c.relationships.filter(n => n.role === "disciple" && n.alive); return `Two of your disciples, ${d[0].name} and ${d[1].name}, fall to bitter rivalry over which of them is your true successor.`; },
+    choices: [
+      { label: "Set them a fair contest", result: (c, rng, A) => { const d = c.relationships.filter(n => n.role === "disciple" && n.alive); d.forEach(x => { x.power = (x.power || 1) * 1.06; x.affinity = Math.min(100, (x.affinity || 0) + 4); }); A.happy(3); if (c.ownSect) c.ownSect.prestige += 6; return `You pit them against each other in honest contest. Both push harder than ever, and the whole hall is the stronger for it.`; } },
+      { label: "Rebuke them both", result: (c, rng, A) => { const d = c.relationships.filter(n => n.role === "disciple" && n.alive); d.forEach(x => { x.affinity = Math.max(-100, (x.affinity || 0) - 3); }); return `You scold them sharply. The feud cools into a sullen, simmering peace.`; } },
+    ],
+  },
+  {
     id: "sibling_reunion", weight: 4, minAge: 16, maxAge: 9000,
     cond: c => c.relationships.some(n => (n.kin === "Brother" || n.kin === "Sister") && n.alive),
     text: c => { const s = c.relationships.find(n => (n.kin === "Brother" || n.kin === "Sister") && n.alive); return `Your ${s ? s.kin.toLowerCase() : "sibling"} ${s ? s.name : ""}, long parted from you, appears at your door — older, wearier, but family still.`; },

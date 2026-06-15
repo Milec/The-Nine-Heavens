@@ -59,7 +59,9 @@ Combat is a **turn-based minigame**: your learned **techniques become usable
 skills** (Azure Cloud Palm, Nine-Yang Burst with a burn DoT, Blood Spike that
 lifesteals but stains your karma, the defense-piercing Great Void Rend…), spent
 from a **qi pool** you must manage. Your **spiritual-root element** drives a Wu
-Xing advantage/weakness cycle, your **bound treasure** and **tamed beast** join
+Xing advantage/weakness cycle — and **attunes** you: arts of your own element(s)
+strike harder (the purer the root, the bigger the bonus) and you resist that
+element in turn. Your **bound treasure** and **tamed beast** join
 the fight, and stats decide crits, dodges and shields. Enemies wield their own
 **signature moves and elements** (a Demonic Outrider drains your blood; a
 Flame-Mane Lion sets you ablaze). Pick fights via **Wander the World**, **Hunt
@@ -105,7 +107,10 @@ Three more systems round out a cultivator's life:
 - **Lineage (传承)** — at the Golden Core you may **take disciples**, and **teach
   your techniques** to disciples, children and your dao companion. Your students
   carry your arts onward, and the teaching **echoes across reincarnation**,
-  sharpening the talent of your next life.
+  sharpening the talent of your next life. Tend them deeply: **impart cultivation
+  insight**, **send them on trial missions**, **bestow a treasure**, or spar — and
+  with **your own master**, ask to be taught an art, seek their guidance, beg a
+  parting gift, or test yourself against them.
 - **Market (坊市)** — a proper trading bazaar: **buy** spirit herbs, finished pills,
   technique manuals and magic treasures, and **sell** your spare herbs and surplus
   treasures. Prices **float with the world era** — dear in a Spiritual Drought,
