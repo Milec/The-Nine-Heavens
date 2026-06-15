@@ -1,5 +1,5 @@
 /* The Nine Heavens -- service worker for offline, installable play. */
-const CACHE = "nineheavens-v34";
+const CACHE = "nineheavens-v35";
 const ASSETS = [
   "./",
   "./index.html",

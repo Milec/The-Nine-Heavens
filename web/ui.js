@@ -55,6 +55,13 @@ function applyFavor(c) {
     c.comprehension = Math.min(160, c.comprehension + Math.min(15, f));
     c.luck = Math.min(160, c.luck + Math.min(10, Math.floor(f / 2)));
   }
+  // Each past Ascension echoes down the ages, gifting future souls greater talent.
+  const asc = meta.stat("ascensions");
+  if (asc > 0) {
+    c.comprehension = Math.min(160, c.comprehension + Math.min(20, asc * 4));
+    c.soul = Math.min(160, c.soul + Math.min(15, asc * 3));
+    c.luck = Math.min(160, c.luck + Math.min(15, asc * 3));
+  }
   return f;
 }
 function award(id) { const a = meta.unlock(id); if (a) logMessages([`🏆 Achievement unlocked — ${a[1]}: ${a[2]}`]); }
@@ -158,6 +165,7 @@ function renderProfile() {
   if (D.REGION_BY_KEY[c.region]) add("📍", D.REGION_BY_KEY[c.region][2], "", "region");
   if (c.era) add("☷", D.eraAt(c.era)[2], D.eraAt(c.era)[5] > 1.2 ? "bad" : D.eraAt(c.era)[4] > 1.1 ? "good" : "", "era");
   if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", "bad", "wanted");
+  if (c.ascended) add("✸", "Ascended Immortal", "good", "realm");
   if (c.awakened && E.canBreakthrough(c)) add("⚑ Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, "warn", "breakthrough");
 
   const ageTab = $("tabbar").querySelector(".tab-age");
@@ -1170,8 +1178,72 @@ function doBreakthrough() {
   logMessages(msgs);
   if (c.alive && c._tribulationPending) {
     c._tribulationPending = false;
-    startBattle(C.makeTribulation(c, state.rng), { title: "Heavenly Tribulation ⚡" }, () => { renderProfile(); save(); checkDeath(); });
-  } else { renderProfile(); save(); checkDeath(); }
+    startBattle(C.makeTribulation(c, state.rng), { title: "Heavenly Tribulation ⚡" }, () => afterBreakthrough());
+  } else { afterBreakthrough(); }
+}
+function afterBreakthrough() {
+  const c = state.c;
+  renderProfile(); save();
+  if (c.alive && c.realm >= D.REALMS.length - 1 && !c.ascended) { ascensionFinale(); return; }
+  checkDeath();
+}
+function ascensionFinale() {
+  const c = state.c;
+  c.ascended = true;
+  if (!c.titles.includes("Ascended Immortal")) c.titles.push("Ascended Immortal");
+  meta.bump("ascensions");
+  award("ascend");
+  logBanner("✸ YOU ASCEND TO THE NINE HEAVENS ✸");
+  logMessages([
+    `Having shattered the final wall and survived the last tribulation, ${c.name} sheds the dust of the mortal world.`,
+    "A great gate of golden light tears open the sky. Immortal music swells; the heavens themselves bow to acknowledge a new immortal.",
+    "Few in ten thousand years walk this road to its end. You are one of them.",
+  ]);
+  openOverlay("Ascension 飞升", body => {
+    body.appendChild(el("div", "center-card", `<div style="font-size:2.6rem">✸🌟✸</div>`));
+    body.appendChild(el("div", "title-zh", "飞升"));
+    body.appendChild(el("p", "note", `<b>${escapeHtml(c.name)}</b> has reached <b>${E.realmLabel(c)}</b> and stands before the Heavenly Gate — a true Ascended Immortal. Your bloodline, your sect, and the world will tell this tale for ten thousand years.`));
+    body.appendChild(el("p", "note", "Every soul you raise hereafter is born the more gifted for this triumph."));
+    const go = el("button", "mbtn full primary");
+    go.innerHTML = "Step through the Heavenly Gate<small>ascend in glory — conclude this saga</small>";
+    go.onclick = () => { closeOverlay(); concludeAscension(); };
+    body.appendChild(go);
+    const stay = el("button", "mbtn full");
+    stay.innerHTML = "Linger in the mortal world<small>walk among mortals as an immortal a while longer</small>";
+    stay.onclick = () => { closeOverlay(); logMessages(["You turn from the gate, unwilling yet to leave the mortal world and those within it. The immortal heavens can wait."]); renderProfile(); };
+    body.appendChild(stay);
+  }, false);
+}
+// A triumphant close — the immortal departs; the saga continues through legacy.
+function concludeAscension() {
+  const c = state.c;
+  c.alive = false; c.causeOfDeath = "ascension to the Nine Heavens"; state.deadHandled = true;
+  c.log.push([c.age, "Ascended to the Nine Heavens."]);
+  logBanner("✸ A LEGEND PASSES INTO IMMORTALITY ✸");
+  openOverlay("Ascended", body => {
+    body.appendChild(el("div", "center-card", `<div style="font-size:2.6rem">🌅</div>`));
+    body.appendChild(el("p", "note", `<b>${escapeHtml(c.name)}</b> ascends beyond the mortal world, leaving behind a legend — and a bloodline, a sect, and a name that endures.`));
+    body.appendChild(el("p", "note", `Heavenly Favor and the echo of your Ascension will bless every soul you raise hereafter.`));
+    const rein = el("button", "mbtn full primary");
+    rein.innerHTML = "Begin a New Saga<small>be reborn, carrying your soul's legacy</small>";
+    rein.onclick = () => {
+      state.c = L.reincarnateLife(c, state.rng); applyFavor(state.c); state.deeds = defaultDeeds(); state.deadHandled = false; closeOverlay();
+      logBanner("☯ THE WHEEL OF REBIRTH TURNS ☯");
+      logMessages([`A new soul is born — ${state.c.name} (Rebirth #${state.c.reincarnationCount}), the heir of an ascended immortal's legend.`]);
+      renderProfile();
+    };
+    body.appendChild(rein);
+    const heirs = L.eligibleHeirs(c);
+    if (heirs.length) {
+      const h = el("button", "mbtn full");
+      h.innerHTML = `Continue as your Heir<small>play on as your child · inherit the legacy</small>`;
+      h.onclick = () => heirs.length === 1 ? beginHeir(c, heirs[0]) : openHeirPicker(c, heirs);
+      body.appendChild(h);
+    }
+    const fresh = el("button", "mbtn full"); fresh.innerHTML = "Let the Soul Rest<small>roll a brand-new soul</small>";
+    fresh.onclick = () => { clearSave(); startScreen(); };
+    body.appendChild(fresh);
+  }, false);
 }
 function doBossFight() {
   if (!ageAllows("boss") || !useAction()) return;

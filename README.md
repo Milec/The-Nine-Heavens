@@ -174,6 +174,12 @@ Three more systems round out a cultivator's life:
   you**: it endures under a steward disciple, and your **reincarnated soul can
   return to reclaim it** — its prestige and disciples a lifetime's head-start —
   or watch it slowly fade across the generations if you never come back.
+- **Ascension to the Nine Heavens (飞升)** — the rarest end of the whole climb.
+  Survive the final tribulation into **Immortal Ascension** and a Heavenly Gate
+  opens: a triumphant capstone where you may **step through in glory** (a victory
+  ending that carries on through your legacy) or **linger** among mortals a while
+  longer. Every Ascension echoes down the ages, gifting **all your future souls**
+  greater talent — the ultimate prize of the meta-game.
 - **Achievements & Legacy** — feats persist across **every reincarnation and new
   soul**. Each achievement earns **Heavenly Favor** that blesses the innate
   Comprehension and Fortune of all your future lives — true meta-progression.
