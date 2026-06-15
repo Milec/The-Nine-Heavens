@@ -37,9 +37,10 @@ function makeNemesis(c, rng, grudge) {
   if (getNemesis(c)) return getNemesis(c);
   const n = mkNpc("nemesis", E.npcName(rng), -45);
   n.kin = "Nemesis"; n.grudge = grudge || "an old slight you barely remember";
-  n.power = E.basePower(c) * rng.uniform(1.05, 1.25) + 2;
   n.element = rng.choice([...D.ELEMENTS, "Dark", "Lightning"]);
   n.encounters = 0;
+  // A nemesis is a true peer who shadows your strength.
+  E.ensureNpcProfile(n, rng, { realm: c.realm, power: E.basePower(c) * rng.uniform(1.05, 1.25) + 2 });
   c.relationships.push(n);
   note(c, `${n.name} becomes your sworn nemesis.`);
   return n;
@@ -132,11 +133,13 @@ function generateFamily(c, rng) {
   const prof = D.PARENT_PROFILE[c.backgroundKey] || ["a commoner", "a commoner", 0];
   const newKin = (kin, occ, realm, aff) => {
     const n = mkNpc("family", `${surname} ${E.givenName(rng)}`, aff);
-    n.kin = kin; n.occupation = occ; n.realm = realm; return n;
+    n.kin = kin; n.occupation = occ;
+    E.ensureNpcProfile(n, rng, { realm });   // their own root, physique and arts
+    return n;
   };
   if (c.backgroundKey === "beggar") {
     // An orphan of the gutter -- no known parents, but a fellow stray.
-    c.relationships.push(Object.assign(mkNpc("friend", `${E.givenName(rng)}`, 30), { kin: "Fellow Orphan" }));
+    c.relationships.push(Object.assign(E.ensureNpcProfile(mkNpc("friend", `${E.givenName(rng)}`, 30), rng, { realm: 0 }), { kin: "Fellow Orphan" }));
   } else if (c.backgroundKey === "slave") {
     c.relationships.push(newKin("Mother", prof[1], 0, rng.randint(65, 85)));
   } else {
@@ -169,14 +172,21 @@ function meetPerson(c, rng, role, opts = {}) {
   const child = opts.kin && ["Son", "Daughter"].includes(opts.kin);
   const name = child ? `${surname} ${E.givenName(rng)}` : E.npcName(rng);
   const n = mkNpc(role, name, opts.affinity != null ? opts.affinity : 20);
-  n.power = child ? 1 : E.power(c) * rng.uniform(0.5, 1.4);
   if (opts.kin) n.kin = opts.kin;
   if (opts.born != null) n.born = opts.born;
   if (opts.parent) n.parent = opts.parent;
-  // Romantic partners have a sex (mostly the opposite of yours; love is love)
-  // and a latent heritable genome (their spiritual root, physique, looks…).
-  if (role === "companion") { n.sex = opts.sex || (rng.random() < 0.82 ? (c.sex === "female" ? "male" : "female") : c.sex); n.geno = E.rollGenome(rng); }
-  if (child) n.sex = opts.kin === "Son" ? "male" : "female";
+  // Romantic partners have a sex (mostly the opposite of yours; love is love).
+  if (role === "companion") n.sex = opts.sex || (rng.random() < 0.82 ? (c.sex === "female" ? "male" : "female") : c.sex);
+  if (child) { n.sex = opts.kin === "Son" ? "male" : "female"; n.power = 1; }   // a babe; its genome is set by its parents
+  else {
+    // Every cultivator you meet has their own root, physique, realm and arts —
+    // their realm scaled to their standing relative to you.
+    const r = c.realm || 0, top = D.REALMS.length - 1;
+    const hint = role === "master" ? Math.min(top, r + rng.randint(1, 2))
+      : role === "disciple" ? Math.max(0, r - rng.randint(2, 4))
+      : Math.max(0, Math.min(top, r + rng.randint(-1, 1)));
+    E.ensureNpcProfile(n, rng, { realm: opts.realm != null ? opts.realm : hint, power: opts.power });
+  }
   c.relationships.push(n);
   return n;
 }
@@ -378,7 +388,7 @@ export function ageUp(c, rng) {
 
   // Your nemesis cultivates too, always shadowing your strength.
   const nem = getNemesis(c);
-  if (nem) nem.power = Math.max(nem.power * 1.03, E.basePower(c) * rng.uniform(1.0, 1.18));
+  if (nem) { nem.power = Math.max(nem.power * 1.03, E.basePower(c) * rng.uniform(1.0, 1.18)); if ((nem.realm || 0) < c.realm) nem.realm = c.realm; }
 
   // Vitals drift gently; old age erodes health.
   c.happiness = clampN(c.happiness + rng.randint(-2, 2), 0, 100);
@@ -638,7 +648,8 @@ export function takeDisciple(c, rng) {
   if (c.realm < 4) return ["You must reach the Golden Core before any youth will kneel to you as master."];
   if (getDisciples(c).length >= 3) return ["You already shepherd three disciples — enough for any master."];
   const n = mkNpc("disciple", E.npcName(rng), 55);
-  n.kin = "Disciple"; n.power = E.power(c) * rng.uniform(0.2, 0.45); n.learned = [];
+  n.kin = "Disciple"; n.learned = [];
+  E.ensureNpcProfile(n, rng, { realm: Math.max(0, c.realm - rng.randint(2, 4)) });
   c.relationships.push(n);
   c.happiness = clampN(c.happiness + 4, 0, 100);
   note(c, `Took ${n.name} as a disciple.`);
@@ -784,7 +795,8 @@ export function holdRecruitment(c, rng) {
   const msgs = [`You throw open the gates of the ${s.name}. ${drew} hopefuls flock to your banner. (${s.members}/${cap} members)`];
   if (c.realm >= 4 && getDisciples(c).length < 4 && rng.random() < 0.45) {
     const n = mkNpc("disciple", E.npcName(rng), 55);
-    n.kin = "Disciple"; n.power = E.power(c) * rng.uniform(0.2, 0.4); n.learned = []; n.resides = true;
+    n.kin = "Disciple"; n.learned = []; n.resides = true;
+    E.ensureNpcProfile(n, rng, { realm: Math.max(0, c.realm - rng.randint(2, 4)) });
     c.relationships.push(n);
     msgs.push(`Among them, a true talent — ${n.name} — kneels as your personal disciple and takes up residence at the seat.`);
   }

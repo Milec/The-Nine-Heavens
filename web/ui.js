@@ -428,21 +428,29 @@ function personEmoji(n) {
 }
 function openPerson(n) {
   const c = state.c;
+  const isChild = n.kin === "Son" || n.kin === "Daughter";
+  if (n.alive && !isChild) E.ensureNpcProfile(n, state.rng);   // normalize older-save / event NPCs
   openOverlay(n.name, body => {
     const rootName = k => { const r = D.ROOT_TYPES.find(x => x[0] === k); return r ? r[1] : "—"; };
     const physName = k => { const p = D.PHYSIQUES.find(x => x[0] === k); return p && k !== "ordinary" ? p[1] : null; };
-    const geneRows = [];
-    if (n.role === "companion" && n.geno) {   // a potential parent's heritable talent
-      geneRows.push(["Spiritual Root", rootName(n.geno.rootKey), "root"]);
-      const ph = physName(n.geno.physiqueKey); if (ph) geneRows.push(["Physique", ph, "physique"]);
-    } else if ((n.kin === "Son" || n.kin === "Daughter") && n.geno) {
-      geneRows.push(["Spiritual Root", n._awakened ? rootName(n.geno.rootKey) : "Unrevealed (awakens at 6)", "root"]);
-      const ph = physName(n.geno.physiqueKey); if (n._awakened && ph) geneRows.push(["Physique", ph, "physique"]);
+    const hidden = isChild && !n._awakened;   // a child's talent is a mystery until the Awakening
+    const cult = [];
+    if (n.geno && !hidden) {
+      cult.push(["Spiritual Root", rootName(n.geno.rootKey), "root"]);
+      const ph = physName(n.physiqueKey || n.geno.physiqueKey); if (ph) cult.push(["Physique", ph, "physique"]);
+    } else if (isChild && hidden) {
+      cult.push(["Spiritual Root", "Unrevealed (awakens at 6)", "root"]);
     }
+    if (n.realm != null && !isChild) cult.push(["Realm", `${E.npcRealmName(n)} (${D.REALMS[n.realm][1]})`, "realm"]);
+    if (n.techniques && n.techniques.length > 1 && !hidden) {
+      const arts = n.techniques.filter(t => t !== "basic_breathing").map(t => D.TECHNIQUES[t][0]);
+      if (arts.length) cult.push(["Arts", arts.join(", ")]);
+    }
+    if (n.power && !isChild) cult.push(["Power", Math.floor(n.power), "power"]);
     body.appendChild(infoRows([
       ["Relation", relLabel(n) + (n.role === "companion" && n.married ? " (married)" : "")], ["Feeling", `${E.npcStatus(n)} (${n.affinity >= 0 ? "+" : ""}${n.affinity})`],
       ...(n.parent ? [["Parent", n.parent]] : []),
-      ...geneRows,
+      ...cult,
       ...(n.occupation ? [["Occupation", n.occupation]] : []),
     ]));
     for (const act of L.relationActions(c, n)) {
@@ -451,7 +459,7 @@ function openPerson(n) {
         if (act.id === "teach") { openTeachPicker(n); return; }   // picker spends the deed on teach
         if (act.id === "spar") {  // a friendly, non-lethal bout — fought in the combat menu
           if (!ageAllows("spar") || !useAction("social")) return;
-          const enemy = { name: n.name, kind: "rogue", power: n.power || E.power(c) * 0.8, element: n.element || null, reward: 0, kit: undefined };
+          const enemy = C.makeEnemyFromNpc(c, n, state.rng, { reward: 0 });
           logMessages([`You square off against ${n.name} for a friendly spar. (non-lethal)`]);
           startBattle(enemy, { title: `Spar · ${n.name}`, nonLethal: true, noSpoils: true }, (outcome) => {
             if (state.c.alive) {
@@ -468,7 +476,7 @@ function openPerson(n) {
           const isNemesis = n.role === "nemesis";
           const enemy = isNemesis
             ? C.makeBoss(c, state.rng, { name: n.name, power: n.power, element: n.element })
-            : { name: n.name, kind: "rogue", power: n.power || E.power(c), element: null, reward: (c.realm + 1) * 6, kit: undefined };
+            : C.makeEnemyFromNpc(c, n, state.rng, { reward: (c.realm + 1) * 6 });
           logMessages([isNemesis
             ? `At long last you stand against your nemesis ${n.name}. One of you will not walk away.`
             : `You challenge ${n.name} to settle things with qi and steel!`]);

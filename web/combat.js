@@ -127,6 +127,29 @@ export function makeEnemy(c, rng, opts = {}) {
   return { name, kind, power, element, reward, kit: buildKit(kind, name), boss: !!opts.boss, tribulation: !!opts.tribulation, hpMult: opts.hpMult };
 }
 
+// Build a fighting kit from an NPC's own learned techniques, so a cultivator you
+// duel fights with their actual arts (not a generic rogue's).
+function npcKit(npc) {
+  const moves = [];
+  for (const t of (npc.techniques || [])) {
+    const s = SKILL_BY_TECH[t]; if (!s || !s.dmg) continue;
+    moves.push({ w: 3, m: { name: s.name, dmg: s.dmg * 0.9, element: s.element, target: s.target, hits: s.hits, lifesteal: s.lifesteal, pierce: s.pierce } });
+  }
+  return moves.length ? { basic: { name: "Qi Strike", dmg: 0.42 }, moves } : buildKit("rogue", "");
+}
+// An enemy built from a named NPC: their realm-derived power, root element and arts.
+export function makeEnemyFromNpc(c, npc, rng, opts = {}) {
+  E.ensureNpcProfile(npc, rng);
+  const boss = !!opts.boss;
+  return {
+    name: npc.name, kind: "rogue", power: npc.power || E.npcPower(npc),
+    element: npc.element != null ? npc.element : null,
+    reward: opts.reward != null ? opts.reward : (c.realm + 1) * 6,
+    kit: npcKit(npc), boss, hpMult: boss ? 2.8 : (opts.hpMult || 2.3),
+    realm: npc.realm,
+  };
+}
+
 const BOSS_NAMES = ["Blood-Robe Patriarch", "Iron Vajra Monk", "Sword Fiend of the Abyss", "Heartless Fox Empress", "Crippled-Hand Elder", "Ghost-King of the Wastes", "Thousand-Bone Demon Lord", "Azure-Scaled War Sovereign", "Frost-Veiled Witch Queen", "Heaven-Devouring Old Ancestor"];
 const ULTIMATES = { Fire: "Inferno Apocalypse", Water: "Drowning World", Metal: "Ten-Thousand Sword Tomb", Wood: "World-Devouring Forest", Earth: "Mountain-Crush Seal", Dark: "Soul-Rending Abyss", Lightning: "Heaven's Wrath", Ice: "Absolute Zero Domain" };
 export function makeBoss(c, rng, opts = {}) {

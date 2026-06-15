@@ -283,6 +283,44 @@ export function inheritGenome(ga, gb, rng) {
     blend("comprehension"), blend("constitution"), blend("soul"), blend("luck"), blend("charm"));
 }
 
+/* --------------------------- NPC cultivator profiles --------------------- */
+// Every named NPC is a cultivator in their own right: a spiritual root, physique,
+// realm and techniques — from which their combat power derives (same maths as you).
+const NPC_TECH_POOL = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing");
+export function npcPower(npc) {
+  const rf = (npc.realm || 0) * 10 + (npc.stage || 0) + 1;
+  const g = npc.geno || {};
+  const con = g.constitution || 40, soul = g.soul || 40;
+  const techAtk = (npc.techniques || []).reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][3] : 0), 0);
+  const p = Math.pow(rf, 2.1) * (1 + con * 0.8 / 100 + soul * 0.5 / 100) + techAtk * rf;
+  return Math.max(2, Math.round(p));
+}
+export const npcRealmName = npc => D.REALMS[npc.realm || 0][0];
+export const npcRootName = npc => { const r = D.ROOT_TYPES.find(x => x[0] === (npc.geno && npc.geno.rootKey)); return r ? r[1] : "Unknown"; };
+// Fill in any missing cultivator fields (idempotent; back-derives realm from an
+// existing power for older saves). opts: { realm, stage, power }.
+export function ensureNpcProfile(npc, rng, opts = {}) {
+  if (!npc) return npc;
+  if (!npc.geno) npc.geno = rollGenome(rng);
+  if (npc.physiqueKey == null) npc.physiqueKey = npc.geno.physiqueKey;
+  if (npc.realm == null) {
+    if (opts.realm != null) npc.realm = clamp(opts.realm, 0, D.REALMS.length - 1);
+    else if (npc.power) npc.realm = clamp(Math.round((Math.pow(Math.max(1, npc.power), 1 / 2.1) - 1) / 10), 0, D.REALMS.length - 1);
+    else npc.realm = 0;
+  }
+  if (npc.stage == null) npc.stage = opts.stage != null ? opts.stage : (npc.realm > 0 ? rng.randint(0, Math.max(0, D.REALMS[npc.realm][2] - 1)) : 0);
+  if (!npc.techniques) {
+    const techs = ["basic_breathing"], avail = NPC_TECH_POOL.slice();
+    const n = Math.min(avail.length, Math.floor(npc.realm / 2) + (rng.random() < 0.6 ? 1 : 0));
+    for (let i = 0; i < n && avail.length; i++) techs.push(avail.splice(Math.floor(rng.random() * avail.length), 1)[0]);
+    npc.techniques = techs;
+  }
+  if (npc.element === undefined) { const r = rollRoot(rng, npc.geno.rootKey); npc.element = r.elements.length ? r.elements[0] : null; }
+  if (opts.power != null) npc.power = opts.power;
+  else if (!npc.power) npc.power = npcPower(npc);
+  return npc;
+}
+
 export function reincarnate(old, rng, name) {
   const c = generateCharacter(rng, name);
   c.reincarnationCount = old.reincarnationCount + 1;
