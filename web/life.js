@@ -378,8 +378,9 @@ export function ageUp(c, rng) {
   // rootless, this quiet hardening is the whole of their climb.
   if (c.alive) for (const m of E.temperBody(c, rng, 0.5)) if (m[0] === "⛰") events.push({ id: "bodyup", auto: true, milestone: true, text: [m] });
 
-  // The world cultivates too: friends, rivals, spouses, masters, disciples and
-  // your own children all advance along their own roads, capped by their talent.
+  // The world lives, climbs and dies alongside you: friends, rivals, spouses,
+  // masters, disciples and your own children each advance their own cultivation
+  // (capped by their talent) and age toward their own lifespan.
   let worldUp = null;
   for (const npc of c.relationships) {
     if (!npc.alive || npc.role === "nemesis") continue;        // the nemesis grows separately
@@ -389,6 +390,7 @@ export function ageUp(c, rng) {
     const step = E.advanceNpc(npc, rng);
     if (step === "realm" && !worldUp && (npc.role === "companion" || npc.role === "master" || npc.role === "disciple" || isKid || (npc.affinity || 0) >= 60))
       worldUp = npc;
+    if (npc.age != null) { npc.age += 1; if (npc.age > npc.maxAge) npcDies(c, npc, events); }
   }
   if (worldUp) events.push({ id: "world_advance", auto: true, text: [`Word reaches you: ${worldUp.name} has broken through to ${E.npcRealmName(worldUp)} (${D.REALMS[worldUp.realm][1]}). The world does not stand still while you cultivate.`] });
 
@@ -410,9 +412,6 @@ export function ageUp(c, rng) {
   // Random life events.
   for (const ev of rollYearEvents(c, rng, A)) events.push(ev);
 
-  // Family ages too -- elderly mortal kin may pass away.
-  ageFamily(c, rng, events);
-
   // Death checks.
   if (c.alive) {
     if (c.health <= 0) {
@@ -425,19 +424,19 @@ export function ageUp(c, rng) {
   return { events };
 }
 
-function ageFamily(c, rng, events) {
-  for (const n of c.relationships) {
-    if (n.role === "family" && n.alive && (n.kin === "Father" || n.kin === "Mother")) {
-      // Mortal or low-realm kin grow old over decades.
-      const lifespan = 70 + (n.realm || 0) * 40;
-      const elapsed = c.age - (n.born || 0);
-      if (c.age > 30 && rng.random() < 0.012 * Math.max(1, c.age / 30) && (n.realm || 0) < 3) {
-        n.alive = false;
-        c.happiness = clampN(c.happiness - 15, 0, 100);
-        note(c, `${n.name} (${n.kin}) passed away.`);
-        events.push({ id: "kin_death_" + n.name, auto: true, text: [`Word reaches you: ${n.name}, your ${n.kin.toLowerCase()}, has died of old age. You burn incense and grieve a mortal's brief candle.`] });
-      }
-    }
+// An NPC's lifespan runs out. Close bonds grieve; the world feels their passing.
+function npcDies(c, n, events) {
+  n.alive = false;
+  const who = n.kin && n.role === "family" ? `your ${n.kin.toLowerCase()}` : (D.ROLE_LABEL[n.role] || n.role).toLowerCase();
+  const close = n.role === "companion" || n.role === "master" || n.kin === "Son" || n.kin === "Daughter"
+    || n.role === "family" || (n.affinity || 0) >= 60;
+  note(c, `${n.name} (${who}) died of old age at ${n.age}.`);
+  if (close) {
+    c.happiness = clampN(c.happiness - (n.role === "companion" || n.kin === "Son" || n.kin === "Daughter" ? 18 : 12), 0, 100);
+    const line = n.role === "companion"
+      ? `${n.name}, your ${(n.kin || "dao companion").toLowerCase()}, has passed away at ${n.age} — their mortal span spent while yours runs on. You grieve the cruelest price of the long road.`
+      : `Word reaches you: ${n.name}, ${who}, has died of old age at ${n.age}. You burn incense for a candle gone out.`;
+    events.push({ id: "npc_death_" + n.name + c.age, auto: true, milestone: n.role === "companion", text: [line] });
   }
 }
 

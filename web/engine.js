@@ -318,6 +318,12 @@ export function ensureNpcProfile(npc, rng, opts = {}) {
   if (npc.element === undefined) { const r = rollRoot(rng, npc.geno.rootKey); npc.element = r.elements.length ? r.elements[0] : null; }
   if (opts.power != null) npc.power = opts.power;
   else if (!npc.power) npc.power = npcPower(npc);
+  // Their own age and lifespan — higher realms (and a tempered root) live far longer.
+  if (npc.maxAge == null) npc.maxAge = D.REALMS[npc.realm][3];
+  if (npc.age == null) {
+    const base = { master: 60, disciple: 16, family: 28 }[npc.role] || 22;
+    npc.age = opts.age != null ? opts.age : Math.min(npc.maxAge - 2, base + npc.realm * 8 + rng.randint(-5, 12));
+  }
   return npc;
 }
 
@@ -340,9 +346,12 @@ export function advanceNpc(npc, rng) {
   let broke = false;
   if (npc.stage < D.REALMS[npc.realm][2] - 1) npc.stage += 1;
   else { npc.realm += 1; npc.stage = 0; broke = true; }
-  if (broke && rng.random() < 0.4) {                                  // sometimes grasp a new art
-    const unknown = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing" && !(npc.techniques || []).includes(k));
-    if (unknown.length) (npc.techniques = npc.techniques || ["basic_breathing"]).push(rng.choice(unknown));
+  if (broke) {
+    npc.maxAge = D.REALMS[npc.realm][3];                              // a new realm lengthens their life
+    if (rng.random() < 0.4) {                                          // and sometimes a new art
+      const unknown = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing" && !(npc.techniques || []).includes(k));
+      if (unknown.length) (npc.techniques = npc.techniques || ["basic_breathing"]).push(rng.choice(unknown));
+    }
   }
   npc.power = Math.max(npc.power || 0, npcPower(npc));
   return broke ? "realm" : "stage";
