@@ -159,6 +159,13 @@ Three more systems round out a cultivator's life:
   tournament champion, your nemesis) **enter a second phase at half health** and
   **telegraph a devastating element-themed ultimate** — guard, heal, or be
   shattered when it lands.
+- **A living world of cultivators** — every NPC (family, friends, rivals, masters,
+  disciples, dao companions) is a **full cultivator** with their own root, physique,
+  realm and techniques; they **advance along their own road** (capped by their
+  talent), **age and die** by a realm-given lifespan (mortals wither, immortals
+  endure), and **fight you with their actual arts**. The **Heaven Board (天骄榜)**
+  ranks the era's young geniuses by power — see where you stand and **challenge
+  rivals above you** to climb the roll of heaven's pride.
 - **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
   home base, from a Humble Cave Dwelling all the way to a legendary **Cave
   Heaven**. The abode is the **hub that ties the world together**: it is **rooted

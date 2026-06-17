@@ -357,6 +357,39 @@ export function advanceNpc(npc, rng) {
   return broke ? "realm" : "stage";
 }
 
+/* ------------------------- the Heaven Board (天骄榜) ---------------------- */
+// A roster of the era's young geniuses — high-talent NPC cultivators you are
+// ranked against by raw power. They advance (and die) like any cultivator.
+const GENIUS_TITLES = ["the Sword Prodigy", "the Jade Phoenix", "the Young Patriarch", "the Frostfire Genius",
+  "the Heaven's Pride", "the Demon-Slayer", "the Cloud Walker", "the Thunder Scion", "the Peerless Maiden",
+  "the Dao Child", "the Blood Marquis", "the Azure Dragon", "the Starpicker", "the Undying Youth"];
+function makeGenius(rng, c) {
+  const rootKey = rng.choice(["triple", "dual", "dual", "heavenly", "heavenly", "variant", "quad", "chaos"]);
+  const realm = clamp((c.realm || 0) + rng.randint(-2, 3), 1, D.REALMS.length - 1);
+  const g = { name: npcName(rng), role: "genius", alive: true, affinity: 0, geno: Object.assign(rollGenome(rng), { rootKey }), title: rng.choice(GENIUS_TITLES) };
+  return ensureNpcProfile(g, rng, { realm });
+}
+export function generateRankboard(rng, c, size = 12) {
+  const board = [];
+  for (let i = 0; i < size; i++) board.push(makeGenius(rng, c));
+  return board;
+}
+// Advance the board a year; replace any who die of old age with rising newcomers.
+export function ageRankboard(c, rng) {
+  if (!c.rankboard) return;
+  for (let i = 0; i < c.rankboard.length; i++) {
+    const g = c.rankboard[i];
+    advanceNpc(g, rng);
+    if (g.age != null) { g.age += 1; if (g.age > g.maxAge) c.rankboard[i] = makeGenius(rng, c); }
+  }
+}
+// Everyone on the board plus you, sorted by power (desc). Returns {ranked, you}.
+export function rankboardStanding(c) {
+  const me = { name: c.name, you: true, power: power(c), realm: c.realm, title: "you" };
+  const ranked = [...(c.rankboard || []).map(g => ({ name: g.name, power: g.power || npcPower(g), realm: g.realm, title: g.title, ref: g })), me]
+    .sort((a, b) => b.power - a.power);
+  return { ranked, rank: ranked.findIndex(x => x.you) + 1, total: ranked.length };
+}
 export function reincarnate(old, rng, name) {
   const c = generateCharacter(rng, name);
   c.reincarnationCount = old.reincarnationCount + 1;

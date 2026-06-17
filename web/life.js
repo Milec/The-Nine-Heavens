@@ -393,6 +393,7 @@ export function ageUp(c, rng) {
     if (npc.age != null) { npc.age += 1; if (npc.age > npc.maxAge) npcDies(c, npc, events); }
   }
   if (worldUp) events.push({ id: "world_advance", auto: true, text: [`Word reaches you: ${worldUp.name} has broken through to ${E.npcRealmName(worldUp)} (${D.REALMS[worldUp.realm][1]}). The world does not stand still while you cultivate.`] });
+  if (c.rankboard) E.ageRankboard(c, rng);   // the era's geniuses climb (and fall) too
 
   // Your spirit beast grows over the year (and its yearly feeding refreshes).
   if (c.beast && c.beast.alive) E.beastGrow(c, rng);

@@ -352,8 +352,39 @@ function openCultivate() {
     // ---- shared ----
     const sg = el("div", "menu-grid");
     addBtn(sg, "Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : "adventure & battle", doWander, { disabled: c.age < AGE_MIN.wander || !isCultivator(c) });
-    addBtn(sg, "Techniques & Mastery", "train your arts", openTechniques, { full: true });
+    addBtn(sg, "Techniques & Mastery", "train your arts", openTechniques);
+    addBtn(sg, "The Heaven Board", "天骄榜 · the era's geniuses", openRankboard, { disabled: !isCultivator(c) });
     body.appendChild(sg);
+  });
+}
+function openRankboard() {
+  const c = state.c;
+  if (!c.rankboard) c.rankboard = E.generateRankboard(state.rng, c);
+  openOverlay("Heaven Board 天骄榜", body => {
+    const { ranked, rank, total } = E.rankboardStanding(c);
+    body.appendChild(el("p", "note", `The roll of the era's foremost young cultivators, ranked by raw power. You stand <b>#${rank} of ${total}</b> — climb it by out-cultivating them. Challenge a rival above you to test yourself: win and your renown soars; lose and it dims.`));
+    ranked.forEach((x, i) => {
+      const row = el("div", "listrow" + (x.you ? " bound" : ""));
+      const sub = x.you ? "— you —" : `${x.title} · ${D.REALMS[x.realm][0]} · power ${Math.floor(x.power)}`;
+      row.innerHTML = `<div class="lr-ava">${i === 0 ? "👑" : x.you ? "🧘" : "⚔️"}</div><div class="lr-main"><div class="lr-title">#${i + 1} ${escapeHtml(x.name)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
+      // You may challenge anyone ranked above you, within reach (the next 4 places up).
+      if (!x.you && i < rank - 1 && i >= rank - 5) row.onclick = () => challengeGenius(x.ref);
+      body.appendChild(row);
+    });
+    backBtn(body, openCultivate);
+  });
+}
+function challengeGenius(g) {
+  const c = state.c;
+  if (!ageAllows("duel") || !useAction("social")) return;
+  const enemy = C.makeEnemyFromNpc(c, g, state.rng, { reward: (c.realm + 1) * 8 });
+  logMessages([`You ascend the challenge-platform and call out ${g.name}, ${g.title} — a contest for rank on the Heaven Board!`]);
+  startBattle(enemy, { title: `Heaven Board · ${g.name}` }, (outcome) => {
+    if (state.c.alive) {
+      if (outcome === "win") { c.reputation += 6; g.power = Math.floor((g.power || 1) * 0.9); logMessages([`✦ You defeat ${g.name} before the watching world! Your name climbs the Heaven Board. (+Reputation)`]); }
+      else { c.reputation = Math.max(-200, c.reputation - 3); logMessages([`${g.name} bests you. You withdraw, and the board remembers. (−Reputation)`]); }
+    }
+    renderProfile(); if (!state.c.alive) checkDeath(); else openRankboard();
   });
 }
 
