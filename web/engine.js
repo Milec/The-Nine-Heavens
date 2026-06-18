@@ -192,6 +192,7 @@ function newCharacter() {
     artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
+    movementArts: [], moveMastery: {},
     mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
   };
@@ -882,6 +883,50 @@ export function buyPill(c, key, rng) {
   return [`You buy a ${D.PILL_BY_KEY[key][1]} for ${p} stones.`].concat(grantPill(c, key, rng, 1));
 }
 export const priceTalisman = (c, key) => Math.round((D.TALISMANS[key].price || 30) * marketMult(c));
+export const priceMovement = (c, key) => priceTech(c, D.MOVEMENT_BY_KEY[key][3]);
+
+/* --------------------- movement arts & travel speed (轻功) --------------- *
+ * A cultivator's footwork ripens with practice: more road-stages per travel
+ * deed, until the strong can leap mountains and fold the road. */
+export const MOVE_FULL = 600;   // proficiency points for full mastery of an art
+export const moveFraction = (c, key) => Math.min(1, ((c.moveMastery && c.moveMastery[key]) || 0) / MOVE_FULL);
+export const moveRankName = frac => frac >= 1 ? "Perfected" : frac >= 0.66 ? "Master" : frac >= 0.33 ? "Adept" : frac > 0 ? "Novice" : "Untrained";
+// The road-stages you cover per travel deed (a float). Realm-borne flight and a
+// tempered body lend innate swiftness; a mastered movement art does the rest.
+export function travelSpeed(c) {
+  const r = c.realm || 0, b = c.bodyRealm || 0;
+  let s = 1;                                                   // a mortal's plod
+  s += r >= 8 ? 3 : r >= 6 ? 2 : r >= 5 ? 1.5 : r >= 3 ? 1 : r >= 2 ? 0.5 : 0;   // qi-borne flight
+  s += b >= 4 ? 1 : b >= 2 ? 0.5 : 0;                          // a swift, tempered body
+  let art = 0;
+  for (const k of (c.movementArts || [])) { const m = D.MOVEMENT_BY_KEY[k]; if (m) art = Math.max(art, m[4] * moveFraction(c, k)); }
+  return s + art;
+}
+export const hopsPerDeed = c => Math.max(1, Math.floor(travelSpeed(c)));
+// Travel deeds (rounded up) to reach a place, given your speed.
+export function travelDeeds(c, toId) { return Math.max(1, Math.ceil(World.travelHops(c, toId) / hopsPerDeed(c))); }
+// The art you lean on most — the one giving the greatest effective speed now.
+export function bestMovementArt(c) {
+  let best = null, bs = -1;
+  for (const k of (c.movementArts || [])) { const m = D.MOVEMENT_BY_KEY[k]; if (!m) continue; const eff = m[4] * moveFraction(c, k); if (eff > bs) { bs = eff; best = k; } }
+  return best;
+}
+export function buyMovementArt(c, key) {
+  const m = D.MOVEMENT_BY_KEY[key]; if (!m) return ["No such art."];
+  if ((c.movementArts || []).includes(key)) return [`You already know the ${m[1]}.`];
+  const p = priceMovement(c, key);
+  if (c.spiritStones < p) return [`You cannot afford the ${m[1]} manual (${p} stones).`];
+  c.spiritStones -= p; (c.movementArts = c.movementArts || []).push(key);
+  c.moveMastery = c.moveMastery || {};
+  c.moveMastery[key] = Math.max(c.moveMastery[key] || 0, Math.round(MOVE_FULL * 0.15));   // a beginner's footing
+
+  note(c, `Learned the ${m[1]} (${m[2]}).`);
+  return [`You buy and begin to drill the ${m[1]} (${m[2]}) for ${p} stones. Your footwork quickens. (${m[5]})`];
+}
+export function trainMovement(c, key, pts) {
+  if (!key) return; c.moveMastery = c.moveMastery || {};
+  c.moveMastery[key] = Math.min(MOVE_FULL, (c.moveMastery[key] || 0) + Math.max(0, Math.round(pts)));
+}
 export function buyTalisman(c, key, rng) {
   const t = D.TALISMANS[key]; if (!t) return ["No such talisman."];
   const p = priceTalisman(c, key);

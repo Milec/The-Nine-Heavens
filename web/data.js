@@ -115,6 +115,18 @@ export const TECHNIQUES = {
   samsara_palm: ["Samsara Heaven-Turning Palm", 3, 0.50, 18, "Turn the wheel of life and death; void force that rends the foe and mends you."],
 };
 
+/* Movement arts (轻功): a light-body discipline letting a cultivator skim rivers
+ * and leap whole mountains. The more you practise, the more road-stages you
+ * cover with each travel deed — so the realm shrinks as your footwork ripens.
+ * [key, name, cn, tier (price band), maxSpeed (extra stages/deed at mastery), blurb] */
+export const MOVEMENT_ARTS = [
+  ["windstep",   "Wind-Treading Step",  "微风踏",   0, 1, "A basic light-body skill — skim a half-step above the dust, tireless on the road."],
+  ["cloudstride","Cloud-Soaring Stride","踏云步",   1, 2, "Tread the empty air as if on cloud, crossing a valley in a single bound."],
+  ["shrink_inch","Inch-Shrinking Step", "缩地成寸", 2, 3, "Fold the road beneath your feet — a thousand li shrink to a single inch."],
+  ["void_rift",  "Void-Rift Shift",     "虚空挪移", 3, 4, "Tear a seam in space and step through it; mountains are no barrier at all."],
+];
+export const MOVEMENT_BY_KEY = Object.fromEntries(MOVEMENT_ARTS.map(m => [m[0], m]));
+
 // [key, display, charmBonus, blurb, weight]
 export const APPEARANCES = [
   ["hideous", "Hideous (丑陋)", -25, "Scarred and misshapen; strangers flinch and look away.", 35],

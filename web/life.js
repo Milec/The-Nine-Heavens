@@ -20,6 +20,8 @@ function augment(c, rng, sex) {
   c.firedEvents = [];
   c.mastery = c.mastery || {};
   World.ensureWorld(c, rng);            // make sure this soul has a realm to roam
+  if (!c.movementArts) c.movementArts = [];
+  if (!c.moveMastery) c.moveMastery = {};
   if (c.abode == null) c.abode = 0;
   if (c.abodeLocation == null) c.abodeLocation = null;
   if (c.abodeRegion == null) c.abodeRegion = null;
@@ -496,6 +498,21 @@ export function oddJobs(c, rng) {
   c.spiritStones += earn; c.happiness = clampN(c.happiness - 2, 0, 100);
   const msgs = [`You take mortal work and odd errands for a year, scraping together ${earn} spirit stones.`];
   finishYear(c, rng, msgs);
+  return msgs;
+}
+// Drill your movement art for a season, sharpening its proficiency (a deed).
+export function practiceMovement(c, rng) {
+  if (!c.alive) return ["You are dead."];
+  const key = E.bestMovementArt(c);
+  if (!key) return ["You know no movement art to drill. Seek a 轻功 manual at a market."];
+  const m = D.MOVEMENT_BY_KEY[key];
+  const gain = rng.randint(20, 36) + Math.floor((c.soul || 0) / 12) + Math.floor((c.comprehension || 0) / 15);
+  const before = E.moveRankName(E.moveFraction(c, key));
+  E.trainMovement(c, key, gain);
+  const after = E.moveRankName(E.moveFraction(c, key));
+  c.happiness = clampN(c.happiness - 1, 0, 100);
+  const msgs = [`You drill the ${m[1]} (${m[2]}) across crag and gorge for a season. (+${gain} proficiency)`];
+  if (after !== before) msgs.push(`  ✦ Your ${m[1]} ripens to ${after} — you cover ground faster now.`);
   return msgs;
 }
 export function trainTechnique(c, rng, techKey) {

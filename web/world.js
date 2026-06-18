@@ -153,8 +153,9 @@ export function path(c, fromId, toId) {
   }
   return null;
 }
-// How many travel deeds a journey to `toId` costs from where you stand now.
-export function travelDeeds(c, toId) { const p = path(c, c.location, toId); return p ? Math.max(1, p.length - 1) : 99; }
+// Raw road distance (hops) of a journey to `toId` from where you stand now.
+// How many travel *deeds* that costs depends on your speed (see engine).
+export function travelHops(c, toId) { const p = path(c, c.location, toId); return p ? Math.max(1, p.length - 1) : 99; }
 
 /* ----------------------------- helpers ---------------------------------- */
 export const locById = (c, id) => (c.world && c.world.locations[id]) || null;

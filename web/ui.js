@@ -691,6 +691,8 @@ function actTrain() {
     g.mk("Study Scriptures", sub("study", "+comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "act"); }, { disabled: young("study") });
     g.mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
     g.mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
+    { const art = E.bestMovementArt(c);
+      g.mk("Practice Footwork 轻功", art ? `${D.MOVEMENT_BY_KEY[art][1]} · ${E.moveRankName(E.moveFraction(c, art))} · ${E.hopsPerDeed(c)}/deed` : "learn a 轻功 art at the market first", () => runTimed(() => L.practiceMovement(c, state.rng), "act"), { full: true, disabled: !art }); }
     backBtn(body, openActivities);
   });
 }
@@ -756,7 +758,9 @@ function genMarket(c) {
   const keys = D.ARTIFACTS.map(a => a[0]);
   const treasures = [];
   for (let i = 0; i < 2 && keys.length; i++) treasures.push(keys.splice(Math.floor(rng.random() * keys.length), 1)[0]);
-  return { year: c.age, loc: c.location, tech, treasures, sold: {} };
+  const unknownMoves = D.MOVEMENT_ARTS.map(m => m[0]).filter(k => !(c.movementArts || []).includes(k));
+  const move = unknownMoves.length && rng.random() < 0.7 ? rng.choice(unknownMoves) : null;
+  return { year: c.age, loc: c.location, tech, move, treasures, sold: {} };
 }
 function marketDo(fn) {
   if (!state.c.alive) return;
@@ -800,6 +804,10 @@ function openMarket() {
     if (M.tech && !c.techniques.includes(M.tech)) {
       const price = E.priceTech(c, D.TECHNIQUES[M.tech][1]);
       row("📖", D.TECHNIQUES[M.tech][0] + " (manual)", `${price} stones · ${D.TECHNIQUES[M.tech][4]}`, "", c.spiritStones >= price, () => E.buyTech(c, M.tech, state.rng));
+    }
+    if (M.move && !(c.movementArts || []).includes(M.move)) {
+      const m = D.MOVEMENT_BY_KEY[M.move], price = E.priceMovement(c, M.move);
+      row("🌀", `${m[1]} · 轻功 (${m[2]})`, `${price} stones · +${m[4]} stages/deed · ${m[5]}`, "", c.spiritStones >= price, () => E.buyMovementArt(c, M.move));
     }
     for (const k of M.treasures) {
       if (M.sold[k]) continue;
@@ -914,11 +922,13 @@ function openWorldMap() {
   if (!c.world) W.ensureWorld(c, state.rng);
   openOverlay("The Realm 寰宇", body => {
     const locs = c.world.locations, here = W.currentLoc(c);
-    body.appendChild(el("p", "note", `You stand at <b>${escapeHtml(here ? here.name : "—")}</b>${here && here.cn ? ` (${escapeHtml(here.cn)})` : ""} — ${W.typeOf(here).label}. The realm runs from the safe heartland outward to its deadly, treasure-strewn marches. Distant places take more than a year's travel — you rest at waystations along the road.`));
+    const art = E.bestMovementArt(c), perDeed = E.hopsPerDeed(c);
+    const speedTxt = `You cover <b>${perDeed} stage${perDeed > 1 ? "s" : ""}</b> of road per travel deed${art ? ` — ${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : ""}.`;
+    body.appendChild(el("p", "note", `You stand at <b>${escapeHtml(here ? here.name : "—")}</b>${here && here.cn ? ` (${escapeHtml(here.cn)})` : ""} — ${W.typeOf(here).label}. ${speedTxt} Distant places take more than a year's travel — you rest at waystations along the road.`));
 
     // A journey already underway: offer to ride on toward the remembered goal.
     if (c.journeyTo != null && c.journeyTo !== c.location && W.locById(c, c.journeyTo)) {
-      const dest = W.locById(c, c.journeyTo), left = W.travelDeeds(c, c.journeyTo);
+      const dest = W.locById(c, c.journeyTo), left = E.travelDeeds(c, c.journeyTo);
       const cont = el("button", "mbtn full primary");
       cont.innerHTML = `Continue to ${escapeHtml(dest.name)}<small>${left} stage${left > 1 ? "s" : ""} of road remain</small>`;
       cont.onclick = () => travelTo(c.journeyTo);
@@ -948,7 +958,7 @@ function openWorldMap() {
     const ordered = locs.slice().sort((a, b) => (a.id === c.location ? -1 : b.id === c.location ? 1 : loc2(here, a) - loc2(here, b)));
     for (const loc of ordered) {
       const reg = D.REGION_BY_KEY[loc.biome], danger = reg ? reg[3] : 1;
-      const cost = loc.id === c.location ? 0 : W.travelDeeds(c, loc.id);
+      const cost = loc.id === c.location ? 0 : E.travelDeeds(c, loc.id);
       const tags = [W.typeOf(loc).label,
         loc.sectKey ? "⚑ " + D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0] : null,
         c.abodeLocation === loc.id ? "your abode" : null].filter(Boolean);
@@ -980,10 +990,10 @@ function openLocationCard(id) {
     if (locals.length) body.appendChild(el("p", "note", `People you know here: ${locals.slice(0, 6).map(n => escapeHtml(n.name)).join(", ")}.`));
     if (id === c.location) body.appendChild(el("p", "note", "✦ You are here."));
     else {
-      const cost = W.travelDeeds(c, id), avail = deedsLeft("act"), years = Math.ceil(cost / DEEDS_PER_CAT);
-      body.appendChild(el("p", "note", `The road runs ${cost} stage${cost > 1 ? "s" : ""} (${cost} travel deed${cost > 1 ? "s" : ""}). ${cost <= avail ? "You can reach it this year." : `Too far for one year — you'll rest at waystations along the way (about ${years} year${years > 1 ? "s" : ""} of travel).`}`));
+      const hops = W.travelHops(c, id), cost = E.travelDeeds(c, id), avail = deedsLeft("act"), years = Math.ceil(cost / DEEDS_PER_CAT);
+      body.appendChild(el("p", "note", `The road runs ${hops} stage${hops > 1 ? "s" : ""} — ${cost} travel deed${cost > 1 ? "s" : ""} at your pace (${E.hopsPerDeed(c)}/deed). ${cost <= avail ? "You can reach it this year." : `Too far for one year — you'll rest at waystations along the way (about ${years} year${years > 1 ? "s" : ""} of travel).`}`));
       const go = el("button", "mbtn full primary");
-      go.innerHTML = `Set out for ${escapeHtml(loc.name)}<small>${cost <= avail ? `arrive this year · ${cost} deed${cost > 1 ? "s" : ""}` : `${avail > 0 ? "travel " + Math.min(avail, cost) + " stage" + (Math.min(avail, cost) > 1 ? "s" : "") + " now, rest, continue" : "no deeds left — age up first"}`}</small>`;
+      go.innerHTML = `Set out for ${escapeHtml(loc.name)}<small>${cost <= avail ? `arrive this year · ${cost} deed${cost > 1 ? "s" : ""}` : `${avail > 0 ? "travel " + Math.min(avail, cost) + " deed" + (Math.min(avail, cost) > 1 ? "s" : "") + " now, rest, continue" : "no deeds left — age up first"}`}</small>`;
       go.onclick = () => travelTo(id);
       body.appendChild(go);
     }
@@ -1004,16 +1014,23 @@ function travelTo(id) {
     logMessages(["You have no strength left for the road this year. Tap ⊕ Age Up, then travel on."]);
     renderProfile(); return;
   }
+  const perDeed = E.hopsPerDeed(c);                // road-stages covered per deed
   const totalHops = p.length - 1;
-  const hops = Math.min(avail, totalHops, DEEDS_PER_CAT);
+  const totalDeeds = Math.ceil(totalHops / perDeed);
+  const deeds = Math.min(avail, totalDeeds, DEEDS_PER_CAT);
+  const hops = Math.min(deeds * perDeed, totalHops);
   const arriveId = p[hops];
-  spendDeeds("act", hops);
+  spendDeeds("act", deeds);
+  // Travelling is practice: your footwork art ripens with the leagues you cross.
+  const art = E.bestMovementArt(c);
+  if (art) E.trainMovement(c, art, deeds * 7);
   c.location = arriveId; W.syncLocation(c);
   const dest = W.locById(c, id), at = W.locById(c, arriveId), reg = D.REGION_BY_KEY[at.biome];
   closeOverlay();
   if (arriveId === id) {
     c.journeyTo = null;
-    logMessages([`You journey to ${dest.name}${dest.cn ? ` (${dest.cn})` : ""} — ${W.typeOf(dest).label} in the ${reg ? reg[1] : "wilds"}. ${reg && reg[3] > 1.1 ? `The dangers here run ×${reg[3]}.` : "A measure of safety, here."}`]);
+    const leap = perDeed >= 3 ? "You all but leap the mountains — " : "";
+    logMessages([`${leap}You journey to ${dest.name}${dest.cn ? ` (${dest.cn})` : ""} — ${W.typeOf(dest).label} in the ${reg ? reg[1] : "wilds"}. ${reg && reg[3] > 1.1 ? `The dangers here run ×${reg[3]}.` : "A measure of safety, here."}`]);
   } else {
     c.journeyTo = id;
     const left = totalHops - hops;
@@ -1237,6 +1254,7 @@ function openSheet() {
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
     if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);
+    { const art = E.bestMovementArt(c); rows.push(["Movement 轻功", `${art ? `${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : "—"} · ${E.hopsPerDeed(c)} stage${E.hopsPerDeed(c) > 1 ? "s" : ""}/deed`]); }
     if ((c.epithets || []).length) rows.push(["Monikers 名号", c.epithets.map(e => `「${e.text}」`).join(" "), "monikers"]);
     if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
     body.appendChild(infoRows(rows));
@@ -1518,6 +1536,8 @@ function resumeFrom(sv) {
   if (!c.sex) c.sex = "male";
   if (!c.mastery) c.mastery = {};
   if (!c.epithets) c.epithets = [];
+  if (!c.movementArts) c.movementArts = [];
+  if (!c.moveMastery) c.moveMastery = {};
   if (!c.region) c.region = "azuredomain";
   W.ensureWorld(c, state.rng);   // old saves get a freshly generated realm, located sensibly
   closeOverlay(); $("log").innerHTML = ""; logBanner("☯ YOUR SAGA CONTINUES ☯"); renderProfile();
