@@ -417,6 +417,12 @@ export function ageUp(c, rng) {
   // Random life events.
   for (const ev of rollYearEvents(c, rng, A)) events.push(ev);
 
+  // The world may settle a new moniker on you as your fame and deeds grow.
+  if (c.alive && c.awakened) {
+    const named = E.maybeAwardEpithet(c, rng);
+    if (named.length) events.push({ id: "epithet_" + c.age, auto: true, milestone: true, text: named });
+  }
+
   // Death checks.
   if (c.alive) {
     if (c.health <= 0) {

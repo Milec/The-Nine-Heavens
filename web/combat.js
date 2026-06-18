@@ -473,6 +473,7 @@ function finishBattle(B) {
       const title = `Slayer of the ${En.name}`;
       if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, `Slew the ${En.name}.`]); }
       lines.push(`✦ You earn renown as the ${title}!`);
+      lines.push(...E.maybeAwardEpithet(c, rng, { base: 0.35 }));
     } else if (rng.random() < 0.16 + c.luck / 900) {
       const r = rng.random();
       if (r < 0.25) lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng)));
