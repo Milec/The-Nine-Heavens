@@ -351,9 +351,7 @@ function openCultivate() {
 
     // ---- shared ----
     const sg = el("div", "menu-grid");
-    addBtn(sg, "Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : "adventure & battle", doWander, { disabled: c.age < AGE_MIN.wander || !isCultivator(c) });
-    addBtn(sg, "Techniques & Mastery", "train your arts", openTechniques);
-    addBtn(sg, "The Heaven Board", "天骄榜 · the era's geniuses", openRankboard);
+    addBtn(sg, "Techniques & Mastery", "drill your learned arts", openTechniques, { full: true });
     body.appendChild(sg);
   });
 }
@@ -373,7 +371,7 @@ function openRankboard() {
       if (!x.you && i < rank - 1 && i >= rank - 5) row.onclick = () => challengeGenius(x.ref);
       body.appendChild(row);
     });
-    backBtn(body, openCultivate);
+    backBtn(body, actWorld);
   });
 }
 function challengeGenius(g) {
@@ -562,32 +560,89 @@ function openTechniques() {
     }
   });
 }
+// Build a small grid of leaf-action buttons (the classic mbtn). Returns the grid.
+function leafGrid(body) {
+  const grid = el("div", "menu-grid"); body.appendChild(grid);
+  grid.mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${escapeHtml(s)}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); return b; };
+  return grid;
+}
+// ---- Pursuits: a hub of categorised sub-menus (was the overloaded "Do" tab) ----
 function openActivities() {
-  const c = state.c;
-  openOverlay("Activities", body => {
+  openOverlay("Pursuits", body => {
+    const c = state.c;
     const grid = el("div", "menu-grid");
-    const mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
-    // young: below the action's minimum age
-    const young = key => c.age < (AGE_MIN[key] || 0);
-    const sub = (key, normal) => young(key) ? `from age ${AGE_MIN[key]}` : normal;
-    mk("Train the Body", sub("train", "build constitution"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult"); }, { disabled: young("train") });
-    mk("Study Scriptures", sub("study", "build comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "act"); }, { disabled: young("study") });
-    mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
-    mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
-    const canHunt = isCultivator(c);
-    const canBoss = canHunt && isStrong(c);
-    mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
-    mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
-    mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
-    mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
-    mk("Refine Pills", sub("alchemy", `alchemy · ${c.herbs} herbs`), openAlchemy, { disabled: young("alchemy") });
-    mk("Inscribe Talismans", sub("alchemy", "符箓 · craft charms"), openTalismans, { disabled: young("alchemy") });
-    mk("Travel the World", young("travel") ? `from age ${AGE_MIN.travel}` : (D.REGION_BY_KEY[c.region] ? D.REGION_BY_KEY[c.region][1] : "regions"), openTravel, { disabled: young("travel") });
     const ab = D.abodeAt(c.abode || 0);
-    mk("Your Cave Abode", ab ? `${ab[2]} · home base` : "establish a home base", openAbode, { full: true });
-    mk("Visit the Market", "坊市 · buy & sell", openMarket);
-    mk("Treasures & Beast", "your assets", openAssets);
+    navCard(grid, "🥋", "Training", "temper body · study · rest · earn", actTrain);
+    navCard(grid, "⚔️", "Adventure", "wander · hunt · spar · delve", actAdventure);
+    navCard(grid, "⚗️", "Crafting", "refine pills · inscribe talismans", actCraft);
+    navCard(grid, "💰", "Commerce", "the market 坊市 · travel the realm", actCommerce);
+    navCard(grid, "🏯", "Home & Assets", ab ? `${ab[1]} · treasures · beast` : "found an abode · treasures · beast", actHome);
+    navCard(grid, "🌏", "The Wider World", "the Heaven Board · your legacy", actWorld);
     body.appendChild(grid);
+  });
+}
+function actTrain() {
+  const c = state.c;
+  openOverlay("Training 修行", body => {
+    const young = key => c.age < (AGE_MIN[key] || 0), sub = (key, n) => young(key) ? `from age ${AGE_MIN[key]}` : n;
+    const g = leafGrid(body);
+    g.mk("Train the Body", sub("train", "+constitution · tempers your body"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult"); }, { disabled: young("train") });
+    g.mk("Study Scriptures", sub("study", "+comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "act"); }, { disabled: young("study") });
+    g.mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
+    g.mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
+    backBtn(body, openActivities);
+  });
+}
+function actAdventure() {
+  const c = state.c;
+  openOverlay("Adventure 历练", body => {
+    const young = key => c.age < (AGE_MIN[key] || 0), sub = (key, n) => young(key) ? `from age ${AGE_MIN[key]}` : n;
+    const canHunt = isCultivator(c), canBoss = canHunt && isStrong(c);
+    const g = leafGrid(body);
+    g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander });
+    g.mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
+    g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
+    g.mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
+    g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
+    backBtn(body, openActivities);
+  });
+}
+function actCraft() {
+  const c = state.c;
+  openOverlay("Crafting 炼制", body => {
+    const young = c.age < (AGE_MIN.alchemy || 0);
+    const g = leafGrid(body);
+    g.mk("Refine Pills", young ? `from age ${AGE_MIN.alchemy}` : `炼丹 · ${c.herbs} herbs`, openAlchemy, { full: true, disabled: young });
+    g.mk("Inscribe Talismans", young ? `from age ${AGE_MIN.alchemy}` : "符箓 · craft one-use charms", openTalismans, { full: true, disabled: young });
+    backBtn(body, openActivities);
+  });
+}
+function actCommerce() {
+  const c = state.c;
+  openOverlay("Commerce 坊市", body => {
+    const g = leafGrid(body);
+    g.mk("Visit the Market", `💎 ${c.spiritStones} · buy & sell`, openMarket, { full: true });
+    g.mk("Travel the World", c.age < AGE_MIN.travel ? `from age ${AGE_MIN.travel}` : (D.REGION_BY_KEY[c.region] ? "now in " + D.REGION_BY_KEY[c.region][1] : "regions"), openTravel, { full: true, disabled: c.age < AGE_MIN.travel });
+    backBtn(body, openActivities);
+  });
+}
+function actHome() {
+  const c = state.c;
+  openOverlay("Home & Assets", body => {
+    const ab = D.abodeAt(c.abode || 0);
+    const g = leafGrid(body);
+    g.mk("Your Cave Abode", ab ? `${ab[1]} (${ab[2]})` : "establish a home base", openAbode, { full: true });
+    g.mk("Treasures & Beast", "your bound treasure, inventory & spirit beast", openAssets, { full: true });
+    backBtn(body, openActivities);
+  });
+}
+function actWorld() {
+  const c = state.c;
+  openOverlay("The Wider World", body => {
+    const g = leafGrid(body);
+    g.mk("The Heaven Board", "天骄榜 · the era's geniuses", openRankboard, { full: true, disabled: !c.awakened });
+    g.mk("Achievements & Legacy", "feats across all your lives", () => openAchievements(actWorld), { full: true });
+    backBtn(body, openActivities);
   });
 }
 function genMarket(c) {
@@ -644,7 +699,7 @@ function openMarket() {
       if (c.herbs >= 5) row("🌿", "Sell Spirit Herbs ×5", `+${E.sellHerbs(c, 5)} stones`, "", true, () => E.sellSpareHerbs(c, 5));
       for (const k of spareTreasures) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.ARTIFACT_BY_KEY[k][2]})`, "", true, () => E.sellTreasure(c, k));
     }
-    backBtn(body, openActivities);
+    backBtn(body, actCommerce);
   });
 }
 function openAbode() {
@@ -702,7 +757,7 @@ function openAbode() {
     } else if (cur) {
       body.appendChild(el("p", "note", "Your abode is a Cave Heaven — the very pinnacle. There is nothing higher to build."));
     }
-    backBtn(body, openActivities);
+    backBtn(body, actHome);
   });
 }
 function openTalismans() {
@@ -716,7 +771,7 @@ function openTalismans() {
       if (can) r.onclick = () => runTimed(() => E.inscribeTalisman(c, key, state.rng), "act");
       body.appendChild(r);
     }
-    backBtn(body, openActivities);
+    backBtn(body, actCraft);
   });
 }
 function openAlchemy() {
@@ -731,7 +786,7 @@ function openAlchemy() {
       if (can) row.onclick = () => startBrew(r);
       body.appendChild(row);
     }
-    backBtn(body, openActivities);
+    backBtn(body, actCraft);
   });
 }
 function openTravel() {
@@ -753,6 +808,7 @@ function openTravel() {
       };
       body.appendChild(row);
     }
+    backBtn(body, actCommerce);
   });
 }
 function openAchievements(backFn) {
@@ -816,7 +872,7 @@ function openAssets() {
     }
     body.appendChild(el("div", "section-h", "Inventory"));
     body.appendChild(el("p", "note", c.inventory.length ? c.inventory.join(", ") : "(empty)"));
-    backBtn(body, openActivities);
+    backBtn(body, actHome);
   });
 }
 
@@ -992,6 +1048,14 @@ function infoRows(rows) {
   return wrap;
 }
 function backBtn(body, fn) { const b = el("button", "mbtn full"); b.innerHTML = "‹ Back"; b.onclick = fn; body.appendChild(b); }
+// A navigation card that opens a nested sub-menu (icon tile · title · sub · chevron).
+function navCard(grid, icon, title, sub, onclick) {
+  const b = el("button", "mbtn nav full");
+  b.innerHTML = `<span class="mb-ico">${icon}</span><span class="mb-txt"><b>${escapeHtml(title)}</b><small>${escapeHtml(sub)}</small></span>`;
+  b.onclick = onclick;
+  grid.appendChild(b);
+  return b;
+}
 
 /* --------------------------- death & rebirth ----------------------------- */
 function checkDeath() { if (!state.c.alive && !state.deadHandled) deathScreen(); }
