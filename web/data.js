@@ -1,6 +1,8 @@
 /* The Nine Heavens -- static game data (mirror of the Python nine_heavens/data.py).
  * Pure data plus a couple of tiny lookup helpers; no game logic here. */
 
+import { icon } from "./icons.js";
+
 export const REALMS = [
   // [name, cn, stages, lifespan, qiPerStage, breakthroughDiff]
   ["Mortal",                   "凡夫",     1,        80,       10, 1.00],
@@ -308,14 +310,49 @@ export const KIN = {
 };
 
 // Avatar emoji by life stage / realm tier.
-export function avatarFor(c) {
-  if (!c.awakened && c.age < AWAKENING_AGE) return c.age < 2 ? "👶" : "🧒";
-  if (c.realm >= 9) return "😇";
-  if (c.realm >= 7) return "🧝";
-  if (c.realm >= 5) return "🧙";
-  if (c.realm >= 3) return "🧘";
-  if (c.age < COMING_OF_AGE) return "🧒";
-  return c.sex === "female" ? "👩" : "🧑";
+// A hand-drawn portrait that grows with the soul: an unawakened child, a youth,
+// a grown mortal, then ever more rarefied cultivators as the realms climb.
+export function avatarKey(c) {
+  if (!c.awakened && c.age < AWAKENING_AGE) return "avChild";
+  if (c.realm >= 9) return "avImmortal";
+  if (c.realm >= 7) return "avElder";
+  if (c.realm >= 5) return "avSage";
+  if (c.realm >= 3) return "avAdept";
+  if (c.age < COMING_OF_AGE) return "avYouth";
+  return c.sex === "female" ? "avAdultF" : "avAdultM";
+}
+export function avatarFor(c, size = 30) {
+  return icon(avatarKey(c), { size, cls: "av" });
+}
+
+/* The five innate attributes, named in tiers so a raw number reads as a
+ * standing relative to an ordinary mortal (rolled around ~50). Eight bands,
+ * each flavoured per attribute; the shared index drives the banner's colour. */
+export const ATTR_TIER_CUTS = [15, 30, 45, 60, 80, 100, 125]; // -> bands 0..7
+export function attrTierIndex(v) {
+  let i = 0;
+  for (const cut of ATTR_TIER_CUTS) { if (v >= cut) i++; else break; }
+  return i;
+}
+const ATTR_TIER_NAMES = {
+  comprehension: ["Dull", "Slow", "Plain", "Apt", "Keen", "Sharp", "Enlightened", "Sage-Minded"],
+  constitution:  ["Frail", "Weak", "Sound", "Hardy", "Robust", "Ironclad", "Adamant", "Indestructible"],
+  soul:          ["Dim", "Faint", "Clear", "Aware", "Deep", "Profound", "Boundless", "Heaven-Spanning"],
+  luck:          ["Cursed", "Hapless", "Even", "Favoured", "Lucky", "Blessed", "Fated", "Heaven-Chosen"],
+  charm:         ["Plain", "Modest", "Pleasing", "Comely", "Alluring", "Captivating", "Peerless", "Nation-Toppling"],
+};
+// `attr` is the character field key: comprehension|constitution|soul|luck|charm.
+export function attrTier(attr, v) {
+  const i = attrTierIndex(v);
+  const names = ATTR_TIER_NAMES[attr] || ATTR_TIER_NAMES.comprehension;
+  return { idx: i, name: names[i], of: ATTR_TIER_CUTS.length + 1 };
+}
+// Coarse banding for colour: low / middling / high / peak.
+export function attrTierClass(idx) {
+  if (idx <= 1) return "tier-lo";
+  if (idx <= 3) return "tier-mid";
+  if (idx <= 5) return "tier-hi";
+  return "tier-top";
 }
 
 // Vital-stat descriptive bands.

@@ -4,25 +4,26 @@ import * as D from "./data.js";
 import * as L from "./life.js";
 import * as C from "./combat.js";
 import * as meta from "./meta.js";
+import { icon } from "./icons.js";
 
 /* Plain-language explanations for every stat, shown as tap hints + a glossary. */
 const GLOSSARY = {
   age: ["Age", "Your years lived, and your lifespan ceiling. Reaching a new realm extends how long you can live."],
-  deeds: ["Deeds", "Each year you have three separate budgets of deeds — ☯ Cultivation, ⚔ Activities and ❤ Social — three of each. They never pass time; only the ⊕ Age Up button passes a year, fires life events, and refreshes all your deeds."],
+  deeds: ["Deeds", "Each year you have three separate budgets of deeds — Cultivation, Activities and Social — three of each. They never pass time; only Age Up passes a year, fires life events, and refreshes all your deeds."],
   cultivation: ["Cultivation (Qi)", "Progress toward your next stage. Fills as you cultivate; at a realm's peak you attempt a breakthrough to the next realm."],
   power: ["Power ✦", "Your overall combat strength, drawn from your realm, body, soul, techniques, bound treasure, beast and Daos."],
   health: ["Health", "Your physical condition (0–100). Wounds and illness lower it; rest, pills and spirit springs restore it. Hit zero and you die."],
   happiness: ["Happiness", "Your state of mind (0–100). A serene heart steadies breakthroughs; deep misery invites the heart-demon."],
-  comprehension: ["Comprehension 悟性", "How quickly you grasp the dao. Speeds cultivation, eases breakthroughs, and quickens Dao insight."],
-  constitution: ["Constitution 根骨", "Bodily strength. More battle stamina and damage-reduction, and a sturdier resistance to death."],
-  soul: ["Soul Sense 神识", "Spiritual perception. A larger combat qi pool, better dodge, faster Dao insight, and stronger tribulation defence."],
-  fortune: ["Fortune 气运", "Luck. Quietly nudges crits, dodges, lucky finds, and clutch escapes from death."],
-  charm: ["Charm 魅力", "Social grace. Helps you make friends, draw a dao companion, and sway elders and foes alike."],
+  comprehension: ["Comprehension 悟性", "How quickly you grasp the dao. Speeds cultivation, eases breakthroughs, and quickens Dao insight. An ordinary mortal sits near 50 (Apt); the banner names your tier, from Dull up to Sage-Minded."],
+  constitution: ["Constitution 根骨", "Bodily strength. More battle stamina and damage-reduction, and a sturdier resistance to death. An ordinary mortal sits near 50 (Hardy); tiers run Frail up to Indestructible."],
+  soul: ["Soul Sense 神识", "Spiritual perception. A larger combat qi pool, better dodge, faster Dao insight, and stronger tribulation defence. An ordinary mortal sits near 50 (Aware); tiers run Dim up to Heaven-Spanning."],
+  fortune: ["Fortune 气运", "Luck. Quietly nudges crits, dodges, lucky finds, and clutch escapes from death. An ordinary mortal sits near 50 (Favoured); tiers run Cursed up to Heaven-Chosen."],
+  charm: ["Charm 魅力", "Social grace. Helps you make friends, draw a dao companion, and sway elders and foes alike. An ordinary mortal sits near 50 (Comely); tiers run Plain up to Nation-Toppling."],
   karma: ["Karma 业力", "Merit versus sin. Merit softens the Heavenly Tribulation; deep sin summons a heart-demon and bounty hunters."],
   fame: ["Fame 声望", "How the cultivation world regards your name — Unknown up to Legendary. Fame draws invitations and gifts; infamy brings hunters."],
-  stones: ["Spirit Stones 💎", "The currency of cultivators. Spend them at the Market on herbs, pills, technique manuals and treasures, on your cave abode and sect, or at auctions. Market prices float with the world era."],
-  herbs: ["Spirit Herbs 🌿", "Raw materials gathered in the wild and refined into pills at the alchemy furnace."],
-  region: ["Region 📍", "Where you roam. Distant regions hold deadlier foes — and far richer spoils."],
+  stones: ["Spirit Stones 灵石", "The currency of cultivators. Spend them at the Market on herbs, pills, technique manuals and treasures, on your cave abode and sect, or at auctions. Market prices float with the world era."],
+  herbs: ["Spirit Herbs 灵草", "Raw materials gathered in the wild and refined into pills at the alchemy furnace."],
+  region: ["Region 地域", "Where you roam. Distant regions hold deadlier foes — and far richer spoils."],
   era: ["World Era 天时", "The age the realm is passing through. An Age of Abundance quickens cultivation and calms the roads; a Warring Era or Demon Tide makes the world far deadlier; a Spiritual Drought stifles all qi; a Dawn of Ascension eases breakthroughs. The world turns on across your reincarnations."],
   wanted: ["Wanted", "Low standing or heavy sin puts a price on your head; bounty hunters will hunt you down."],
   breakthrough: ["Breakthrough", "You stand at a realm wall. Attempt it from the Cultivate tab to ascend — risky, and from Golden Core up it summons a Heavenly Tribulation."],
@@ -136,7 +137,7 @@ function vbar(label, val, max, cls, valText, tip) {
 }
 function renderProfile() {
   const c = state.c;
-  $("pf-avatar").textContent = D.avatarFor(c);
+  $("pf-avatar").innerHTML = D.avatarFor(c);
   $("pf-name").textContent = c.name + (c.reincarnationCount ? `  ·  ☯${c.reincarnationCount}` : "");
   let sub;
   if (!c.awakened) sub = `Unawakened ${c.sex === "female" ? "girl" : "boy"} · ${c.backgroundName.split(" (")[0]}`;
@@ -150,6 +151,28 @@ function renderProfile() {
   bars.push(vbar("Happiness", c.happiness, 100, "happy", null, "happiness"));
   $("pf-bars").innerHTML = bars.join("");
 
+  // The innate-attribute banner: each number read as a tier relative to a
+  // mortal, with a custom glyph and a colour that tracks how rare it is.
+  const attrs = $("pf-attrs");
+  if (attrs) {
+    attrs.innerHTML = "";
+    const ATTR_ROW = [
+      ["comprehension", "comprehension", "comprehension"],
+      ["constitution", "constitution", "constitution"],
+      ["soul", "soul", "soul"],
+      ["luck", "fortune", "fortune"],
+      ["charm", "charm", "charm"],
+    ];
+    for (const [field, ico, tip] of ATTR_ROW) {
+      const val = c[field];
+      const t = D.attrTier(field, val);
+      const tile = el("div", "attr-tile " + D.attrTierClass(t.idx));
+      tile.innerHTML = `${icon(ico, { size: 17 })}<span class="at-name">${t.name}</span><span class="at-num">${val}</span>`;
+      tile.onclick = () => showTip(tip);
+      attrs.appendChild(tile);
+    }
+  }
+
   const chips = $("pf-chips"); chips.innerHTML = "";
   const add = (label, val, cls, tip) => { const ch = el("span", "chip" + (cls ? " " + cls : "") + (tip ? " tappable" : ""), `${label} <b>${val}</b>`); if (tip) ch.onclick = () => showTip(tip); chips.appendChild(ch); };
   add("Age", `${c.age}/${c.maxAge}`, "", "age");
@@ -157,12 +180,12 @@ function renderProfile() {
     const n = deedsLeft(cat);
     add(DEED_ICON[cat], "●".repeat(n) + "○".repeat(Math.max(0, DEEDS_PER_CAT - n)), n <= 0 ? "warn" : "good", "deeds");
   }
-  if (c.awakened) add("✦", Math.floor(E.power(c)), "", "power");
+  if (c.awakened) add(icon("power", { size: 13, cls: "chip-ic" }), Math.floor(E.power(c)), "", "power");
   add("Fame", D.standingLabel(c.reputation), c.reputation >= 90 ? "good" : c.reputation <= -12 ? "bad" : "", "fame");
   add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`, c.karma >= 40 ? "good" : c.karma <= -40 ? "bad" : "", "karma");
-  add("💎", c.spiritStones, "", "stones");
-  if (c.herbs) add("🌿", c.herbs, "", "herbs");
-  if (D.REGION_BY_KEY[c.region]) add("📍", D.REGION_BY_KEY[c.region][2], "", "region");
+  add(icon("stones", { size: 13, cls: "chip-ic" }), c.spiritStones, "", "stones");
+  if (c.herbs) add(icon("herbs", { size: 13, cls: "chip-ic" }), c.herbs, "", "herbs");
+  if (D.REGION_BY_KEY[c.region]) add(icon("region", { size: 13, cls: "chip-ic" }), D.REGION_BY_KEY[c.region][2], "", "region");
   if (c.era) add("☷", D.eraAt(c.era)[2], D.eraAt(c.era)[5] > 1.2 ? "bad" : D.eraAt(c.era)[4] > 1.1 ? "good" : "", "era");
   if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", "bad", "wanted");
   if (c.ascended) add("✸", "Ascended Immortal", "good", "realm");
@@ -194,7 +217,11 @@ function closeOverlay() { $("overlay").classList.add("hidden"); }
  * of training doesn't crowd out adventuring or tending your relationships. */
 const DEEDS_PER_CAT = 3;
 const DEED_LABEL = { cult: "Cultivation", act: "Activities", social: "Social" };
-const DEED_ICON = { cult: "☯", act: "⚔", social: "❤" };
+const DEED_ICON = {
+  cult: icon("deedCult", { size: 13, cls: "chip-ic" }),
+  act: icon("deedAct", { size: 13, cls: "chip-ic" }),
+  social: icon("deedSocial", { size: 13, cls: "chip-ic" }),
+};
 const defaultDeeds = () => ({ cult: DEEDS_PER_CAT, act: DEEDS_PER_CAT, social: DEEDS_PER_CAT });
 const deedsLeft = cat => (state.deeds && state.deeds[cat] != null) ? state.deeds[cat] : DEEDS_PER_CAT;
 
@@ -1016,9 +1043,13 @@ function openSheet() {
     if (D.PHYSIQUE_EFFECTS[c.physiqueKey] && c.physiqueKey !== "ordinary")
       body.appendChild(el("p", "note", "✦ " + D.physEffect(c).desc));
     body.appendChild(el("div", "section-h", "Attributes"));
+    const attrRow = (label, field, attr, tip) => [label, `${c[field]} · ${D.attrTier(attr, c[field]).name}`, tip];
     body.appendChild(infoRows([
-      ["Comprehension 悟性", c.comprehension, "comprehension"], ["Constitution 根骨", c.constitution, "constitution"],
-      ["Soul Sense 神识", c.soul, "soul"], ["Fortune 气运", c.luck, "fortune"], ["Charm 魅力", c.charm, "charm"],
+      attrRow("Comprehension 悟性", "comprehension", "comprehension", "comprehension"),
+      attrRow("Constitution 根骨", "constitution", "constitution", "constitution"),
+      attrRow("Soul Sense 神识", "soul", "soul", "soul"),
+      attrRow("Fortune 气运", "luck", "luck", "fortune"),
+      attrRow("Charm 魅力", "charm", "charm", "charm"),
     ]));
     body.appendChild(el("div", "section-h", "Path"));
     const ab = D.abodeAt(c.abode || 0);
@@ -1280,13 +1311,14 @@ function birthVerdict(c) {
 function creatorPreviewCard(c) {
   if (!c) return el("div");
   const wrap = el("div", "cr-preview");
-  wrap.appendChild(el("div", "cr-pv-top", `${D.avatarFor(c)} <b>${escapeHtml(c.name)}</b> · ${c.sex === "female" ? "♀" : "♂"}`));
+  wrap.appendChild(el("div", "cr-pv-top", `${D.avatarFor(c, 22)} <b>${escapeHtml(c.name)}</b> · ${c.sex === "female" ? "♀" : "♂"}`));
+  const tg = (field, attr) => `${c[field]} (${D.attrTier(attr, c[field]).name})`;
   const rows = [
     ["Spiritual Root", `${c.root.display}${c.root.elements.length ? " [" + c.root.elements.join(", ") + "]" : ""}`],
     ["Physique", c.physiqueName], ["Appearance", c.appearanceName], ["Standing", c.backgroundName],
     ["Omen", c.omen.length > 46 ? c.omen.slice(0, 44) + "…" : c.omen],
-    ["Comprehension / Constitution", `${c.comprehension} / ${c.constitution}`],
-    ["Soul / Fortune / Charm", `${c.soul} / ${c.luck} / ${c.charm}`],
+    ["Comprehension", tg("comprehension", "comprehension")], ["Constitution", tg("constitution", "constitution")],
+    ["Soul Sense", tg("soul", "soul")], ["Fortune", tg("luck", "luck")], ["Charm", tg("charm", "charm")],
   ];
   wrap.appendChild(infoRows(rows));
   if (D.PHYSIQUE_EFFECTS[c.physiqueKey] && c.physiqueKey !== "ordinary")
@@ -1683,6 +1715,12 @@ function wanderFortune(c) {
 }
 
 /* ----------------------------- wiring ------------------------------------ */
+// Paint the static chrome glyphs (tabs + header/overlay buttons) from one icon set.
+document.querySelectorAll("[data-ico]").forEach(n => { n.innerHTML = icon(n.dataset.ico, { size: 26 }); });
+$("pf-more").innerHTML = icon("sheet", { size: 22 });
+$("overlay-close").innerHTML = icon("close", { size: 18 });
+$("pf-avatar").innerHTML = icon("avChild", { size: 30, cls: "av" });
+
 const TABS = { cultivate: openCultivate, people: openPeople, activities: openActivities, sect: openSect, age: doAgeUp };
 document.querySelectorAll("#tabbar .tab").forEach(btn => btn.addEventListener("click", () => { const t = btn.dataset.tab; if (TABS[t]) TABS[t](); }));
 $("pf-more").addEventListener("click", () => { if (state.c) openSheet(); });
