@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0e1220" />
+  <meta name="theme-color" content="#0d111c" />
   <meta name="description" content="The Nine Heavens — a xianxia life-sim RPG. Live a cultivator's life from birth to immortality, one year at a time." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -18,25 +18,26 @@
   <div id="app">
     <header id="profile">
       <div class="pf-top">
-        <div id="pf-avatar" class="pf-avatar">🧒</div>
+        <div id="pf-avatar" class="pf-avatar"></div>
         <div class="pf-id">
           <div id="pf-name">—</div>
           <div id="pf-sub" class="pf-sub">—</div>
         </div>
-        <button id="pf-more" class="pf-more" aria-label="Character sheet">☰</button>
+        <button id="pf-more" class="pf-more" aria-label="Character sheet"></button>
       </div>
       <div id="pf-bars" class="pf-bars"></div>
+      <div id="pf-attrs" class="pf-attrs"></div>
       <div id="pf-chips" class="pf-chips"></div>
     </header>
 
     <main id="log" aria-live="polite"></main>
 
     <nav id="tabbar">
-      <button class="tab" data-tab="cultivate"><span class="ico">🧘</span>Cultivate</button>
-      <button class="tab" data-tab="people"><span class="ico">👪</span>People</button>
-      <button class="tab tab-age" data-tab="age"><span class="ico">⊕</span>Age&nbsp;Up</button>
-      <button class="tab" data-tab="activities"><span class="ico">🧭</span>Pursuits</button>
-      <button class="tab" data-tab="sect"><span class="ico">🏯</span>Sect</button>
+      <button class="tab" data-tab="cultivate"><span class="ico" data-ico="cultivate"></span>Cultivate</button>
+      <button class="tab" data-tab="people"><span class="ico" data-ico="people"></span>People</button>
+      <button class="tab tab-age" data-tab="age"><span class="ico" data-ico="ageup"></span>Age&nbsp;Up</button>
+      <button class="tab" data-tab="activities"><span class="ico" data-ico="pursuits"></span>Pursuits</button>
+      <button class="tab" data-tab="sect"><span class="ico" data-ico="sect"></span>Sect</button>
     </nav>
   </div>
 
@@ -44,7 +45,7 @@
     <div id="overlay-card">
       <div id="overlay-head">
         <h2 id="overlay-title">—</h2>
-        <button id="overlay-close" aria-label="Close">✕</button>
+        <button id="overlay-close" aria-label="Close"></button>
       </div>
       <div id="overlay-body"></div>
     </div>
