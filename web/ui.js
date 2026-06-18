@@ -21,6 +21,7 @@ const GLOSSARY = {
   charm: ["Charm 魅力", "Social grace. Helps you make friends, draw a dao companion, and sway elders and foes alike. An ordinary mortal sits near 50 (Comely); tiers run Plain up to Nation-Toppling."],
   karma: ["Karma 业力", "Merit versus sin. Merit softens the Heavenly Tribulation; deep sin summons a heart-demon and bounty hunters."],
   fame: ["Fame 声望", "How the cultivation world regards your name — Unknown up to Legendary. Fame draws invitations and gifts; infamy brings hunters."],
+  monikers: ["Monikers 名号", "Names the world hangs on you, earned through your dao, deeds, fame and nature — a Sword Immortal, a Pill Sage, a Devil Sovereign. Greater fame unlocks grander names; the grandest you hold is how the world speaks of you, shown beneath your name."],
   stones: ["Spirit Stones 灵石", "The currency of cultivators. Spend them at the Market on herbs, pills, technique manuals and treasures, on your cave abode and sect, or at auctions. Market prices float with the world era."],
   herbs: ["Spirit Herbs 灵草", "Raw materials gathered in the wild and refined into pills at the alchemy furnace."],
   region: ["Region 地域", "Where you roam. Distant regions hold deadlier foes — and far richer spoils."],
@@ -135,14 +136,39 @@ function vbar(label, val, max, cls, valText, tip) {
   return `<div class="vbar${tip ? " tappable" : ""}"${tip ? ` data-tip="${tip}"` : ""}><div class="vb-label"><span>${label}</span><span>${valText != null ? valText : Math.floor(val)}</span></div>
     <div class="vb-track"><div class="vb-fill ${cls}" style="width:${clampPct(val, max)}%"></div></div></div>`;
 }
+/* The interface's accent colour follows the soul's nature: jade-gold for the
+ * righteous, amethyst then cinnabar as karma turns toward the demonic dao. */
+const KARMA_THEMES = ["k-saint", "k-virtuous", "k-neutral", "k-tainted", "k-demonic"];
+function karmaTheme(k) {
+  if (k >= 70) return "k-saint";
+  if (k >= 25) return "k-virtuous";
+  if (k <= -70) return "k-demonic";
+  if (k <= -25) return "k-tainted";
+  return "k-neutral";
+}
+function applyKarmaTheme(c) {
+  const cls = karmaTheme(c ? c.karma || 0 : 0);
+  const b = document.body;
+  for (const t of KARMA_THEMES) b.classList.toggle(t, t === cls);
+}
+
 function renderProfile() {
   const c = state.c;
+  applyKarmaTheme(c);
   $("pf-avatar").innerHTML = D.avatarFor(c);
   $("pf-name").textContent = c.name + (c.reincarnationCount ? `  ·  ☯${c.reincarnationCount}` : "");
-  let sub;
-  if (!c.awakened) sub = `Unawakened ${c.sex === "female" ? "girl" : "boy"} · ${c.backgroundName.split(" (")[0]}`;
-  else sub = `${E.realmLabel(c)} · ${c.sectKey ? E.rankName(c).split(" (")[0] : "Rogue Cultivator"}`;
-  $("pf-sub").textContent = sub;
+  // The sub-line shows realm + standing — or, once the world has named you, the
+  // grandest moniker you hold (the world's name for you) ahead of your realm.
+  const ep = E.activeEpithet(c);
+  if (ep) {
+    const standing = c.awakened ? E.realmLabel(c) : `Unawakened ${c.sex === "female" ? "girl" : "boy"}`;
+    $("pf-sub").innerHTML = `<span class="pf-epithet">「${escapeHtml(ep.text)}」</span> · ${escapeHtml(standing)}`;
+  } else {
+    const sub = !c.awakened
+      ? `Unawakened ${c.sex === "female" ? "girl" : "boy"} · ${c.backgroundName.split(" (")[0]}`
+      : `${E.realmLabel(c)} · ${c.sectKey ? E.rankName(c).split(" (")[0] : "Rogue Cultivator"}`;
+    $("pf-sub").textContent = sub;
+  }
 
   const bars = [];
   if (c.awakened && c.root.key !== "none")
@@ -1059,6 +1085,7 @@ function openSheet() {
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
     if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);
+    if ((c.epithets || []).length) rows.push(["Monikers 名号", c.epithets.map(e => `「${e.text}」`).join(" "), "monikers"]);
     if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
     body.appendChild(infoRows(rows));
     body.appendChild(el("div", "section-h", "Resources"));
@@ -1338,6 +1365,7 @@ function resumeFrom(sv) {
   if (!c.eventCooldowns) c.eventCooldowns = {};
   if (!c.sex) c.sex = "male";
   if (!c.mastery) c.mastery = {};
+  if (!c.epithets) c.epithets = [];
   if (!c.region) c.region = "azuredomain";
   closeOverlay(); $("log").innerHTML = ""; logBanner("☯ YOUR SAGA CONTINUES ☯"); renderProfile();
   if (!c.alive) checkDeath();
@@ -1632,6 +1660,7 @@ function tourneyEnd(placement, won) {
     if (!c.titles.includes(h)) c.titles.push(h);
     c.log.push([c.age, `Placed as ${title} in the ${E.sectName(c)} tournament.`]);
     lines.push(`✦ You earn the title: ${title}!`);
+    if (placement === 1) lines.push(...E.maybeAwardEpithet(c, rng, { base: 0.4 }));
     if (placement <= 2 && !c.relationships.some(n => n.role === "companion" && n.alive) && rng.random() < 0.3 + c.charm / 400) {
       const npc = { name: E.npcName(rng), role: "companion", affinity: 35, power: E.power(c) * rng.uniform(0.7, 1.3), alive: true };
       c.relationships.push(npc); lines.push(`Your brilliance in the arena catches the eye of ${npc.name}, who seeks you out afterward...`);

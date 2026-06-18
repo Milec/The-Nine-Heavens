@@ -186,7 +186,7 @@ function newCharacter() {
     comprehension: 30, constitution: 30, soul: 30, luck: 30, charm: 30,
     realm: 0, stage: 0, qi: 0, maxAge: 80, bodyRealm: 0, temper: 0, longevityBonus: 0,
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
-    sectKey: null, sectRank: 0, contribution: 0, titles: [], relationships: [],
+    sectKey: null, sectRank: 0, contribution: 0, titles: [], epithets: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
@@ -501,6 +501,7 @@ export function attemptBreakthrough(c, rng, opts = {}) {
     c.realm += 1; c.stage = 0; recomputeMaxAge(c); recomputeMaxHp(c); c.hp = c.maxHp;
     msgs.push(`☯ BREAKTHROUGH! You have ascended to ${realmLabel(c)}!`);
     note(c, `Broke through to ${realmName(c)}.`);
+    pushAll(msgs, maybeAwardEpithet(c, rng, { base: 0.3 }));
     pushAll(msgs, heartDemon(c, rng));
     // From Golden Core up, the heavens send a Tribulation. The web UI can run
     // it as an interactive battle; otherwise resolve it automatically here.
@@ -1206,4 +1207,107 @@ export function epitaph(c) {
   if (c.realm >= 4) return "✦ A true cultivator who touched immortality's hem before the end.";
   if (c.realm >= 2) return "✦ A diligent seeker who climbed further than most ever dare.";
   return "✦ One more soul the great dao swallowed without a ripple. Try again.";
+}
+
+/* --------------------- world monikers (名号 / epithets) ------------------- *
+ * Xianxia cultivators are known by names the world hangs on them — earned from
+ * their dao, their deeds, their fame and their very nature. A soul collects
+ * these across a life; the grandest becomes how the world speaks of them.
+ * Each entry: { id, tier (1 lesser .. 5 legendary), when(c), text(c) }. The
+ * tier both gates a name behind fame and decides which one the world favours. */
+const epIsDemonic = c => (c.karma || 0) <= -45;
+const epIsSaintly = c => (c.karma || 0) >= 60;
+const epHasDao = (c, k) => (c.daos || []).includes(k);
+const epHasElem = (c, e) => !!(c.root && c.root.elements && c.root.elements.includes(e));
+const epFem = c => c.sex === "female";
+
+export const EPITHETS = [
+  // — dao of the sword / metal edge —
+  { id: "sword_imm",   tier: 4, when: c => epHasDao(c, "sword") && !epIsDemonic(c), text: () => "Sword Immortal" },
+  { id: "sword_fiend", tier: 4, when: c => epHasDao(c, "sword") && epIsDemonic(c), text: () => "Sword Fiend" },
+  { id: "lone_blade",  tier: 2, when: c => epHasDao(c, "sword") || epHasElem(c, "Metal"), text: () => "Lone Blade" },
+  { id: "gold_edict",  tier: 3, when: c => epHasElem(c, "Metal"), text: () => "Golden Edict" },
+  // — elemental roots —
+  { id: "flame_lord",  tier: 3, when: c => epHasDao(c, "flame") || epHasElem(c, "Fire"), text: c => epIsDemonic(c) ? "Calamity Flame" : "Vermilion Flame Lord" },
+  { id: "tide_sov",    tier: 3, when: c => epHasElem(c, "Water"), text: () => "Tide Sovereign" },
+  { id: "frostsoul",   tier: 3, when: c => epHasElem(c, "Ice"), text: () => "Frostsoul" },
+  { id: "verdant",     tier: 3, when: c => epHasElem(c, "Wood"), text: () => "Verdant Sage" },
+  { id: "mountain",    tier: 3, when: c => epHasElem(c, "Earth"), text: () => "Mountain-Root Sovereign" },
+  { id: "thunderscourge", tier: 4, when: c => epHasDao(c, "thunder") || epHasElem(c, "Lightning") || epHasElem(c, "Thunder"), text: () => "Thunderscourge" },
+  // — other daos —
+  { id: "void_walker", tier: 4, when: c => epHasDao(c, "void") || epHasDao(c, "space"), text: () => "Voidwalker" },
+  { id: "hourkeeper",  tier: 5, when: c => epHasDao(c, "time"), text: () => "Keeper of Hours" },
+  { id: "dreamweaver", tier: 4, when: c => epHasDao(c, "dream"), text: () => "Dreamweaver" },
+  { id: "karma_arbiter", tier: 4, when: c => epHasDao(c, "karma"), text: () => "Karma Arbiter" },
+  { id: "evergreen",   tier: 4, when: c => epHasDao(c, "vitality"), text: () => "Evergreen Sage" },
+  { id: "all_devourer", tier: 4, when: c => epHasDao(c, "devour"), text: () => "All-Devourer" },
+  { id: "blood_asura", tier: 4, when: c => epHasDao(c, "slaughter"), text: () => "Blood Asura" },
+  // — body cultivation —
+  { id: "iron_bone",   tier: 2, when: c => (c.bodyRealm || 0) >= 3, text: () => "Iron-Bone" },
+  { id: "vajra",       tier: 4, when: c => (c.bodyRealm || 0) >= 5, text: () => "Indestructible Vajra" },
+  { id: "war_god",     tier: 5, when: c => (c.bodyRealm || 0) >= 6, text: () => "War-God Incarnate" },
+  // — crafts & companions —
+  { id: "pill_adept",  tier: 2, when: c => (c.alchemySkill || 0) >= 30, text: () => "Cauldron Adept" },
+  { id: "pill_sage",   tier: 4, when: c => (c.alchemySkill || 0) >= 80, text: () => "Pill Sage" },
+  { id: "beastmaster", tier: 3, when: c => !!(c.beast && c.beast.alive), text: () => "Beast Sovereign" },
+  // — innate gifts —
+  { id: "child_fortune", tier: 3, when: c => (c.luck || 0) >= 95, text: () => "Child of Fortune" },
+  { id: "dao_born",    tier: 4, when: c => (c.comprehension || 0) >= 110, text: () => "Dao-Born Genius" },
+  { id: "peerless_beauty", tier: 3, when: c => (c.charm || 0) >= 100, text: c => epFem(c) ? "Nation-Toppling Beauty" : "Jade-Faced Idol" },
+  // — nature / karma —
+  { id: "living_buddha", tier: 4, when: c => epIsSaintly(c), text: () => "Living Buddha" },
+  { id: "merciful",    tier: 2, when: c => (c.karma || 0) >= 35, text: () => "Merciful Sword" },
+  { id: "devil_sov",   tier: 4, when: c => epIsDemonic(c) && (c.reputation || 0) <= -40, text: () => "Devil Sovereign" },
+  { id: "bloodhand",   tier: 3, when: c => epIsDemonic(c), text: () => "Blood-Handed" },
+  // — fame —
+  { id: "rising_star", tier: 2, when: c => (c.reputation || 0) >= 40, text: () => "Rising Star" },
+  { id: "grand_sov",   tier: 4, when: c => (c.reputation || 0) >= 90, text: () => "Grand Sovereign" },
+  { id: "living_legend", tier: 5, when: c => (c.reputation || 0) >= 180, text: () => "Living Legend" },
+  { id: "infamous",    tier: 2, when: c => (c.reputation || 0) <= -40, text: () => "Infamous One" },
+  // — realm grandeur & legend —
+  { id: "old_monster", tier: 4, when: c => c.realm >= 6 && c.age >= 200, text: () => "Old Monster" },
+  { id: "peerless_uh", tier: 5, when: c => c.realm >= 8, text: () => "Peerless Under Heaven" },
+  { id: "soul_of_ages", tier: 3, when: c => (c.reincarnationCount || 0) >= 1, text: () => "Soul of Ages" },
+  { id: "founder",     tier: 3, when: c => !!c.ownSect, text: c => epFem(c) ? "Founding Matriarch" : "Founding Patriarch" },
+];
+
+function epWhen(e, c) { try { return !!e.when(c); } catch { return false; } }
+
+// Every moniker this soul qualifies for but has not yet been given.
+export function eligibleEpithets(c) {
+  const have = new Set((c.epithets || []).map(e => e.id));
+  return EPITHETS.filter(e => !have.has(e.id) && epWhen(e, c));
+}
+
+// How the world speaks of you now: the grandest name you hold (latest on ties).
+export function activeEpithet(c) {
+  const es = c.epithets || [];
+  if (!es.length) return null;
+  return es.reduce((best, e) => (e.tier >= best.tier ? e : best), es[0]);
+}
+
+// Roll to be given a new moniker. `opts.base` sets the trigger's base chance
+// (a deed earns one more readily than a quiet year); `opts.mult` scales it.
+// Fame both raises the odds and unlocks ever grander names. Returns log lines.
+export function maybeAwardEpithet(c, rng, opts = {}) {
+  if (!c.alive || !c.awakened) return [];
+  c.epithets = c.epithets || [];
+  const pool = eligibleEpithets(c);
+  if (!pool.length) return [];
+  const fame = Math.max(0, c.reputation || 0);
+  let chance = (opts.base != null ? opts.base : 0.05) + Math.min(0.15, fame / 700);
+  chance *= (opts.mult != null ? opts.mult : 1);
+  if (rng.random() > Math.min(0.85, chance)) return [];
+  const maxTier = fame >= 180 ? 5 : fame >= 90 ? 4 : fame >= 40 ? 3 : 2;
+  let choices = pool.filter(e => e.tier <= maxTier);
+  if (!choices.length) choices = pool.filter(e => e.tier <= 2);
+  if (!choices.length) return [];
+  // The world reaches for the grandest name you have earned, for drama.
+  const top = Math.max(...choices.map(e => e.tier));
+  const band = choices.filter(e => e.tier >= top - 1);
+  const e = band[Math.floor(rng.random() * band.length)];
+  const text = e.text(c);
+  c.epithets.push({ id: e.id, text, tier: e.tier });
+  note(c, `Became known across the world as 「${text}」.`);
+  return [`✦ A new name spreads through the cultivation world — they have taken to calling you 「${text}」.`];
 }
