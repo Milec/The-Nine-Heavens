@@ -557,6 +557,7 @@ function openPerson(n) {
               c.happiness = Math.min(100, c.happiness + 2);
               if (outcome === "win") { n.affinity = Math.min(100, n.affinity + state.rng.randint(2, 6)); logMessages([`You best ${n.name} in the friendly bout; they respect you for it.`]); }
               else if (outcome === "lose" || outcome === "yield") { n.affinity = Math.max(-100, n.affinity + state.rng.randint(-3, 2)); logMessages([`${n.name} gets the better of you. Humbling, but instructive.`]); }
+              logMessages(E.sparReward(c, state.rng, outcome));
             }
             renderProfile(); if (!state.c.alive) checkDeath(); else openPerson(n);
           });
@@ -1729,7 +1730,8 @@ function doArena() {
   startBattle(enemy, { title: "Arena Spar", nonLethal: true }, (outcome) => {
     if (state.c.alive) {
       c.happiness = Math.min(100, c.happiness + 4);
-      if (outcome === "win") { c.comprehension = Math.min(160, c.comprehension + 1); logMessages(["A clean victory in the ring sharpens your martial sense. (+Comprehension)"]); }
+      if (outcome === "win") logMessages(["A clean victory in the ring; the sect takes note."]);
+      logMessages(E.sparReward(c, state.rng, outcome, { scale: 1.5 }));
     }
     endActivityYear();
   });

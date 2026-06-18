@@ -1311,3 +1311,46 @@ export function maybeAwardEpithet(c, rng, opts = {}) {
   note(c, `Became known across the world as 「${text}」.`);
   return [`✦ A new name spreads through the cultivation world — they have taken to calling you 「${text}」.`];
 }
+
+/* ---------------------------- sparring reward ---------------------------- *
+ * A friendly bout is real training: trading blows against a live opponent
+ * deepens the art you lean on, polishes your dao, and now and then leaves a
+ * lasting gain. A win teaches more than a loss — but a loss still teaches.
+ * `opts.scale` weights the stakes (an arena bout matters more than a yard spar). */
+export function sparReward(c, rng, outcome, opts = {}) {
+  if (!c.alive) return [];
+  const scale = opts.scale != null ? opts.scale : 1;
+  const win = outcome === "win";
+  const msgs = [];
+  c.mastery = c.mastery || {};
+  // Deepen the technique you rely on most (else your most advanced one).
+  const techs = (c.techniques || []).filter(t => D.TECHNIQUES[t]);
+  if (techs.length) {
+    const tech = techs.reduce((best, t) => ((c.mastery[t] || 0) >= (c.mastery[best] || 0) ? t : best), techs[techs.length - 1]);
+    const gain = Math.max(1, Math.round((win ? rng.randint(4, 8) : rng.randint(1, 3)) * scale));
+    const before = D.masteryRank(c.mastery[tech] || 0)[0];
+    c.mastery[tech] = (c.mastery[tech] || 0) + gain;
+    const name = D.TECHNIQUES[tech][0];
+    const rank = D.masteryRank(c.mastery[tech]);
+    msgs.push(`  Crossing blows hones ${name}. (+${gain} mastery)`);
+    if (rank[0] !== before) msgs.push(`  ✦ ${name} advances to ${rank[0]} (+${Math.round(rank[2] * 100)}% effect)!`);
+  }
+  // A hard exchange clarifies the dao: a little qi toward your next stage.
+  if (c.awakened && c.root && c.root.key !== "none") {
+    const frac = (win ? rng.uniform(0.06, 0.12) : rng.uniform(0.02, 0.05)) * scale;
+    c.qi += qiToNext(c) * frac;
+    msgs.push("  Reading a real opponent sharpens your insight; your qi deepens.");
+  }
+  // Sometimes the lesson sticks for good.
+  if (rng.random() < (win ? 0.3 : 0.15) * scale) {
+    if (win && rng.random() < 0.5 && c.constitution < 160) {
+      c.constitution = Math.min(160, c.constitution + 1); recomputeMaxHp(c);
+      msgs.push("  Trading hits tempers your body. (+1 Constitution)");
+    } else if (c.comprehension < 160) {
+      c.comprehension = Math.min(160, c.comprehension + 1);
+      msgs.push(win ? "  Out-reading your foe sharpens your martial sense. (+1 Comprehension)"
+                    : "  Even beaten, you learn the shape of your mistakes. (+1 Comprehension)");
+    }
+  }
+  return msgs;
+}

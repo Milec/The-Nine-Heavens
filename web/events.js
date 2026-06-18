@@ -992,6 +992,36 @@ function instantiate(c, rng, A, e) {
   return { id: e.id, auto: true, text: Array.isArray(out) ? out : [out] };
 }
 
+// When no scripted card is due (all on cooldown), the year still turns with
+// small but real stakes — a sliver of insight, a lucky find, a minor hurt — so
+// no year passes without moving the character mechanically, not just narratively.
+export function quietYearEvent(c, rng, A) {
+  const opts = [];
+  const awakened = c.awakened && c.root && c.root.key !== "none";
+  if (awakened) {
+    opts.push(() => { A.qi(rng.uniform(0.05, 0.12)); return "A quiet year of seclusion. Sitting long with your breath, a sliver of insight settles into your dantian. (qi deepens)"; });
+    opts.push(() => {
+      const techs = (c.techniques || []).filter(t => D.TECHNIQUES[t]);
+      if (!techs.length) { A.qi(0.06); return "You drill your forms through the seasons; the patient work settles deeper into you."; }
+      const t = techs[Math.floor(rng.random() * techs.length)];
+      c.mastery = c.mastery || {}; const g = rng.randint(3, 7);
+      c.mastery[t] = (c.mastery[t] || 0) + g;
+      return `You drill quietly through the seasons; ${D.TECHNIQUES[t][0]} grows surer in your hands. (+${g} mastery)`;
+    });
+    opts.push(() => { if (c.soul < 160) { cap(c, "soul", 1); return "Long nights of meditation widen your spiritual sense. (+Soul Sense)"; } A.qi(0.05); return "Season upon season, the dao deepens by slow degrees."; });
+  }
+  opts.push(() => { const h = rng.randint(2, 6) + (c.realm || 0); A.herbs(h); return `Foraging the hills through a slow year, you gather ${h} spirit herbs.`; });
+  opts.push(() => { const s = rng.randint(3, 9) * ((c.realm || 0) + 1); A.stones(s); return `Odd work and small trades at the markets set aside ${s} spirit stones.`; });
+  opts.push(() => { A.happy(rng.randint(3, 7)); return "A peaceful, contented year — good company, clear skies, and time simply to be."; });
+  opts.push(() => { A.heal(-rng.randint(4, 9)); A.happy(-2); return "A nagging ailment dogs you for months, sapping your strength before it finally passes. (health)"; });
+  opts.push(() => {
+    if (rng.random() < 0.5 && c.constitution < 160) { c.constitution = Math.min(160, c.constitution + 1); return (awakened ? "Hard daily training tempers your body through the year." : "A year of chores and rough play leaves you sturdier.") + " (+Constitution)"; }
+    if (c.comprehension < 160) { cap(c, "comprehension", 1); return "You pester every passing elder with questions and turn their answers over for months. (+Comprehension)"; }
+    A.happy(4); return "An ordinary, untroubled year passes.";
+  });
+  return opts[Math.floor(rng.random() * opts.length)]();
+}
+
 export function rollYearEvents(c, rng, A) {
   const out = [];
   let pool = EVENTS.filter(e => eligible(c, e));
@@ -1001,5 +1031,8 @@ export function rollYearEvents(c, rng, A) {
     pool = EVENTS.filter(e => eligible(c, e) && !out.some(o => o.id === e.id));
     if (pool.length) out.push(instantiate(c, rng, A, rng.choices(pool, pool.map(e => e.weight || 1))));
   }
+  // No scripted card came due — let a small, mechanically real "quiet year" stand
+  // in, so every single year carries a consequence rather than empty flavour.
+  if (c.alive && !out.length) out.push({ id: "quiet_" + c.age, auto: true, text: [quietYearEvent(c, rng, A)] });
   return out;
 }
