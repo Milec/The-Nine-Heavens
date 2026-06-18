@@ -135,8 +135,25 @@ function vbar(label, val, max, cls, valText, tip) {
   return `<div class="vbar${tip ? " tappable" : ""}"${tip ? ` data-tip="${tip}"` : ""}><div class="vb-label"><span>${label}</span><span>${valText != null ? valText : Math.floor(val)}</span></div>
     <div class="vb-track"><div class="vb-fill ${cls}" style="width:${clampPct(val, max)}%"></div></div></div>`;
 }
+/* The interface's accent colour follows the soul's nature: jade-gold for the
+ * righteous, amethyst then cinnabar as karma turns toward the demonic dao. */
+const KARMA_THEMES = ["k-saint", "k-virtuous", "k-neutral", "k-tainted", "k-demonic"];
+function karmaTheme(k) {
+  if (k >= 70) return "k-saint";
+  if (k >= 25) return "k-virtuous";
+  if (k <= -70) return "k-demonic";
+  if (k <= -25) return "k-tainted";
+  return "k-neutral";
+}
+function applyKarmaTheme(c) {
+  const cls = karmaTheme(c ? c.karma || 0 : 0);
+  const b = document.body;
+  for (const t of KARMA_THEMES) b.classList.toggle(t, t === cls);
+}
+
 function renderProfile() {
   const c = state.c;
+  applyKarmaTheme(c);
   $("pf-avatar").innerHTML = D.avatarFor(c);
   $("pf-name").textContent = c.name + (c.reincarnationCount ? `  ·  ☯${c.reincarnationCount}` : "");
   let sub;
