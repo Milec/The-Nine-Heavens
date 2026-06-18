@@ -237,6 +237,11 @@ function listActions(B) {
   const c = B.player.ref, acts = [];
   for (const s of playerSkills(c)) acts.push({ id: s.id, name: s.name, qi: s.qi, desc: s.desc, element: s.element, disabled: B.player.qi < s.qi });
   if (c.healingPills > 0) acts.push({ id: "pill", name: `Healing Pill (${c.healingPills})`, qi: 0, desc: "Restore 40% HP. Uses your turn." });
+  if (c.talismans) for (const key of D.TALISMAN_ORDER) {
+    const n = c.talismans[key] || 0; if (n <= 0) continue;
+    const t = D.TALISMANS[key];
+    acts.push({ id: "tali:" + key, name: `🧧 ${t.name} (${n})`, qi: 0, desc: t.desc, element: t.element || undefined });
+  }
   if (!B.enemy.tribulation) acts.push({ id: "flee", name: "Flee", qi: 0, desc: "Try to escape. Failure leaves you open." });
   return acts;
 }
@@ -346,6 +351,19 @@ function takeRound(B, actionId) {
     lines.push("🏃 You fail to escape — the foe gets a free strike!");
   } else if (actionId === "pill") {
     if (c.healingPills > 0) { c.healingPills--; P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.4); lines.push("💊 You swallow a Spirit Healing Pill (+40% HP)."); }
+  } else if (actionId.indexOf("tali:") === 0) {
+    const key = actionId.slice(5), t = D.TALISMANS[key], have = (c.talismans && c.talismans[key]) || 0;
+    if (!t || have <= 0) { lines.push("You have no such talisman."); }
+    else {
+      c.talismans[key] = have - 1;
+      if (t.kind === "attack") {
+        lines.push(`🧧 You loose the ${t.name}!`);
+        resolveSkill(B, P, En, { name: t.name, dmg: t.value, element: t.element, target: key === "frost" ? { type: "stun", turns: 1, value: 0, chance: 0.4 } : null }, lines);
+      } else if (t.kind === "shield") { P.shield += P.maxHp * t.value; lines.push(`🧧 ${t.name} — a golden bell of qi shields you (+${Math.round(P.maxHp * t.value)}).`); }
+      else if (t.kind === "heal") { const h = P.maxHp * t.value; P.hp = Math.min(P.maxHp, P.hp + h); lines.push(`🧧 ${t.name} — your wounds knit (+${Math.round(h)} HP).`); }
+      else if (t.kind === "bind") { addStatus(En, "stun", t.value + 1, 0); lines.push(`🧧 ${t.name} — soul-script locks ${En.name} in place!`); }
+      else if (t.kind === "escape") { B.over = true; B.outcome = "flee"; lines.push(`🧧 ${t.name} — you tear space and vanish from the fight.`); return { lines, over: true, outcome: "flee" }; }
+    }
   } else if (hasStatus(P, "stun")) {
     lines.push("💫 You are stunned and cannot act!"); P.statuses = P.statuses.filter(s => s.type !== "stun");
   } else {

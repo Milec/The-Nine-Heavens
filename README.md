@@ -115,6 +115,12 @@ Three more systems round out a cultivator's life:
   technique manuals and magic treasures, and **sell** your spare herbs and surplus
   treasures. Prices **float with the world era** — dear in a Spiritual Drought,
   cheap in an Age of Abundance — so spirit stones finally have somewhere to go.
+- **Talismans (符箓)** — one-use paper charms inscribed with spirit-script: loose a
+  **Flame-Burst, Thunderbolt or Flying-Sword** for a no-qi damage burst, raise a
+  **Golden-Bell** shield, **mend** your wounds, **bind** a foe in place, or tear
+  space with an **Escape** talisman to flee any fight. **Buy** them at the Market
+  or **inscribe** your own (costs herbs; Soul Sense steadies the brush); they
+  appear as extra actions in the combat menu.
 - **Alchemy furnace minigame (炼丹)** — refining is now hands-on: keep the heat
   needle inside a drifting jade band over several phases to build **pill
   quality** (Crude → Fine → Flawless, scaling the effect) while avoiding the

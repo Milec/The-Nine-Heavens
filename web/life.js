@@ -26,6 +26,7 @@ function augment(c, rng, sex) {
   if (c.generation == null) c.generation = 1;
   if (c.era == null) { c.era = D.ERAS[Math.floor(rng.random() * D.ERAS.length)][0]; c.eraYears = 20 + Math.floor(rng.random() * 35); }
   if (c.rankboard == null) c.rankboard = E.generateRankboard(rng);   // the era's geniuses exist on their own
+  if (c.talismans == null) c.talismans = {};
   if (c.bodyRealm == null) c.bodyRealm = 0;
   if (c.temper == null) c.temper = 0;
   if (c.longevityBonus == null) c.longevityBonus = 0;

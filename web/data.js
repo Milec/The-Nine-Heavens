@@ -236,6 +236,21 @@ export const PILL_RECIPES = [
 ];
 export const PILL_BY_KEY = Object.fromEntries(PILL_RECIPES.map(p => [p[0], p]));
 
+/* Talismans (符箓): one-use paper charms inscribed with spirit-script. In battle
+ * each is a powerful instant action that costs no qi — but once spent, it's gone.
+ * Bought at the Market or inscribed yourself (costs herbs; soul eases success). */
+export const TALISMANS = {
+  flame:   { name: "Flame-Burst Talisman", cn: "火符", kind: "attack", value: 0.85, element: "Fire", herbs: 3, price: 30, desc: "Erupts in a gout of spirit-fire." },
+  frost:   { name: "Frost-Seal Talisman", cn: "冰封符", kind: "attack", value: 0.70, element: "Ice", herbs: 3, price: 34, desc: "Killing frost; may freeze the foe." },
+  thunder: { name: "Thunderbolt Talisman", cn: "雷符", kind: "attack", value: 0.98, element: "Lightning", herbs: 4, price: 40, desc: "Calls down heaven's lightning." },
+  sword:   { name: "Flying-Sword Talisman", cn: "飞剑符", kind: "attack", value: 0.90, element: "Metal", herbs: 4, price: 38, desc: "Looses a phantom flying sword." },
+  shield:  { name: "Golden-Bell Talisman", cn: "金钟符", kind: "shield", value: 0.65, element: null, herbs: 2, price: 26, desc: "A golden bell of qi absorbs blows." },
+  heal:    { name: "Spirit-Mending Talisman", cn: "回春符", kind: "heal", value: 0.45, element: null, herbs: 3, price: 32, desc: "Knits your wounds in warm light." },
+  bind:    { name: "Binding Talisman", cn: "缚灵符", kind: "bind", value: 2, element: null, herbs: 3, price: 36, desc: "Soul-script locks the foe in place." },
+  escape:  { name: "Escape Talisman", cn: "遁符", kind: "escape", value: 0, element: null, herbs: 2, price: 24, desc: "Tear space and vanish from any fight." },
+};
+export const TALISMAN_ORDER = ["flame", "frost", "thunder", "sword", "shield", "heal", "bind", "escape"];
+
 // [key, name, powerBonus, breakthroughBonus, blurb]
 export const DAOS = [
   ["sword", "Dao of the Sword (剑道)", 0.18, 0.03, "All things may be cut; your every strike sharpens toward the one true edge."],

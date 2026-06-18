@@ -581,6 +581,7 @@ function openActivities() {
     mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
     mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
     mk("Refine Pills", sub("alchemy", `alchemy · ${c.herbs} herbs`), openAlchemy, { disabled: young("alchemy") });
+    mk("Inscribe Talismans", sub("alchemy", "符箓 · craft charms"), openTalismans, { disabled: young("alchemy") });
     mk("Travel the World", young("travel") ? `from age ${AGE_MIN.travel}` : (D.REGION_BY_KEY[c.region] ? D.REGION_BY_KEY[c.region][1] : "regions"), openTravel, { disabled: young("travel") });
     const ab = D.abodeAt(c.abode || 0);
     mk("Your Cave Abode", ab ? `${ab[2]} · home base` : "establish a home base", openAbode, { full: true });
@@ -622,6 +623,10 @@ function openMarket() {
     for (const p of D.PILL_RECIPES) {
       const price = E.pricePill(c, p[0]);
       row("⚗️", p[1], `${price} stones · ${p[4]}`, "", c.spiritStones >= price, () => E.buyPill(c, p[0], state.rng));
+    }
+    for (const key of D.TALISMAN_ORDER) {
+      const t = D.TALISMANS[key], price = E.priceTalisman(c, key);
+      row("🧧", `${t.name} (have ${(c.talismans && c.talismans[key]) || 0})`, `${price} stones · ${t.desc}`, "", c.spiritStones >= price, () => E.buyTalisman(c, key, state.rng));
     }
     if (M.tech && !c.techniques.includes(M.tech)) {
       const price = E.priceTech(c, D.TECHNIQUES[M.tech][1]);
@@ -696,6 +701,20 @@ function openAbode() {
       body.appendChild(up);
     } else if (cur) {
       body.appendChild(el("p", "note", "Your abode is a Cave Heaven — the very pinnacle. There is nothing higher to build."));
+    }
+    backBtn(body, openActivities);
+  });
+}
+function openTalismans() {
+  const c = state.c;
+  openOverlay("Inscribe Talismans 符箓", body => {
+    body.appendChild(el("p", "note", `Spirit Herbs: ${c.herbs}. Each inscription is a deed; soul sense and comprehension steady your brush. Talismans are one-use battle charms — loose them in combat from your action bar.`));
+    for (const key of D.TALISMAN_ORDER) {
+      const t = D.TALISMANS[key], can = c.herbs >= t.herbs, have = (c.talismans && c.talismans[key]) || 0;
+      const r = el("div", "listrow" + (can ? "" : " disabled"));
+      r.innerHTML = `<div class="lr-ava">${t.element ? C.elementIcon(t.element) : "🧧"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(t.name)} <span class="lr-sub" style="display:inline">· have ${have}</span></div><div class="lr-sub">${t.herbs} herbs · ${escapeHtml(t.desc)}</div></div>`;
+      if (can) r.onclick = () => runTimed(() => E.inscribeTalisman(c, key, state.rng), "act");
+      body.appendChild(r);
     }
     backBtn(body, openActivities);
   });
@@ -951,6 +970,7 @@ function openSheet() {
     body.appendChild(infoRows([
       ["Spirit Stones", c.spiritStones], ["Spirit Herbs", c.herbs],
       ["Qi / Healing / Breakthrough Pills", `${c.pills} / ${c.healingPills} / ${c.breakthroughPills}`],
+      ...(c.talismans && Object.values(c.talismans).some(n => n > 0) ? [["Talismans 符箓", D.TALISMAN_ORDER.filter(k => (c.talismans[k] || 0) > 0).map(k => `${D.TALISMANS[k].name.split(" ")[0]}×${c.talismans[k]}`).join(", ")]] : []),
       ["Techniques", c.techniques.map(t => D.TECHNIQUES[t][0]).join(", ")],
     ]));
     const ach = el("button", "mbtn full"); ach.innerHTML = "✦ Achievements & Legacy";

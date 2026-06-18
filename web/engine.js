@@ -187,7 +187,7 @@ function newCharacter() {
     realm: 0, stage: 0, qi: 0, maxAge: 80, bodyRealm: 0, temper: 0, longevityBonus: 0,
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, titles: [], relationships: [],
-    herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0,
+    herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     mastery: {},
@@ -874,6 +874,29 @@ export function buyPill(c, key, rng) {
   c.spiritStones -= p;
   return [`You buy a ${D.PILL_BY_KEY[key][1]} for ${p} stones.`].concat(grantPill(c, key, rng, 1));
 }
+export const priceTalisman = (c, key) => Math.round((D.TALISMANS[key].price || 30) * eraPriceMult(c));
+export function buyTalisman(c, key, rng) {
+  const t = D.TALISMANS[key]; if (!t) return ["No such talisman."];
+  const p = priceTalisman(c, key);
+  if (c.spiritStones < p) return [`You cannot afford the ${t.name} (${p} stones).`];
+  c.spiritStones -= p; if (!c.talismans) c.talismans = {}; c.talismans[key] = (c.talismans[key] || 0) + 1;
+  return [`You buy a ${t.name} for ${p} stones.`];
+}
+// Inscribe a talisman yourself (a deed): costs herbs; soul & comprehension ease it.
+export function inscribeTalisman(c, key, rng) {
+  const t = D.TALISMANS[key]; if (!t) return ["No such talisman."];
+  if (c.herbs < t.herbs) return [`You need ${t.herbs} spirit herbs to inscribe a ${t.name}; you have ${c.herbs}.`];
+  if (!c.talismans) c.talismans = {};
+  c.herbs -= t.herbs;
+  const chance = clamp(0.45 + c.soul / 200 + c.comprehension / 350 + (c.alchemySkill || 0) * 0.004, 0.1, 0.97);
+  if (rng.random() <= chance) {
+    const n = 1 + (rng.random() < 0.30 ? 1 : 0);
+    c.talismans[key] = (c.talismans[key] || 0) + n;
+    return [`Brush dancing in cinnabar and qi, you inscribe ${n} ${t.name}${n > 1 ? "s" : ""}. (${Math.floor(chance * 100)}% success)`];
+  }
+  return [`The spirit-script smears and the paper blackens — the inscription fails. (${Math.floor(chance * 100)}% success)`];
+}
+
 export function buyHerbs(c, n = 5) {
   const p = priceHerbs(c, n);
   if (c.spiritStones < p) return [`You cannot afford ${n} spirit herbs (${p} stones).`];
