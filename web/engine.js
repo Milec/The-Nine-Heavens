@@ -3,6 +3,7 @@
  * message strings, mutating the character. The UI layer renders those messages. */
 
 import * as D from "./data.js";
+import * as World from "./world.js";
 
 /* ----------------------------- RNG --------------------------------------- */
 // Small seedable PRNG (mulberry32) so a saga can be reproduced from a seed.
@@ -190,6 +191,7 @@ function newCharacter() {
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
+    world: null, location: 0, abodeLocation: null, priceMult: 1,
     mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
   };
@@ -237,6 +239,7 @@ export function generateCharacter(rng, name, opts = {}) {
 
   recomputeMaxAge(c);
   recomputeMaxHp(c);
+  World.ensureWorld(c, rng, true);   // born into a freshly generated realm
   note(c, `Born as ${c.name}, ${c.backgroundName}.`);
   note(c, `Spiritual root: ${c.root.display}.`);
   return c;
@@ -860,11 +863,14 @@ function applyPill(c, key, rng) { return grantPill(c, key, rng, 1); }
 /* ------------------------------ market (坊市) ---------------------------- */
 // Prices float with the world era — dear in a Drought, cheap in an Age of Abundance.
 export const eraPriceMult = c => D.eraAt(c.era)[7] || 1;
+// Prices float with the era AND with where you trade — a remote frontier stall
+// charges more than a prosperous heartland city (c.priceMult, set on arrival).
+const marketMult = c => (D.eraAt(c.era)[7] || 1) * (c.priceMult || 1);
 const TREASURE_BASE = { Mortal: 25, Spirit: 130, Earth: 600, Heaven: 3000, Immortal: 16000 };
-export const priceHerbs = (c, n = 5) => Math.max(2, Math.round((c.realm + 1) * 1.6 * n * eraPriceMult(c)));
-export const pricePill = (c, key) => Math.round((D.PILL_BY_KEY[key][2] * 8 + 15) * eraPriceMult(c));
-export const priceTech = (c, tier) => Math.round([60, 130, 320, 900][tier] * eraPriceMult(c));
-export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.ARTIFACT_BY_KEY[key][2]] || 50) * eraPriceMult(c));
+export const priceHerbs = (c, n = 5) => Math.max(2, Math.round((c.realm + 1) * 1.6 * n * marketMult(c)));
+export const pricePill = (c, key) => Math.round((D.PILL_BY_KEY[key][2] * 8 + 15) * marketMult(c));
+export const priceTech = (c, tier) => Math.round([60, 130, 320, 900][tier] * marketMult(c));
+export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.ARTIFACT_BY_KEY[key][2]] || 50) * marketMult(c));
 // Selling fetches a fraction of the buy price.
 export const sellHerbs = (c, n = 5) => Math.max(1, Math.round(priceHerbs(c, n) * 0.45));
 export const sellTreasureValue = (c, key) => Math.max(1, Math.round(priceTreasure(c, key) * 0.4));
@@ -875,7 +881,7 @@ export function buyPill(c, key, rng) {
   c.spiritStones -= p;
   return [`You buy a ${D.PILL_BY_KEY[key][1]} for ${p} stones.`].concat(grantPill(c, key, rng, 1));
 }
-export const priceTalisman = (c, key) => Math.round((D.TALISMANS[key].price || 30) * eraPriceMult(c));
+export const priceTalisman = (c, key) => Math.round((D.TALISMANS[key].price || 30) * marketMult(c));
 export function buyTalisman(c, key, rng) {
   const t = D.TALISMANS[key]; if (!t) return ["No such talisman."];
   const p = priceTalisman(c, key);

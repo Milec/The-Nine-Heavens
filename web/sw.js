@@ -1,11 +1,12 @@
 /* The Nine Heavens -- service worker for offline, installable play. */
-const CACHE = "nineheavens-v55";
+const CACHE = "nineheavens-v56";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./ui.js",
   "./icons.js",
+  "./world.js",
   "./engine.js",
   "./data.js",
   "./events.js",

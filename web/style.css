@@ -239,6 +239,33 @@ body {
 .affbar { height: 6px; border-radius: 4px; background: #20263f; overflow: hidden; margin-top: 6px; border: 1px solid var(--line); }
 .affbar > div { height: 100%; }
 
+/* ============================ world map =============================== */
+.worldmap {
+  position: relative; width: 100%; aspect-ratio: 1 / 0.74; margin: 4px 0 12px;
+  border-radius: var(--r); border: 1px solid var(--line2); overflow: hidden;
+  background: radial-gradient(118% 118% at 50% 40%, #182842 0%, #101a2c 52%, #0a1020 100%);
+}
+.wm-roads { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wm-roads line { stroke: rgba(170,188,225,.15); stroke-width: .5; stroke-dasharray: 1.6 1.4; }
+.wm-node {
+  position: absolute; transform: translate(-50%, -50%); width: 25px; height: 25px; padding: 0;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: #131a29; border: 1.5px solid var(--line2); transition: transform .1s ease;
+}
+.wm-node:active { transform: translate(-50%, -50%) scale(.86); }
+.wm-node .ic { width: 13px; height: 13px; }
+.wm-node.here { box-shadow: 0 0 0 2px var(--accent), 0 0 10px rgba(0,0,0,.5); z-index: 3; }
+.wm-node.seat { width: 27px; height: 27px; }
+.wm-node.abode::after { content: ""; position: absolute; top: -2px; right: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); border: 1px solid #0a1020; }
+/* biome tints, safe heartland → deadly marches */
+.biome-0 { color: #8fe0b3; border-color: #46795c; }
+.biome-1 { color: #86c8e6; border-color: #3f78a0; }
+.biome-2 { color: #aab4ec; border-color: #5663a2; }
+.biome-3 { color: #cd9be0; border-color: #7f4f96; }
+.biome-4 { color: #ec8f88; border-color: #a8453f; }
+.listrow .lr-ava.biome-0, .listrow .lr-ava.biome-1, .listrow .lr-ava.biome-2,
+.listrow .lr-ava.biome-3, .listrow .lr-ava.biome-4 { background: #131a29; }
+
 .section-h {
   display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: .68rem; text-transform: uppercase;
   letter-spacing: .16em; font-weight: 700; margin: 18px 0 9px;

@@ -4,6 +4,7 @@ import * as D from "./data.js";
 import * as L from "./life.js";
 import * as C from "./combat.js";
 import * as meta from "./meta.js";
+import * as W from "./world.js";
 import { icon } from "./icons.js";
 
 /* Plain-language explanations for every stat, shown as tap hints + a glossary. */
@@ -24,7 +25,7 @@ const GLOSSARY = {
   monikers: ["Monikers 名号", "Names the world hangs on you, earned through your dao, deeds, fame and nature — a Sword Immortal, a Pill Sage, a Devil Sovereign. Greater fame unlocks grander names; the grandest you hold is how the world speaks of you, shown beneath your name."],
   stones: ["Spirit Stones 灵石", "The currency of cultivators. Spend them at the Market on herbs, pills, technique manuals and treasures, on your cave abode and sect, or at auctions. Market prices float with the world era."],
   herbs: ["Spirit Herbs 灵草", "Raw materials gathered in the wild and refined into pills at the alchemy furnace."],
-  region: ["Region 地域", "Where you roam. Distant regions hold deadlier foes — and far richer spoils."],
+  region: ["Location 所在", "Where you stand in the realm. The world is a map of places — cities and towns to trade, sect seats, wilds to hunt, ruins to delve. Travel outward (from Commerce) and the lands grow deadlier — and far richer. Your current place sets the danger of every fight."],
   era: ["World Era 天时", "The age the realm is passing through. An Age of Abundance quickens cultivation and calms the roads; a Warring Era or Demon Tide makes the world far deadlier; a Spiritual Drought stifles all qi; a Dawn of Ascension eases breakthroughs. The world turns on across your reincarnations."],
   wanted: ["Wanted", "Low standing or heavy sin puts a price on your head; bounty hunters will hunt you down."],
   breakthrough: ["Breakthrough", "You stand at a realm wall. Attempt it from the Cultivate tab to ascend — risky, and from Golden Core up it summons a Heavenly Tribulation."],
@@ -242,7 +243,7 @@ function renderProfile() {
   add("Karma", `${c.karma >= 0 ? "+" : ""}${c.karma}`, c.karma >= 40 ? "good" : c.karma <= -40 ? "bad" : "", "karma");
   add(icon("stones", { size: 13, cls: "chip-ic" }), c.spiritStones, "", "stones");
   if (c.herbs) add(icon("herbs", { size: 13, cls: "chip-ic" }), c.herbs, "", "herbs");
-  if (D.REGION_BY_KEY[c.region]) add(icon("region", { size: 13, cls: "chip-ic" }), D.REGION_BY_KEY[c.region][2], "", "region");
+  { const hl = W.currentLoc(c); if (hl) add(icon(W.typeOf(hl).icon, { size: 13, cls: "chip-ic" }), escapeHtml(hl.name), "", "region"); }
   if (c.era) add("☷", D.eraAt(c.era)[2], D.eraAt(c.era)[5] > 1.2 ? "bad" : D.eraAt(c.era)[4] > 1.1 ? "good" : "", "era");
   if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", "bad", "wanted");
   if (c.ascended) add("✸", "Ascended Immortal", "good", "realm");
@@ -535,9 +536,11 @@ function personRow(n) {
   const col = aff < 0 ? "var(--red)" : aff < 40 ? "var(--muted)" : aff < 75 ? "var(--jade)" : "var(--pink)";
   const w = (aff + 100) / 2;
   const extra = n.occupation ? " · " + n.occupation : (n.parent ? " · child of " + escapeHtml(n.parent) : "");
+  const homeLoc = (n.home != null && state.c.world) ? W.locById(state.c, n.home) : null;
+  const where = homeLoc ? ` · of ${escapeHtml(homeLoc.name)}` : "";
   row.innerHTML = `<div class="lr-ava">${personEmoji(n)}</div><div class="lr-main">
     <div class="lr-title">${escapeHtml(n.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(relLabel(n))}</span></div>
-    <div class="lr-sub">${E.npcStatus(n)}${extra}</div>
+    <div class="lr-sub">${E.npcStatus(n)}${extra}${where}</div>
     <div class="affbar"><div style="width:${w}%;background:${col}"></div></div></div>`;
   row.onclick = () => openPerson(n);
   return row;
@@ -691,6 +694,8 @@ function actAdventure() {
   openOverlay("Adventure 历练", body => {
     const young = key => c.age < (AGE_MIN[key] || 0), sub = (key, n) => young(key) ? `from age ${AGE_MIN[key]}` : n;
     const canHunt = isCultivator(c), canBoss = canHunt && isStrong(c);
+    const here = W.currentLoc(c), reg = D.REGION_BY_KEY[c.region], t = W.typeOf(here);
+    if (here) body.appendChild(el("p", "note", `You range out from <b>${escapeHtml(here.name)}</b> — ${reg ? reg[1] : ""} (${DANGER_TIER(reg ? reg[3] : 1)} country).${t.hunt ? " The surrounding wilds teem with spirit-beasts." : ""}${t.delve ? " Sealed ruins lie close at hand — ripe for delving." : ""} Travel the Realm (Commerce) to find deadlier, richer lands.`));
     const g = leafGrid(body);
     g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander });
     g.mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
@@ -713,9 +718,10 @@ function actCraft() {
 function actCommerce() {
   const c = state.c;
   openOverlay("Commerce 坊市", body => {
+    const here = W.currentLoc(c), market = W.hasMarket(c);
     const g = leafGrid(body);
-    g.mk("Visit the Market", `💎 ${c.spiritStones} · buy & sell`, openMarket, { full: true });
-    g.mk("Travel the World", c.age < AGE_MIN.travel ? `from age ${AGE_MIN.travel}` : (D.REGION_BY_KEY[c.region] ? "now in " + D.REGION_BY_KEY[c.region][1] : "regions"), openTravel, { full: true, disabled: c.age < AGE_MIN.travel });
+    g.mk("Visit the Market", market ? `💎 ${c.spiritStones} · buy & sell` : "no market in the wilds — travel first", openMarket, { full: true, disabled: !market });
+    g.mk("Travel the Realm", c.age < AGE_MIN.travel ? `from age ${AGE_MIN.travel}` : (here ? "now at " + here.name : "the world map"), openWorldMap, { full: true, disabled: c.age < AGE_MIN.travel });
     backBtn(body, openActivities);
   });
 }
@@ -745,7 +751,7 @@ function genMarket(c) {
   const keys = D.ARTIFACTS.map(a => a[0]);
   const treasures = [];
   for (let i = 0; i < 2 && keys.length; i++) treasures.push(keys.splice(Math.floor(rng.random() * keys.length), 1)[0]);
-  return { year: c.age, tech, treasures, sold: {} };
+  return { year: c.age, loc: c.location, tech, treasures, sold: {} };
 }
 function marketDo(fn) {
   if (!state.c.alive) return;
@@ -755,11 +761,21 @@ function marketDo(fn) {
 }
 function openMarket() {
   const c = state.c;
-  if (!state.market || state.market.year !== c.age) state.market = genMarket(c);
+  if (!W.hasMarket(c)) {
+    openOverlay("Market 坊市", body => {
+      body.appendChild(el("p", "note", "There is no market out here in the wilds. Travel to a city, town or village to trade."));
+      const b = el("button", "mbtn full primary"); b.innerHTML = "Open the Realm Map<small>find a settlement to trade in</small>";
+      b.onclick = openWorldMap; body.appendChild(b);
+      backBtn(body, actCommerce);
+    });
+    return;
+  }
+  if (!state.market || state.market.year !== c.age || state.market.loc !== c.location) state.market = genMarket(c);
   const M = state.market;
   openOverlay("Market 坊市", body => {
-    const pm = E.eraPriceMult(c);
-    body.appendChild(el("p", "note", `Spirit stones: ${c.spiritStones} · herbs: ${c.herbs}. Prices ${pm > 1.05 ? "run high" : pm < 0.95 ? "are low" : "are fair"} in the ${D.eraAt(c.era)[1]}.`));
+    const pm = E.eraPriceMult(c), here = W.currentLoc(c);
+    const locNote = (c.priceMult || 1) > 1.05 ? " This remote market charges a premium." : (c.priceMult || 1) < 0.95 ? " This prosperous market trades cheap." : "";
+    body.appendChild(el("p", "note", `${here ? here.name + " market — " : ""}spirit stones: ${c.spiritStones} · herbs: ${c.herbs}. Prices ${pm > 1.05 ? "run high" : pm < 0.95 ? "are low" : "are fair"} in the ${D.eraAt(c.era)[1]}.${locNote}`));
     const row = (emoji, title, sub, btnLabel, can, fn) => {
       const r = el("div", "listrow" + (can ? "" : " disabled"));
       r.innerHTML = `<div class="lr-ava">${emoji}</div><div class="lr-main"><div class="lr-title">${escapeHtml(title)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
@@ -809,7 +825,7 @@ function openAbode() {
       body.appendChild(el("div", "section-h", `${cur[1]} · ${cur[2]}`));
       body.appendChild(el("p", "note", cur[8]));
       body.appendChild(infoRows([
-        ["Location", `${reg ? reg[1] : "—"}${danger !== 1 ? ` (×${danger} yield)` : ""}`, "region"],
+        ["Location", `${L.abodeLocName(c) ? L.abodeLocName(c) + " · " : ""}${reg ? reg[1] : "—"}${danger !== 1 ? ` (×${danger} yield)` : ""}`, "region"],
         ["Cultivation bonus", `+${Math.round(cur[4] * 100)}%`, "abode"],
         ["Spirit herbs / year", `+${Math.round((cur[5] + tenders.length * Math.max(1, Math.round(cur[5] * 0.3)) + (c.beast && c.beast.alive ? 1 + Math.floor(c.abode / 2) : 0)) * danger)} 🌿`],
         ["Spirit stones / year", `+${Math.round((cur[6] + (c.beast && c.beast.alive ? Math.floor(c.abode) : 0)) * danger)} 💎`],
@@ -882,27 +898,89 @@ function openAlchemy() {
     backBtn(body, actCraft);
   });
 }
-function openTravel() {
+const biomeIdx = key => Math.max(0, D.REGIONS.findIndex(r => r[0] === key));
+const DANGER_TIER = d => d <= 0.9 ? "safe" : d <= 1.1 ? "moderate" : d <= 1.35 ? "dangerous" : d <= 1.7 ? "perilous" : "deadly";
+const loc2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+
+// The realm map: a generated scatter of places to journey between. The visual
+// map is for orientation; the list below it does the travelling.
+function openWorldMap() {
   const c = state.c;
-  openOverlay("Travel the World", body => {
-    body.appendChild(el("p", "note", "Distant regions hold deadlier foes and far richer spoils. Where the danger is greater, so is the reward."));
-    if (c.abode) { const ar = D.REGION_BY_KEY[L.abodeRegionKey(c)]; if (ar) body.appendChild(el("p", "note", `🏠 Your abode is rooted in the ${ar[1]} — it stays put wherever you roam, and its wild vein yields ×${ar[3]} each year.`)); }
-    for (const r of D.REGIONS) {
-      const here = r[0] === c.region;
-      const abodeHere = c.abode && r[0] === L.abodeRegionKey(c);
-      const row = el("div", "listrow" + (here ? " bound" : ""));
-      const tier = r[3] <= 0.9 ? "safe" : r[3] <= 1.1 ? "moderate" : r[3] <= 1.35 ? "dangerous" : r[3] <= 1.7 ? "perilous" : "deadly";
-      row.innerHTML = `<div class="lr-ava">${abodeHere ? "🏠" : "📍"}</div><div class="lr-main"><div class="lr-title">${here ? "★ " : ""}${r[1]} <span class="lr-sub" style="display:inline">(${r[2]})</span></div><div class="lr-sub">${tier} · danger ×${r[3]}<br>${r[4]}</div></div>`;
-      if (!here) row.onclick = () => {
-        if (!ageAllows("travel") || !useAction()) return;
-        c.region = r[0]; closeOverlay();
-        logMessages([`You journey to the ${r[1]} (${r[2]}). The dangers here scale ×${r[3]}.`]);
-        endActivityYear();
-      };
+  if (!c.world) W.ensureWorld(c, state.rng);
+  openOverlay("The Realm 寰宇", body => {
+    const locs = c.world.locations, here = W.currentLoc(c);
+    body.appendChild(el("p", "note", `You stand at <b>${escapeHtml(here ? here.name : "—")}</b>${here && here.cn ? ` (${escapeHtml(here.cn)})` : ""} — ${W.typeOf(here).label}. The realm runs from the safe heartland outward to its deadly, treasure-strewn marches.`));
+
+    // ---- visual map: roads + biome-tinted place pins ----
+    const map = el("div", "worldmap");
+    const seen = new Set(); let roads = "";
+    for (const a of locs) for (const b of locs.slice().filter(x => x.id !== a.id).sort((p, q) => loc2(a, p) - loc2(a, q)).slice(0, 2)) {
+      const key = Math.min(a.id, b.id) + "-" + Math.max(a.id, b.id);
+      if (seen.has(key)) continue; seen.add(key);
+      roads += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
+    }
+    map.innerHTML = `<svg class="wm-roads" viewBox="0 0 100 100" preserveAspectRatio="none">${roads}</svg>`;
+    for (const loc of locs) {
+      const node = el("button", `wm-node biome-${biomeIdx(loc.biome)}${loc.id === c.location ? " here" : ""}${loc.sectKey ? " seat" : ""}${c.abodeLocation === loc.id ? " abode" : ""}`);
+      node.style.left = loc.x + "%"; node.style.top = loc.y + "%";
+      node.innerHTML = icon(W.typeOf(loc).icon, { size: 13 });
+      node.setAttribute("aria-label", loc.name);
+      node.onclick = () => openLocationCard(loc.id);
+      map.appendChild(node);
+    }
+    body.appendChild(map);
+
+    body.appendChild(el("div", "section-h", "Places of the Realm"));
+    const ordered = locs.slice().sort((a, b) => (a.id === c.location ? -1 : b.id === c.location ? 1 : loc2(here, a) - loc2(here, b)));
+    for (const loc of ordered) {
+      const reg = D.REGION_BY_KEY[loc.biome], danger = reg ? reg[3] : 1;
+      const tags = [W.typeOf(loc).label,
+        loc.sectKey ? "⚑ " + D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0] : null,
+        c.abodeLocation === loc.id ? "your abode" : null].filter(Boolean);
+      const row = el("div", "listrow" + (loc.id === c.location ? " bound" : ""));
+      row.innerHTML = `<div class="lr-ava biome-${biomeIdx(loc.biome)}">${icon(W.typeOf(loc).icon, { size: 18 })}</div><div class="lr-main"><div class="lr-title">${loc.id === c.location ? "★ " : ""}${escapeHtml(loc.name)}</div><div class="lr-sub">${escapeHtml(tags.join(" · "))} · ${reg ? reg[1] : ""} (${DANGER_TIER(danger)})</div></div>`;
+      row.onclick = () => openLocationCard(loc.id);
       body.appendChild(row);
     }
     backBtn(body, actCommerce);
   });
+}
+function openLocationCard(id) {
+  const c = state.c, loc = W.locById(c, id);
+  if (!loc) return;
+  const reg = D.REGION_BY_KEY[loc.biome], danger = reg ? reg[3] : 1, t = W.typeOf(loc);
+  openOverlay(loc.name, body => {
+    body.appendChild(el("p", "note", `<b>${escapeHtml(loc.name)}</b>${loc.cn ? ` (${escapeHtml(loc.cn)})` : ""} — ${t.label} of the ${reg ? reg[1] : ""}${reg ? ` (${reg[2]})` : ""}.`));
+    body.appendChild(el("p", "note", escapeHtml(t.blurb)));
+    const rows = [
+      ["Region", `${reg ? reg[1] : ""} · ${DANGER_TIER(danger)} (×${danger})`, "region"],
+      ["Market", t.market ? "yes — buy & sell here" : "none (the wilds)"],
+    ];
+    if (loc.sectKey) rows.push(["Sect seat", D.SECT_BY_KEY[loc.sectKey][1]]);
+    if (t.delve > 0) rows.push(["Secret realms", "sealed ruins to delve"]);
+    if (c.abodeLocation === id) rows.push(["Your abode", "rooted here"]);
+    body.appendChild(infoRows(rows));
+    const locals = c.relationships.filter(n => n.alive && n.home === id);
+    if (locals.length) body.appendChild(el("p", "note", `People you know here: ${locals.slice(0, 6).map(n => escapeHtml(n.name)).join(", ")}.`));
+    if (id === c.location) body.appendChild(el("p", "note", "✦ You are here."));
+    else {
+      const go = el("button", "mbtn full primary");
+      go.innerHTML = `Journey to ${escapeHtml(loc.name)}<small>a travel deed · ${DANGER_TIER(danger)} country</small>`;
+      go.onclick = () => travelTo(id);
+      body.appendChild(go);
+    }
+    backBtn(body, openWorldMap);
+  });
+}
+function travelTo(id) {
+  const c = state.c, loc = W.locById(c, id);
+  if (!loc) return;
+  if (!ageAllows("travel") || !useAction()) return;
+  c.location = id; W.syncLocation(c);
+  closeOverlay();
+  const reg = D.REGION_BY_KEY[loc.biome];
+  logMessages([`You journey to ${loc.name}${loc.cn ? ` (${loc.cn})` : ""} — ${W.typeOf(loc).label} in the ${reg ? reg[1] : "wilds"}. ${reg && reg[3] > 1.1 ? `The dangers here run ×${reg[3]}.` : "A measure of safety, here."}`]);
+  endActivityYear();
 }
 function openAchievements(backFn) {
   openOverlay("Achievements & Legacy", body => {
@@ -975,12 +1053,14 @@ function openSect() {
     if (!c.awakened) { body.appendChild(el("p", "note", "You cannot join a sect before your spiritual root awakens.")); return; }
     if (c.ownSect) { renderOwnSect(c, body); return; }
     if (!c.sectKey) {
-      body.appendChild(el("p", "note", "Join a sect for a cultivation bonus, a yearly stipend, a rank ladder, quests and tournaments. Better sects demand rarer talent."));
+      body.appendChild(el("p", "note", "Join a sect for a cultivation bonus, a yearly stipend, a rank ladder, quests and tournaments. Better sects demand rarer talent. Each keeps a mountain seat somewhere in the realm."));
       for (const s of D.SECTS) {
         const ok = c.realm >= s[5];
         const gate = ok ? `${Math.floor(E.joinChance(c, s) * 100)}% accepted` : `needs ${D.REALMS[s[5]][0]}`;
+        const seat = W.sectSeat(c, s[0]);
+        const seatTxt = seat ? `seat: ${seat.name}${seat.id === c.location ? " (you are here)" : ""}` : "";
         const row = el("div", "listrow" + (ok ? "" : " disabled"));
-        row.innerHTML = `<div class="lr-ava">🏯</div><div class="lr-main"><div class="lr-title">${s[1]}</div><div class="lr-sub">${s[2]} · ${gate}<br>${s[9]}</div></div>`;
+        row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${s[1]}</div><div class="lr-sub">${s[2]} · ${gate}${seatTxt ? " · " + seatTxt : ""}<br>${s[9]}</div></div>`;
         if (ok) row.onclick = () => runFree(() => E.attemptJoin(c, state.rng, s[0]));
         body.appendChild(row);
       }
@@ -1400,6 +1480,7 @@ function resumeFrom(sv) {
   if (!c.mastery) c.mastery = {};
   if (!c.epithets) c.epithets = [];
   if (!c.region) c.region = "azuredomain";
+  W.ensureWorld(c, state.rng);   // old saves get a freshly generated realm, located sensibly
   closeOverlay(); $("log").innerHTML = ""; logBanner("☯ YOUR SAGA CONTINUES ☯"); renderProfile();
   if (!c.alive) checkDeath();
 }
