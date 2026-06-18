@@ -313,11 +313,14 @@ function openCultivate() {
 
     // ---- Qi cultivation (only with a spiritual root) ----
     if (hasRoot) {
+      body.appendChild(el("div", "section-h", "Qi Cultivation 修炼"));
       body.appendChild(infoRows([
         ["Realm", `${E.realmLabel(c)} (${E.realmCn(c)})`, "realm"],
-        ["Qi", `${Math.floor(c.qi)} / ${Math.floor(E.qiToNext(c))}`, "cultivation"],
         ["Power", Math.floor(E.power(c)), "power"],
       ]));
+      const atWall = E.canBreakthrough(c);
+      progress(body, atWall ? "Qi — at the realm wall" : "Qi to next stage", c.qi, E.qiToNext(c), "qi",
+        atWall ? `<b class="pb-ready">breakthrough ready</b>` : `${Math.floor(c.qi)} / ${Math.floor(E.qiToNext(c))}`);
       if (c.root.elements && c.root.elements.length) {
         const attune = Math.round(Math.min(0.45, Math.max(0.12, 0.10 + c.root.multiplier * 0.07)) * 100);
         const matchups = c.root.elements.map(e => { const m = C.elementMatchup(e); return m && (m.strong || m.weak) ? `${e} (▲${m.strong || "—"} ▼${m.weak || "—"})` : `${e} (exotic ▲all)`; }).join(", ");
@@ -325,7 +328,7 @@ function openCultivate() {
         body.appendChild(el("p", "note", `Element${plural ? "s" : ""}: ${matchups}. Your arts of ${plural ? "these elements" : "this element"} strike +${attune}% (attuned) and you resist ${plural ? "them" : "it"}. ▲ strong vs · ▼ weak vs.`));
       }
       const g = el("div", "menu-grid");
-      if (E.canBreakthrough(c))
+      if (atWall)
         addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
       addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult"));
       addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult"), { disabled: c.pills <= 0 });
@@ -342,9 +345,10 @@ function openCultivate() {
     const cap = E.bodyRealmCap(c);
     body.appendChild(infoRows([
       ["Body Realm", `${br[0]} (${br[1]})`, "body"],
-      nb ? ["Tempering", `${Math.floor(c.temper)} / ${nb[2]}`] : ["Tempering", `${D.bodyRealmName(c.bodyRealm)} — your physique's limit`],
-      ["Body limit", `${D.bodyRealmName(cap)} (${c.physiqueName})`],
+      ["Limit (physique)", D.bodyRealmName(cap)],
     ]));
+    if (nb) progress(body, `Tempering → ${nb[0]}`, c.temper, nb[2], "body");
+    else body.appendChild(el("p", "note", `Your body has reached the limit your ${c.physiqueName} can bear — the ${D.bodyRealmName(c.bodyRealm)}.`));
     const bg = el("div", "menu-grid");
     addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5), "cult"), { full: true, primary: !hasRoot });
     body.appendChild(bg);
@@ -396,6 +400,9 @@ function openPeople() {
     const loves = all.filter(n => n.role === "companion").sort((a, b) => (b.married ? 1 : 0) - (a.married ? 1 : 0) || b.affinity - a.affinity);
     const kids = all.filter(n => n.kin === "Son" || n.kin === "Daughter");
     const bonds = all.filter(n => n.role !== "family" && n.role !== "companion");
+    body.appendChild(el("p", "note", all.length
+      ? `You are bound to <b>${all.length}</b> living souls — ${family.length} family, ${loves.length} love${loves.length === 1 ? "" : "s"}, ${kids.length} child${kids.length === 1 ? "" : "ren"}, ${bonds.length} other bond${bonds.length === 1 ? "" : "s"}.`
+      : "You walk the world alone — for now. Go out and mingle to forge your first bonds."));
     const section = (title, list) => { if (list.length) { body.appendChild(el("div", "section-h", title)); list.forEach(n => body.appendChild(personRow(n))); } };
     section("Family", family);
     if (loves.length) {
@@ -835,9 +842,9 @@ function openBeast() {
       ["Rank", `${E.beastTier(b)} (${b.rank}/5)`],
       ["Element", b.element || "—"],
       ["Power", Math.floor(b.power)],
-      ["Bond", `${Math.round(b.bond)} / 100`],
-      ["Experience", b.rank < 5 ? `${b.exp} / ${req}` : "max rank"],
     ]));
+    progress(body, "Bond", b.bond, 100, "bond", `${Math.round(b.bond)} / 100`);
+    if (b.rank < 5) progress(body, `Experience → rank ${b.rank + 1}`, b.exp, req, "exp", b.bond >= 55 && b.exp >= req ? `<b class="pb-ready">ready to evolve</b>` : `${b.exp} / ${req}`);
     body.appendChild(el("p", "note", `In battle ${b.name} strikes each round for a share of its power, with its element's advantage and — from Earth Beast rank — a chance to inflict its elemental bite. Feeding raises its bond and experience; fed and battle-hardened, it can evolve into a mightier form. (Fed ${b.fedThisYear}/3 this year.)`));
     const grid = el("div", "menu-grid");
     const mk = (l, s, h, opt = {}) => { const x = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); x.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) x.disabled = true; else x.onclick = h; grid.appendChild(x); };
@@ -935,11 +942,12 @@ function renderOwnSect(c, body) {
   body.appendChild(el("p", "note", `You are the Founder and Sect Master of the ${s.name}, a ${align}-path sect seated at your ${(D.abodeAt(c.abode || 0) || [, "abode"])[1]}.`));
   body.appendChild(infoRows([
     ["Standing", `${tier[1]} (${tier[2]})`],
-    ["Prestige", next ? `${Math.floor(s.prestige)} / ${next[0]} → ${next[1]}` : `${Math.floor(s.prestige)} (peak)`],
-    ["Members", `${s.members} / ${cap}`],
     ["Cultivation bonus", `+${Math.round(tier[3] * 100)}%`, "abode"],
     ["Founded", `age ${s.founded}`],
   ]));
+  if (next) progress(body, `Prestige → ${next[1]}`, s.prestige - tier[0], next[0] - tier[0], "prestige", `${Math.floor(s.prestige)} / ${next[0]}`);
+  else progress(body, "Prestige — a Holy Land", 1, 1, "prestige", `${Math.floor(s.prestige)} (peak)`);
+  progress(body, "Members", s.members, cap, "rank", `${s.members} / ${cap}`);
   body.appendChild(el("p", "note", `Each year your sect spreads your name (+${tier[4]} fame), pays a stipend from its treasury, and quickens your dao. Expand your cave abode to raise the members cap. Invite disciples (in Relationships) to settle them as your core.`));
   const grid = el("div", "menu-grid");
   const mk = (l, sub, h, full, primary) => { const b = el("button", "mbtn" + (full ? " full" : "") + (primary ? " primary" : "")); b.innerHTML = `${l}<small>${sub}</small>`; b.onclick = h; grid.appendChild(b); };
@@ -1048,6 +1056,15 @@ function infoRows(rows) {
   return wrap;
 }
 function backBtn(body, fn) { const b = el("button", "mbtn full"); b.innerHTML = "‹ Back"; b.onclick = fn; body.appendChild(b); }
+// A labelled progress bar. `right` overrides the default "val / max" readout.
+function progress(parent, label, val, max, cls, right) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (val / max) * 100)) : 100;
+  const p = el("div", "pbar");
+  p.innerHTML = `<div class="pb-top"><span>${escapeHtml(label)}</span><span>${right != null ? right : Math.floor(val) + " / " + Math.floor(max)}</span></div>`
+    + `<div class="pb-track"><div class="pb-fill ${cls || ""}" style="width:${pct}%"></div></div>`;
+  parent.appendChild(p);
+  return p;
+}
 // A navigation card that opens a nested sub-menu (icon tile · title · sub · chevron).
 function navCard(grid, icon, title, sub, onclick) {
   const b = el("button", "mbtn nav full");

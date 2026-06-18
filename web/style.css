@@ -198,6 +198,20 @@ body {
 .note { color: var(--ink2); font-size: .86rem; margin: 8px 0; line-height: 1.5; }
 .note b { color: var(--gold); }
 
+/* labelled progress bar (qi to next, body tempering, sect prestige, beast bond…) */
+.pbar { margin: 10px 0; }
+.pbar .pb-top { display: flex; justify-content: space-between; gap: 10px; font-size: .74rem; color: var(--muted); margin-bottom: 5px; }
+.pbar .pb-top b { color: var(--ink); font-weight: 700; }
+.pbar .pb-track { height: 11px; border-radius: 7px; background: #14182a; border: 1px solid var(--line); overflow: hidden; }
+.pbar .pb-fill { height: 100%; border-radius: 7px; box-shadow: inset 0 1px 0 rgba(255,255,255,.2); transition: width .4s ease; min-width: 2px; }
+.pb-fill.qi { background: linear-gradient(90deg, #3d6db5, #6fb6ff); }
+.pb-fill.body { background: linear-gradient(90deg, #b07d2e, #ecca7e); }
+.pb-fill.prestige { background: linear-gradient(90deg, #6d5aa8, #b79be8); }
+.pb-fill.bond { background: linear-gradient(90deg, #b0476a, #e89bb7); }
+.pb-fill.exp { background: linear-gradient(90deg, #2f7a4a, #6fd6b3); }
+.pb-fill.rank { background: linear-gradient(90deg, #c79a44, #f0d27a); }
+.pb-ready { color: var(--gold) !important; font-weight: 700; }
+
 /* ============================ event card ============================== */
 .event-card {
   background: linear-gradient(180deg, #28304e, #1b2138); border: 1px solid var(--gold2);
