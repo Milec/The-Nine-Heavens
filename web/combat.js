@@ -11,6 +11,13 @@ const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /* Wu Xing overcoming (相克) cycle: key element beats value element. */
 const OVERCOMES = { Metal: "Wood", Wood: "Earth", Earth: "Water", Water: "Fire", Fire: "Metal" };
+// Wu Xing matchup for an element: what it overcomes (strong vs) and what overcomes it (weak vs).
+export function elementMatchup(el) {
+  if (!el) return null;
+  const strong = OVERCOMES[el] || null;
+  const weak = Object.keys(OVERCOMES).find(k => OVERCOMES[k] === el) || null;
+  return { strong, weak, exotic: !OVERCOMES[el] && !weak };
+}
 export function elementMult(att, def) {
   if (!att || !def || att === def) return 1;
   if (att === "Chaos" || att === "Void") return 1.2;       // primordial beats all
@@ -120,6 +127,29 @@ export function makeEnemy(c, rng, opts = {}) {
   return { name, kind, power, element, reward, kit: buildKit(kind, name), boss: !!opts.boss, tribulation: !!opts.tribulation, hpMult: opts.hpMult };
 }
 
+// Build a fighting kit from an NPC's own learned techniques, so a cultivator you
+// duel fights with their actual arts (not a generic rogue's).
+function npcKit(npc) {
+  const moves = [];
+  for (const t of (npc.techniques || [])) {
+    const s = SKILL_BY_TECH[t]; if (!s || !s.dmg) continue;
+    moves.push({ w: 3, m: { name: s.name, dmg: s.dmg * 0.9, element: s.element, target: s.target, hits: s.hits, lifesteal: s.lifesteal, pierce: s.pierce } });
+  }
+  return moves.length ? { basic: { name: "Qi Strike", dmg: 0.42 }, moves } : buildKit("rogue", "");
+}
+// An enemy built from a named NPC: their realm-derived power, root element and arts.
+export function makeEnemyFromNpc(c, npc, rng, opts = {}) {
+  E.ensureNpcProfile(npc, rng);
+  const boss = !!opts.boss;
+  return {
+    name: npc.name, kind: "rogue", power: npc.power || E.npcPower(npc),
+    element: npc.element != null ? npc.element : null,
+    reward: opts.reward != null ? opts.reward : (c.realm + 1) * 6,
+    kit: npcKit(npc), boss, hpMult: boss ? 2.8 : (opts.hpMult || 2.3),
+    realm: npc.realm,
+  };
+}
+
 const BOSS_NAMES = ["Blood-Robe Patriarch", "Iron Vajra Monk", "Sword Fiend of the Abyss", "Heartless Fox Empress", "Crippled-Hand Elder", "Ghost-King of the Wastes", "Thousand-Bone Demon Lord", "Azure-Scaled War Sovereign", "Frost-Veiled Witch Queen", "Heaven-Devouring Old Ancestor"];
 const ULTIMATES = { Fire: "Inferno Apocalypse", Water: "Drowning World", Metal: "Ten-Thousand Sword Tomb", Wood: "World-Devouring Forest", Earth: "Mountain-Crush Seal", Dark: "Soul-Rending Abyss", Lightning: "Heaven's Wrath", Ice: "Absolute Zero Domain" };
 export function makeBoss(c, rng, opts = {}) {
@@ -158,6 +188,13 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
   const P = E.power(c);
   const ph = D.physEffect(c);                       // ongoing physique effects
   const pMax = P * 1.9 * (1 + (ph.hp || 0));
+  // Your spiritual root's element(s) (plus any from a special physique) attune you:
+  // bonus damage with matching-element arts, and resistance to that element.
+  const rootEls = (c.awakened && c.root && c.root.elements && c.root.elements.length) ? c.root.elements.slice() : [];
+  if (ph.element && !rootEls.includes(ph.element)) rootEls.push(ph.element);
+  const attune = (c.awakened && c.root && c.root.elements && c.root.elements.length)
+    ? clampN(0.10 + (c.root.multiplier || 1) * 0.07, 0.12, 0.45)
+    : (ph.element ? 0.15 : 0);
   const player = {
     isPlayer: true, ref: c, name: c.name,
     maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),
@@ -167,7 +204,8 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     crit: clampN(c.luck / 400 + 0.05, 0, 0.6),
     dodge: clampN(c.luck / 600 + c.soul / 900 + (c.equippedArtifact === "cloud_boots" ? 0.1 : 0) + (ph.dodge || 0), 0, 0.5),
     healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,
-    element: (c.awakened && c.root.elements.length) ? c.root.elements[0] : (ph.element || null),
+    element: rootEls.length ? rootEls[0] : null,
+    rootElements: rootEls, attune,
     shield: 0, statuses: [], beast: E.beastPower(c),
     beastElement: (c.beast && c.beast.alive) ? (c.beast.element || null) : null,
     beastBond: (c.beast && c.beast.alive) ? (c.beast.bond != null ? c.beast.bond : 50) : 0,
@@ -199,6 +237,11 @@ function listActions(B) {
   const c = B.player.ref, acts = [];
   for (const s of playerSkills(c)) acts.push({ id: s.id, name: s.name, qi: s.qi, desc: s.desc, element: s.element, disabled: B.player.qi < s.qi });
   if (c.healingPills > 0) acts.push({ id: "pill", name: `Healing Pill (${c.healingPills})`, qi: 0, desc: "Restore 40% HP. Uses your turn." });
+  if (c.talismans) for (const key of D.TALISMAN_ORDER) {
+    const n = c.talismans[key] || 0; if (n <= 0) continue;
+    const t = D.TALISMANS[key];
+    acts.push({ id: "tali:" + key, name: `🧧 ${t.name} (${n})`, qi: 0, desc: t.desc, element: t.element || undefined });
+  }
   if (!B.enemy.tribulation) acts.push({ id: "flee", name: "Flee", qi: 0, desc: "Try to escape. Failure leaves you open." });
   return acts;
 }
@@ -261,17 +304,21 @@ function resolveSkill(B, att, def, skill, lines) {
   const demonBonus = (att.vsDemon && demonFoe) ? (1 + att.vsDemon) : 1;
   for (let h = 0; h < hits; h++) {
     if (def.hp <= 0) break;
-    let base = att.atk * skill.dmg * statusAtkMult(att) * mm * demonBonus;
-    let mult = elementMult(skill.element || att.element, def.element);
+    const skEl = skill.element || att.element;
+    const attuned = skEl && att.rootElements && att.rootElements.includes(skEl);   // your art rides your root's element
+    let base = att.atk * skill.dmg * statusAtkMult(att) * mm * demonBonus * (attuned ? 1 + att.attune : 1);
+    let mult = elementMult(skEl, def.element);
     const crit = rng.random() < att.crit;
     if (crit) mult *= 2;
     base *= mult * rng.uniform(0.9, 1.1);
     if (rng.random() < def.dodge) { lines.push(`${icon(def)} ${def.name} evades${hits > 1 ? ` hit ${h + 1}` : ""} — dodged!`); continue; }
     let dmg = base * (1 - def.mitig * (1 - (skill.pierce || 0)));
+    // The defender's own root element resonates against an attack of that element.
+    if (skEl && def.rootElements && def.rootElements.includes(skEl)) dmg *= (1 - (def.attune || 0) * 0.5);
     if (def.shield > 0) { const a = Math.min(def.shield, dmg); def.shield -= a; dmg -= a; }
     dmg = Math.max(0, Math.round(dmg));
     def.hp -= dmg;
-    lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
+    lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${attuned ? " 🜂" : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${attuned ? " (attuned)" : ""}${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
     if (skill.lifesteal && dmg > 0) { const hh = dmg * skill.lifesteal; att.hp = Math.min(att.maxHp, att.hp + hh); lines.push(`   ${att.name} drains ${Math.round(hh)} HP.`); }
     // Counter / reflect: a defender in a reflecting stance turns force back.
     const cs = def.statuses.find(s => s.type === "counter");
@@ -304,6 +351,19 @@ function takeRound(B, actionId) {
     lines.push("🏃 You fail to escape — the foe gets a free strike!");
   } else if (actionId === "pill") {
     if (c.healingPills > 0) { c.healingPills--; P.hp = Math.min(P.maxHp, P.hp + P.maxHp * 0.4); lines.push("💊 You swallow a Spirit Healing Pill (+40% HP)."); }
+  } else if (actionId.indexOf("tali:") === 0) {
+    const key = actionId.slice(5), t = D.TALISMANS[key], have = (c.talismans && c.talismans[key]) || 0;
+    if (!t || have <= 0) { lines.push("You have no such talisman."); }
+    else {
+      c.talismans[key] = have - 1;
+      if (t.kind === "attack") {
+        lines.push(`🧧 You loose the ${t.name}!`);
+        resolveSkill(B, P, En, { name: t.name, dmg: t.value, element: t.element, target: key === "frost" ? { type: "stun", turns: 1, value: 0, chance: 0.4 } : null }, lines);
+      } else if (t.kind === "shield") { P.shield += P.maxHp * t.value; lines.push(`🧧 ${t.name} — a golden bell of qi shields you (+${Math.round(P.maxHp * t.value)}).`); }
+      else if (t.kind === "heal") { const h = P.maxHp * t.value; P.hp = Math.min(P.maxHp, P.hp + h); lines.push(`🧧 ${t.name} — your wounds knit (+${Math.round(h)} HP).`); }
+      else if (t.kind === "bind") { addStatus(En, "stun", t.value + 1, 0); lines.push(`🧧 ${t.name} — soul-script locks ${En.name} in place!`); }
+      else if (t.kind === "escape") { B.over = true; B.outcome = "flee"; lines.push(`🧧 ${t.name} — you tear space and vanish from the fight.`); return { lines, over: true, outcome: "flee" }; }
+    }
   } else if (hasStatus(P, "stun")) {
     lines.push("💫 You are stunned and cannot act!"); P.statuses = P.statuses.filter(s => s.type !== "stun");
   } else {

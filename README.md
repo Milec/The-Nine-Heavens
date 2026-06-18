@@ -59,7 +59,9 @@ Combat is a **turn-based minigame**: your learned **techniques become usable
 skills** (Azure Cloud Palm, Nine-Yang Burst with a burn DoT, Blood Spike that
 lifesteals but stains your karma, the defense-piercing Great Void Rend…), spent
 from a **qi pool** you must manage. Your **spiritual-root element** drives a Wu
-Xing advantage/weakness cycle, your **bound treasure** and **tamed beast** join
+Xing advantage/weakness cycle — and **attunes** you: arts of your own element(s)
+strike harder (the purer the root, the bigger the bonus) and you resist that
+element in turn. Your **bound treasure** and **tamed beast** join
 the fight, and stats decide crits, dodges and shields. Enemies wield their own
 **signature moves and elements** (a Demonic Outrider drains your blood; a
 Flame-Mane Lion sets you ablaze). Pick fights via **Wander the World**, **Hunt
@@ -105,11 +107,20 @@ Three more systems round out a cultivator's life:
 - **Lineage (传承)** — at the Golden Core you may **take disciples**, and **teach
   your techniques** to disciples, children and your dao companion. Your students
   carry your arts onward, and the teaching **echoes across reincarnation**,
-  sharpening the talent of your next life.
+  sharpening the talent of your next life. Tend them deeply: **impart cultivation
+  insight**, **send them on trial missions**, **bestow a treasure**, or spar — and
+  with **your own master**, ask to be taught an art, seek their guidance, beg a
+  parting gift, or test yourself against them.
 - **Market (坊市)** — a proper trading bazaar: **buy** spirit herbs, finished pills,
   technique manuals and magic treasures, and **sell** your spare herbs and surplus
   treasures. Prices **float with the world era** — dear in a Spiritual Drought,
   cheap in an Age of Abundance — so spirit stones finally have somewhere to go.
+- **Talismans (符箓)** — one-use paper charms inscribed with spirit-script: loose a
+  **Flame-Burst, Thunderbolt or Flying-Sword** for a no-qi damage burst, raise a
+  **Golden-Bell** shield, **mend** your wounds, **bind** a foe in place, or tear
+  space with an **Escape** talisman to flee any fight. **Buy** them at the Market
+  or **inscribe** your own (costs herbs; Soul Sense steadies the brush); they
+  appear as extra actions in the combat menu.
 - **Alchemy furnace minigame (炼丹)** — refining is now hands-on: keep the heat
   needle inside a drifting jade band over several phases to build **pill
   quality** (Crude → Fine → Flawless, scaling the effect) while avoiding the
@@ -154,6 +165,13 @@ Three more systems round out a cultivator's life:
   tournament champion, your nemesis) **enter a second phase at half health** and
   **telegraph a devastating element-themed ultimate** — guard, heal, or be
   shattered when it lands.
+- **A living world of cultivators** — every NPC (family, friends, rivals, masters,
+  disciples, dao companions) is a **full cultivator** with their own root, physique,
+  realm and techniques; they **advance along their own road** (capped by their
+  talent), **age and die** by a realm-given lifespan (mortals wither, immortals
+  endure), and **fight you with their actual arts**. The **Heaven Board (天骄榜)**
+  ranks the era's young geniuses by power — see where you stand and **challenge
+  rivals above you** to climb the roll of heaven's pride.
 - **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
   home base, from a Humble Cave Dwelling all the way to a legendary **Cave
   Heaven**. The abode is the **hub that ties the world together**: it is **rooted

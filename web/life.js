@@ -25,6 +25,8 @@ function augment(c, rng, sex) {
   if (c.legacySect === undefined) c.legacySect = null;
   if (c.generation == null) c.generation = 1;
   if (c.era == null) { c.era = D.ERAS[Math.floor(rng.random() * D.ERAS.length)][0]; c.eraYears = 20 + Math.floor(rng.random() * 35); }
+  if (c.rankboard == null) c.rankboard = E.generateRankboard(rng);   // the era's geniuses exist on their own
+  if (c.talismans == null) c.talismans = {};
   if (c.bodyRealm == null) c.bodyRealm = 0;
   if (c.temper == null) c.temper = 0;
   if (c.longevityBonus == null) c.longevityBonus = 0;
@@ -37,9 +39,10 @@ function makeNemesis(c, rng, grudge) {
   if (getNemesis(c)) return getNemesis(c);
   const n = mkNpc("nemesis", E.npcName(rng), -45);
   n.kin = "Nemesis"; n.grudge = grudge || "an old slight you barely remember";
-  n.power = E.basePower(c) * rng.uniform(1.05, 1.25) + 2;
   n.element = rng.choice([...D.ELEMENTS, "Dark", "Lightning"]);
   n.encounters = 0;
+  // A nemesis is a true peer who shadows your strength.
+  E.ensureNpcProfile(n, rng, { realm: c.realm, power: E.basePower(c) * rng.uniform(1.05, 1.25) + 2 });
   c.relationships.push(n);
   note(c, `${n.name} becomes your sworn nemesis.`);
   return n;
@@ -60,6 +63,7 @@ export function reincarnateLife(old, rng, name) {
   }
   carryLegacySect(c, old, rng);
   c.era = old.era; c.eraYears = old.eraYears;   // the world keeps turning across rebirth
+  if (old.rankboard) c.rankboard = old.rankboard;
   return c;
 }
 
@@ -132,11 +136,13 @@ function generateFamily(c, rng) {
   const prof = D.PARENT_PROFILE[c.backgroundKey] || ["a commoner", "a commoner", 0];
   const newKin = (kin, occ, realm, aff) => {
     const n = mkNpc("family", `${surname} ${E.givenName(rng)}`, aff);
-    n.kin = kin; n.occupation = occ; n.realm = realm; return n;
+    n.kin = kin; n.occupation = occ;
+    E.ensureNpcProfile(n, rng, { realm });   // their own root, physique and arts
+    return n;
   };
   if (c.backgroundKey === "beggar") {
     // An orphan of the gutter -- no known parents, but a fellow stray.
-    c.relationships.push(Object.assign(mkNpc("friend", `${E.givenName(rng)}`, 30), { kin: "Fellow Orphan" }));
+    c.relationships.push(Object.assign(E.ensureNpcProfile(mkNpc("friend", `${E.givenName(rng)}`, 30), rng, { realm: 0 }), { kin: "Fellow Orphan" }));
   } else if (c.backgroundKey === "slave") {
     c.relationships.push(newKin("Mother", prof[1], 0, rng.randint(65, 85)));
   } else {
@@ -169,13 +175,21 @@ function meetPerson(c, rng, role, opts = {}) {
   const child = opts.kin && ["Son", "Daughter"].includes(opts.kin);
   const name = child ? `${surname} ${E.givenName(rng)}` : E.npcName(rng);
   const n = mkNpc(role, name, opts.affinity != null ? opts.affinity : 20);
-  n.power = child ? 1 : E.power(c) * rng.uniform(0.5, 1.4);
   if (opts.kin) n.kin = opts.kin;
   if (opts.born != null) n.born = opts.born;
   if (opts.parent) n.parent = opts.parent;
   // Romantic partners have a sex (mostly the opposite of yours; love is love).
   if (role === "companion") n.sex = opts.sex || (rng.random() < 0.82 ? (c.sex === "female" ? "male" : "female") : c.sex);
-  if (child) n.sex = opts.kin === "Son" ? "male" : "female";
+  if (child) { n.sex = opts.kin === "Son" ? "male" : "female"; n.power = 1; }   // a babe; its genome is set by its parents
+  else {
+    // Every cultivator you meet has their own root, physique, realm and arts —
+    // their realm scaled to their standing relative to you.
+    const r = c.realm || 0, top = D.REALMS.length - 1;
+    const hint = role === "master" ? Math.min(top, r + rng.randint(1, 2))
+      : role === "disciple" ? Math.max(0, r - rng.randint(2, 4))
+      : Math.max(0, Math.min(top, r + rng.randint(-1, 1)));
+    E.ensureNpcProfile(n, rng, { realm: opts.realm != null ? opts.realm : hint, power: opts.power });
+  }
   c.relationships.push(n);
   return n;
 }
@@ -210,17 +224,20 @@ export const eligibleHeirs = c => c.relationships.filter(n => (n.kin === "Son" |
 // this is the next generation, not the same soul reborn.
 export function succeedAsHeir(old, child, rng) {
   const surname = old.name.split(" ")[0];
-  // Bloodline talent: a mighty parent tends to beget a gifted child.
-  const tierBonus = Math.min(4, Math.floor((old.realm + (old.bodyRealm || 0)) / 3));
-  const opts = {};
-  const fineRoots = ["quad", "triple", "dual", "heavenly", "variant"];
-  if (rng.random() < 0.25 + tierBonus * 0.09) opts.rootKey = fineRoots[Math.min(fineRoots.length - 1, 1 + Math.floor(rng.random() * (tierBonus + 1)))];
+  // The heir embodies their inherited genome (root, physique, looks); if an older
+  // save lacks one, derive it now from the parent's bloodline.
+  const geno = child.geno || E.inheritGenome(E.playerGenome(old), E.rollGenome(rng), rng);
+  const opts = { rootKey: geno.rootKey, physiqueKey: geno.physiqueKey, appearanceKey: geno.appearanceKey };
   const c = E.generateCharacter(rng, child.name, opts);
   augment(c, rng, child.sex);
+  // Layer the inherited attributes over the generated base (kept the higher of the two).
+  for (const k of ["comprehension", "constitution", "soul", "luck", "charm"])
+    c[k] = Math.min(160, Math.max(c[k], geno[k] || 0));
   c.awakened = true;                                   // a grown heir is long past the Awakening
   c.age = Math.max(16, childAge(old, child));
   c.generation = (old.generation || 1) + 1;
   c.era = old.era; c.eraYears = old.eraYears;          // the same world the forebear knew
+  if (old.rankboard) c.rankboard = old.rankboard;
   // inherit the family estate and a share of the fortune
   c.abode = old.abode || 0; c.abodeRegion = old.abodeRegion || null;
   if (old.ownSect) c.ownSect = Object.assign({}, old.ownSect, { founded: c.age, _tier: null });
@@ -265,6 +282,8 @@ export function tryForChild(c, npc, rng) {
   if (rng.random() < 0.55 + c.luck / 400) {
     const son = rng.random() < 0.5;
     const child = meetPerson(c, rng, "family", { kin: son ? "Son" : "Daughter", affinity: 70, born: c.age, parent: npc.name });
+    if (!npc.geno) npc.geno = E.rollGenome(rng);
+    child.geno = E.inheritGenome(E.playerGenome(c), npc.geno, rng);   // inherits from both parents
     npc.affinity = clampN(npc.affinity + 6, -100, 100);
     c.happiness = clampN(c.happiness + 12, 0, 100);
     note(c, `${npc.name} bore you a ${son ? "son" : "daughter"}, ${child.name}.`);
@@ -363,17 +382,29 @@ export function ageUp(c, rng) {
   // rootless, this quiet hardening is the whole of their climb.
   if (c.alive) for (const m of E.temperBody(c, rng, 0.5)) if (m[0] === "⛰") events.push({ id: "bodyup", auto: true, milestone: true, text: [m] });
 
-  // Your awakened children grow into power of their own over the years.
-  for (const k of c.relationships)
-    if ((k.kin === "Son" || k.kin === "Daughter") && k.alive && k._awakened)
-      k.power = Math.max(k.power || 1, E.basePower(c) * 0.18) * rng.uniform(1.0, 1.04);
+  // The world lives, climbs and dies alongside you: friends, rivals, spouses,
+  // masters, disciples and your own children each advance their own cultivation
+  // (capped by their talent) and age toward their own lifespan.
+  let worldUp = null;
+  for (const npc of c.relationships) {
+    if (!npc.alive || npc.role === "nemesis") continue;        // the nemesis grows separately
+    const isKid = npc.kin === "Son" || npc.kin === "Daughter";
+    if (isKid && !npc._awakened) continue;
+    if (npc.realm == null) { if (isKid) E.ensureNpcProfile(npc, rng, { realm: 0 }); else continue; }
+    const step = E.advanceNpc(npc, rng);
+    if (step === "realm" && !worldUp && (npc.role === "companion" || npc.role === "master" || npc.role === "disciple" || isKid || (npc.affinity || 0) >= 60))
+      worldUp = npc;
+    if (npc.age != null) { npc.age += 1; if (npc.age > npc.maxAge) npcDies(c, npc, events); }
+  }
+  if (worldUp) events.push({ id: "world_advance", auto: true, text: [`Word reaches you: ${worldUp.name} has broken through to ${E.npcRealmName(worldUp)} (${D.REALMS[worldUp.realm][1]}). The world does not stand still while you cultivate.`] });
+  if (c.rankboard) E.ageRankboard(c, rng);   // the era's geniuses climb (and fall) too
 
   // Your spirit beast grows over the year (and its yearly feeding refreshes).
   if (c.beast && c.beast.alive) E.beastGrow(c, rng);
 
   // Your nemesis cultivates too, always shadowing your strength.
   const nem = getNemesis(c);
-  if (nem) nem.power = Math.max(nem.power * 1.03, E.basePower(c) * rng.uniform(1.0, 1.18));
+  if (nem) { nem.power = Math.max(nem.power * 1.03, E.basePower(c) * rng.uniform(1.0, 1.18)); if ((nem.realm || 0) < c.realm) nem.realm = c.realm; }
 
   // Vitals drift gently; old age erodes health.
   c.happiness = clampN(c.happiness + rng.randint(-2, 2), 0, 100);
@@ -385,9 +416,6 @@ export function ageUp(c, rng) {
 
   // Random life events.
   for (const ev of rollYearEvents(c, rng, A)) events.push(ev);
-
-  // Family ages too -- elderly mortal kin may pass away.
-  ageFamily(c, rng, events);
 
   // Death checks.
   if (c.alive) {
@@ -401,19 +429,19 @@ export function ageUp(c, rng) {
   return { events };
 }
 
-function ageFamily(c, rng, events) {
-  for (const n of c.relationships) {
-    if (n.role === "family" && n.alive && (n.kin === "Father" || n.kin === "Mother")) {
-      // Mortal or low-realm kin grow old over decades.
-      const lifespan = 70 + (n.realm || 0) * 40;
-      const elapsed = c.age - (n.born || 0);
-      if (c.age > 30 && rng.random() < 0.012 * Math.max(1, c.age / 30) && (n.realm || 0) < 3) {
-        n.alive = false;
-        c.happiness = clampN(c.happiness - 15, 0, 100);
-        note(c, `${n.name} (${n.kin}) passed away.`);
-        events.push({ id: "kin_death_" + n.name, auto: true, text: [`Word reaches you: ${n.name}, your ${n.kin.toLowerCase()}, has died of old age. You burn incense and grieve a mortal's brief candle.`] });
-      }
-    }
+// An NPC's lifespan runs out. Close bonds grieve; the world feels their passing.
+function npcDies(c, n, events) {
+  n.alive = false;
+  const who = n.kin && n.role === "family" ? `your ${n.kin.toLowerCase()}` : (D.ROLE_LABEL[n.role] || n.role).toLowerCase();
+  const close = n.role === "companion" || n.role === "master" || n.kin === "Son" || n.kin === "Daughter"
+    || n.role === "family" || (n.affinity || 0) >= 60;
+  note(c, `${n.name} (${who}) died of old age at ${n.age}.`);
+  if (close) {
+    c.happiness = clampN(c.happiness - (n.role === "companion" || n.kin === "Son" || n.kin === "Daughter" ? 18 : 12), 0, 100);
+    const line = n.role === "companion"
+      ? `${n.name}, your ${(n.kin || "dao companion").toLowerCase()}, has passed away at ${n.age} — their mortal span spent while yours runs on. You grieve the cruelest price of the long road.`
+      : `Word reaches you: ${n.name}, ${who}, has died of old age at ${n.age}. You burn incense for a candle gone out.`;
+    events.push({ id: "npc_death_" + n.name + c.age, auto: true, milestone: n.role === "companion", text: [line] });
   }
 }
 
@@ -495,8 +523,12 @@ export function relationActions(c, npc) {
   if (npc.role === "disciple") {
     const acts = [{ id: "talk", label: "Check on your disciple" }];
     if (teachableTechs(c).length) acts.push({ id: "teach", label: "Teach a technique" });
+    acts.push({ id: "guide", label: "Impart cultivation insight" });
+    acts.push({ id: "mission", label: "Send on a trial mission" });
+    if (c.artifacts && c.artifacts.some(k => k !== c.equippedArtifact)) acts.push({ id: "bestow", label: "Bestow a treasure" });
     acts.push({ id: "gift", label: "Give a gift (5 stones)" });
     acts.push({ id: "spar", label: "Spar" });
+    if ((c.abode || 0) > 0) acts.push(npc.resides ? { id: "sendaway", label: "Have them leave your abode" } : { id: "invite", label: "Invite to live at your abode" });
     return acts;
   }
   const acts = [];
@@ -504,6 +536,12 @@ export function relationActions(c, npc) {
   if ((npc.role === "companion" || npc.kin === "Son" || npc.kin === "Daughter") && teachableTechs(c).length)
     acts.push({ id: "teach", label: "Teach a technique" });
   if (npc.role !== "enemy") acts.push({ id: "gift", label: "Give a gift (5 stones)" });
+  if (npc.role === "master") {
+    acts.push({ id: "seekteaching", label: "Ask to be taught an art" });
+    acts.push({ id: "mguidance", label: "Seek their guidance" });
+    acts.push({ id: "spar", label: "Spar (a lesson in arms)" });
+    acts.push({ id: "askmaster", label: "Beg a parting gift" });
+  }
   if (npc.role === "family" && (npc.realm || 0) >= 2) acts.push({ id: "guidance", label: "Seek their guidance" });
   if (npc.role === "family" && (c.backgroundKey === "noble" || c.backgroundKey === "royal")) acts.push({ id: "askhelp", label: "Ask for resources" });
   if (npc.role === "rival" || npc.role === "friend") acts.push({ id: "spar", label: "Spar" });
@@ -536,6 +574,52 @@ export function doRelationAction(c, npc, action, rng) {
       adj(2);
       if (rng.random() < 0.5) { cap(c, "comprehension", 1); return [`${npc.name} shares hard-won cultivation wisdom. (+Comprehension)`]; }
       return [`${npc.name} tells old stories of the family's cultivators.`];
+    }
+    // ---- with your master ----
+    case "seekteaching": {
+      const unknown = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing" && !c.techniques.includes(k));
+      if (!unknown.length) { adj(2); cap(c, "comprehension", 1); return [`${npc.name} has no art left to teach that you do not already know, but offers a subtle pointer. (+Comprehension)`]; }
+      if (rng.random() < 0.4 + npc.affinity / 250 + c.comprehension / 400) {
+        const t = rng.choice(unknown); c.techniques.push(t); adj(3); happy(3);
+        note(c, `${npc.name} taught you ${D.TECHNIQUES[t][0]}.`);
+        return [`${npc.name} judges you ready and imparts the ${D.TECHNIQUES[t][0]}. (${D.TECHNIQUES[t][4]})`];
+      }
+      adj(1); return [`"Not yet," ${npc.name} says. "Temper your foundation, and ask again." (Raise your bond and comprehension.)`];
+    }
+    case "mguidance": {
+      adj(rng.randint(2, 4));
+      if (rng.random() < 0.5) { cap(c, "comprehension", rng.randint(1, 2)); return [`${npc.name} unravels a knot in your understanding of the dao. (+Comprehension)`]; }
+      if (c.awakened && c.root.key !== "none") { c.qi += E.qiToNext(c) * 0.15; advanceStages(c); return [`${npc.name} corrects your qi-circulation; your cultivation settles and deepens.`]; }
+      cap(c, "soul", 1); return [`${npc.name} speaks of their own master, long ago. The lineage's weight steadies your heart. (+Soul)`];
+    }
+    case "askmaster": {
+      if (rng.random() < 0.4 + npc.affinity / 300) {
+        const r = rng.random();
+        if (r < 0.4) { const g = rng.randint(15, 50); c.spiritStones += g; adj(-2); return [`${npc.name} presses ${g} spirit stones into your hand. "Spend it on your cultivation, not wine."`]; }
+        if (r < 0.7) { c.pills += rng.randint(1, 3); adj(-2); return [`${npc.name} gifts you a small jar of pills from their own stores.`]; }
+        return [`${npc.name} bestows a treasure upon you.`].concat(E.acquireArtifact(c, E.randomArtifact(c, rng)));
+      }
+      adj(-2); return [`${npc.name} swats the back of your head. "A cultivator earns their own fortune."`];
+    }
+    // ---- with your disciple ----
+    case "guide": {
+      npc.power = (npc.power || 1) * rng.uniform(1.05, 1.12); adj(rng.randint(3, 7)); happy(2);
+      if (rng.random() < 0.3) { c.reputation += 1; if (c.ownSect) c.ownSect.prestige += 3; }
+      return [`You personally guide ${npc.name}'s cultivation; they grow stronger and more devoted to you. (${E.npcStatus(npc)})`];
+    }
+    case "mission": {
+      const r = rng.random();
+      if (r < 0.55) { const g = rng.randint(8, 24) * (c.realm + 1); c.spiritStones += g; npc.power = (npc.power || 1) * 1.04; adj(3); if (c.ownSect) c.ownSect.prestige += 4; return [`${npc.name} returns from the trial victorious, laying ${g} spirit stones at your feet and the richer for the experience.`]; }
+      if (r < 0.82) { const h = rng.randint(3, 8); c.herbs += h; adj(2); return [`${npc.name} returns from the trial with ${h} spirit herbs and a head full of road-tales.`]; }
+      npc.power = Math.max(1, (npc.power || 1) * 0.85); adj(-2); happy(-3); return [`${npc.name} returns from the trial battered and humbled, having barely escaped with their life. You tend their wounds.`];
+    }
+    case "bestow": {
+      const spare = c.artifacts.find(k => k !== c.equippedArtifact);
+      if (!spare) return ["You have no spare treasure to bestow."];
+      c.artifacts.splice(c.artifacts.indexOf(spare), 1);
+      npc.power = (npc.power || 1) * 1.25 + 10; adj(rng.randint(8, 15)); happy(4); c.karma += 2;
+      note(c, `Bestowed the ${D.ARTIFACT_BY_KEY[spare][1]} upon ${npc.name}.`);
+      return [`You bestow the ${D.ARTIFACT_BY_KEY[spare][1]} upon ${npc.name}. They kowtow, overcome, and grow markedly stronger. (+Karma)`];
     }
     case "askhelp":
       if (rng.random() < 0.6) { const g = rng.randint(20, 80); c.spiritStones += g; adj(-2); return [`Your influential family sends ${g} spirit stones — with a lecture about responsibility.`]; }
@@ -577,7 +661,8 @@ export function takeDisciple(c, rng) {
   if (c.realm < 4) return ["You must reach the Golden Core before any youth will kneel to you as master."];
   if (getDisciples(c).length >= 3) return ["You already shepherd three disciples — enough for any master."];
   const n = mkNpc("disciple", E.npcName(rng), 55);
-  n.kin = "Disciple"; n.power = E.power(c) * rng.uniform(0.2, 0.45); n.learned = [];
+  n.kin = "Disciple"; n.learned = [];
+  E.ensureNpcProfile(n, rng, { realm: Math.max(0, c.realm - rng.randint(2, 4)) });
   c.relationships.push(n);
   c.happiness = clampN(c.happiness + 4, 0, 100);
   note(c, `Took ${n.name} as a disciple.`);
@@ -723,7 +808,8 @@ export function holdRecruitment(c, rng) {
   const msgs = [`You throw open the gates of the ${s.name}. ${drew} hopefuls flock to your banner. (${s.members}/${cap} members)`];
   if (c.realm >= 4 && getDisciples(c).length < 4 && rng.random() < 0.45) {
     const n = mkNpc("disciple", E.npcName(rng), 55);
-    n.kin = "Disciple"; n.power = E.power(c) * rng.uniform(0.2, 0.4); n.learned = []; n.resides = true;
+    n.kin = "Disciple"; n.learned = []; n.resides = true;
+    E.ensureNpcProfile(n, rng, { realm: Math.max(0, c.realm - rng.randint(2, 4)) });
     c.relationships.push(n);
     msgs.push(`Among them, a true talent — ${n.name} — kneels as your personal disciple and takes up residence at the seat.`);
   }

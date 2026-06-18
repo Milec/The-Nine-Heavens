@@ -17,6 +17,16 @@ import * as E from "./engine.js";
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const cap = (c, k, v) => { c[k] = Math.min(160, c[k] + v); };
 
+// Whoever would nurse a sick child: a parent, else a sibling, else a fellow
+// orphan or friend (so even a parentless child isn't left to suffer alone).
+const feverCaregiver = c => c.relationships.find(n => n.alive && n.kin === "Mother")
+  || c.relationships.find(n => n.alive && n.kin === "Father")
+  || c.relationships.find(n => n.alive && (n.kin === "Brother" || n.kin === "Sister"))
+  || c.relationships.find(n => n.alive && n.role === "friend")
+  || null;
+const carerLabel = car => car.kin === "Mother" ? "your mother" : car.kin === "Father" ? "your father" : car.name;
+const carerSubject = car => car.kin === "Mother" ? "Your mother" : car.kin === "Father" ? "Your father" : car.name;
+
 export const EVENTS = [
   /* ----------------------------- childhood ------------------------------ */
   {
@@ -32,7 +42,7 @@ export const EVENTS = [
     id: "child_fever", weight: 7, minAge: 1, maxAge: 7, awakened: false,
     text: () => "A burning fever grips you for days. The village has no healer.",
     choices: [
-      { label: "Let mother nurse you", result: (c, rng, A) => { A.heal(-6); A.happy(4); const m = A.kin("mother"); return `${m ? m.name + " sits" : "Your mother sits"} by your bed each night. You pull through, weak but loved.`; } },
+      { label: c => { const car = feverCaregiver(c); return car ? `Let ${carerLabel(car)} nurse you` : "Be taken in by a kindly villager"; }, result: (c, rng, A) => { A.heal(-6); A.happy(4); const car = feverCaregiver(c); if (car) car.affinity = clampN((car.affinity || 0) + 2, -100, 100); const who = car ? carerSubject(car) : "A kindly old villager"; const verb = car && car.role === "friend" ? "watches over you" : "sits by your bed"; return `${who} ${verb} each night. You pull through, weak but loved.`; } },
       { label: "Endure it alone", result: (c, rng, A) => { if (rng.random() < 0.5) { A.heal(-14); c.constitution = Math.min(160, c.constitution + 3); return "You sweat it out in silence. The illness tempers something in you. (+Constitution)"; } A.heal(-20); A.happy(-6); return "The fever nearly takes you. You recover, but it leaves a frailty behind."; } },
     ],
   },
@@ -110,7 +120,7 @@ export const EVENTS = [
     cond: c => c.relationships.some(n => n.role === "companion" && n.married && n.alive) && c.relationships.filter(n => n.kin === "Son" || n.kin === "Daughter").length < 10,
     text: c => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); return `Your ${sp ? sp.kin.toLowerCase() : "spouse"} ${sp ? sp.name : ""} shares joyful news: a child is coming.`; },
     choices: [
-      { label: "Welcome the child", result: (c, rng, A) => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); const child = A.meet("family", { kin: rng.random() < 0.5 ? "Son" : "Daughter", affinity: 70, born: c.age, parent: sp ? sp.name : null }); A.happy(15); return `A child is born to your line — ${child.name}${sp ? `, ${sp.name}'s ${child.kin.toLowerCase()}` : ""}. A spark of your blood to carry the dao onward.`; } },
+      { label: "Welcome the child", result: (c, rng, A) => { const sp = c.relationships.find(n => n.role === "companion" && n.married && n.alive); const child = A.meet("family", { kin: rng.random() < 0.5 ? "Son" : "Daughter", affinity: 70, born: c.age, parent: sp ? sp.name : null }); if (sp) { if (!sp.geno) sp.geno = E.rollGenome(rng); child.geno = E.inheritGenome(E.playerGenome(c), sp.geno, rng); } A.happy(15); return `A child is born to your line — ${child.name}${sp ? `, ${sp.name}'s ${child.kin.toLowerCase()}` : ""}. A spark of your blood to carry the dao onward.`; } },
     ],
   },
   {
@@ -587,7 +597,21 @@ export const EVENTS = [
     cond: c => c.relationships.some(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 6 && !n._awakened),
     text: c => { const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && (c.age - (n.born || c.age)) >= 6 && !n._awakened); return `Your child ${k ? k.name : ""} reaches the age of awakening. The testing-stone is brought out before the family.`; },
     choices: [
-      { label: "Watch with bated breath", result: (c, rng, A) => { const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && !n._awakened); if (!k) return "The moment passes."; k._awakened = true; const lucky = rng.random() < 0.35 + c.luck / 300; if (lucky) { k.power = A.power() * 0.3; k.affinity = Math.min(100, k.affinity + 10); A.happy(15); c.reputation += 3; return `The stone blazes bright — ${k.name} has inherited a true spiritual root! Your bloodline's dao will carry on. (+Happiness)`; } k.affinity = Math.min(100, k.affinity + 5); A.happy(2); return `The stone glows only faintly. ${k.name} has a humble root — but you vow to give them every chance you never had.`; } },
+      { label: "Watch with bated breath", result: (c, rng, A) => {
+        const k = c.relationships.find(n => (n.kin === "Son" || n.kin === "Daughter") && n.alive && !n._awakened);
+        if (!k) return "The moment passes.";
+        k._awakened = true;
+        const rootKey = (k.geno && k.geno.rootKey) || "waste";   // the root they inherited at birth
+        const row = D.ROOT_TYPES.find(r => r[0] === rootKey);
+        const tier = D.ROOT_TIER[rootKey] || 0;
+        E.ensureNpcProfile(k, rng, { realm: 0 });                // they begin their own cultivation now
+        k.power = Math.max(k.power || 0, A.power() * (0.18 + tier * 0.05));
+        k.affinity = Math.min(100, k.affinity + 8);
+        if (rootKey === "none") { A.happy(-4); return `The testing-stone stays dull and grey — ${k.name} has no spiritual root. Your heart aches for them; you resolve they shall walk the body-tempering road instead.`; }
+        if (tier >= 4) { A.happy(18); c.reputation += 5; return `The stone BLAZES like a captured sun — ${k.name} has awakened a ${row[1]}! A heaven-blessed heir; your bloodline's glory is assured. (+Happiness, +Reputation)`; }
+        if (tier >= 2) { A.happy(12); c.reputation += 2; return `The stone shines clean and bright — ${k.name} has a ${row[1]}. A genuine talent to carry the dao onward. (+Happiness)`; }
+        A.happy(4); return `The stone glows only faintly — ${k.name} has a ${row[1]}. A humble root, but you vow to give them every chance you never had.`;
+      } },
     ],
   },
   {
@@ -619,6 +643,24 @@ export const EVENTS = [
     text: c => { const m = c.relationships.find(n => n.role === "master" && n.alive); return `Your old master ${m ? m.name : ""}, nearing the end of a long life, summons you to pass on a final legacy.`; },
     choices: [
       { label: "Kneel and receive their dao", result: (c, rng, A) => { const m = c.relationships.find(n => n.role === "master" && n.alive); const t = A.learnTech(); cap(c, "comprehension", 3); A.happy(-4); if (m) { m.alive = false; A.note(`${m.name}, your master, passed on their legacy and died.`); } return [`${m ? m.name : "Your master"} pours decades of insight into you with their dying breath, then passes with a peaceful smile.`, t ? `Their final gift: ${t}.` : "Their final gift is wordless understanding. (+Comprehension)"]; } },
+    ],
+  },
+  {
+    id: "master_trial", weight: 5, awakened: true,
+    cond: c => c.relationships.some(n => n.role === "master" && n.alive),
+    text: c => { const m = c.relationships.find(n => n.role === "master" && n.alive); return `${m ? m.name : "Your master"} sets you a trial to prove your progress — a test of will and blade both.`; },
+    choices: [
+      { label: "Undertake the trial", result: (c, rng, A) => { const m = c.relationships.find(n => n.role === "master" && n.alive); if (rng.random() < 0.4 + c.comprehension / 250) { cap(c, "comprehension", 2); const t = A.learnTech(); if (m) m.affinity = Math.min(100, (m.affinity || 0) + 8); return [`You pass ${m ? m.name + "'s" : "the"} trial with flying colours.`, t ? `Pleased, your master rewards you with the ${t}.` : "Your master nods, and your understanding deepens. (+Comprehension)"]; } A.happy(-3); if (m) m.affinity = Math.max(-100, (m.affinity || 0) - 2); return [`You stumble at the trial. ${m ? m.name : "Your master"} sighs: "Again. And again, until it is right."`]; } },
+      { label: "Beg off — you are not ready", result: (c, rng, A) => { const m = c.relationships.find(n => n.role === "master" && n.alive); if (m) m.affinity = Math.max(-100, (m.affinity || 0) - 5); A.happy(-2); return [`${m ? m.name : "Your master"} frowns at your timidity, but lets it pass.`]; } },
+    ],
+  },
+  {
+    id: "disciple_rivalry", weight: 4, awakened: true,
+    cond: c => c.relationships.filter(n => n.role === "disciple" && n.alive).length >= 2,
+    text: c => { const d = c.relationships.filter(n => n.role === "disciple" && n.alive); return `Two of your disciples, ${d[0].name} and ${d[1].name}, fall to bitter rivalry over which of them is your true successor.`; },
+    choices: [
+      { label: "Set them a fair contest", result: (c, rng, A) => { const d = c.relationships.filter(n => n.role === "disciple" && n.alive); d.forEach(x => { x.power = (x.power || 1) * 1.06; x.affinity = Math.min(100, (x.affinity || 0) + 4); }); A.happy(3); if (c.ownSect) c.ownSect.prestige += 6; return `You pit them against each other in honest contest. Both push harder than ever, and the whole hall is the stronger for it.`; } },
+      { label: "Rebuke them both", result: (c, rng, A) => { const d = c.relationships.filter(n => n.role === "disciple" && n.alive); d.forEach(x => { x.affinity = Math.max(-100, (x.affinity || 0) - 3); }); return `You scold them sharply. The feud cools into a sullen, simmering peace.`; } },
     ],
   },
   {

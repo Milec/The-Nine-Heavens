@@ -187,7 +187,7 @@ function newCharacter() {
     realm: 0, stage: 0, qi: 0, maxAge: 80, bodyRealm: 0, temper: 0, longevityBonus: 0,
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, titles: [], relationships: [],
-    herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0,
+    herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     mastery: {},
@@ -242,6 +242,157 @@ export function generateCharacter(rng, name, opts = {}) {
   return c;
 }
 
+/* ------------------------------- genetics -------------------------------- */
+// Children inherit a blend of BOTH parents: spiritual-root tier (with mutation),
+// special physiques that can run in a bloodline, looks, and core attributes.
+const GENO_SPECIALS = ["sturdy", "spirit", "yin", "yang", "dao", "immortal"];
+const apprIdx = key => { const i = D.APPEARANCES.findIndex(a => a[0] === key); return i < 0 ? 2 : i; };
+const genomeShape = (rootKey, physiqueKey, appearanceKey, comp, con, soul, luck, charm) =>
+  ({ rootKey, physiqueKey, appearanceKey, comprehension: comp, constitution: con, soul, luck, charm });
+
+// A latent, unrevealed genome for an NPC (a spouse's heritable talent).
+export function rollGenome(rng) {
+  // talent tends to attract talent: a dao companion's root is the better of two draws.
+  const rootKey = [weightedChoice(rng, D.ROOT_TYPES, 4), weightedChoice(rng, D.ROOT_TYPES, 4)]
+    .sort((a, b) => (D.ROOT_TIER[b[0]] || 0) - (D.ROOT_TIER[a[0]] || 0))[0][0];
+  return genomeShape(rootKey, weightedChoice(rng, D.PHYSIQUES, 7)[0], weightedChoice(rng, D.APPEARANCES, 4)[0],
+    rollAttribute(rng), rollAttribute(rng), rollAttribute(rng), rollAttribute(rng), rollAttribute(rng));
+}
+// The player's own heritable genome.
+export const playerGenome = c => genomeShape(c.root ? c.root.key : "waste", c.physiqueKey || "ordinary",
+  c.appearanceKey || "ordinary", c.comprehension, c.constitution, c.soul, c.luck, c.charm);
+
+export function inheritGenome(ga, gb, rng) {
+  const ta = D.ROOT_TIER[ga.rootKey] || 0, tb = D.ROOT_TIER[gb.rootKey] || 0;
+  const hi = Math.max(ta, tb), lo = Math.min(ta, tb);
+  let t; const r = rng.random();
+  if (r < 0.35) t = hi; else if (r < 0.60) t = lo; else t = Math.round((hi + lo) / 2);
+  const m = rng.random();
+  if (m < 0.02) t += 2; else if (m < 0.12) t += 1; else if (m < 0.20) t -= 1;
+  t = clamp(t, 0, 6);
+  let rootKey = D.ROOT_BY_TIER[t] || "triple";
+  if (t === 0 && rng.random() < 0.25) rootKey = "none";          // a tragic rootless child
+  let physiqueKey = "ordinary";
+  if (GENO_SPECIALS.includes(ga.physiqueKey) && rng.random() < 0.45) physiqueKey = ga.physiqueKey;
+  else if (GENO_SPECIALS.includes(gb.physiqueKey) && rng.random() < 0.45) physiqueKey = gb.physiqueKey;
+  else if (rng.random() < 0.03) physiqueKey = rng.choice(GENO_SPECIALS);
+  let ai = Math.round((apprIdx(ga.appearanceKey) + apprIdx(gb.appearanceKey)) / 2) + rng.choice([-1, 0, 0, 1]);
+  ai = clamp(ai, 0, D.APPEARANCES.length - 1);
+  const blend = k => clamp(Math.round((ga[k] + gb[k]) / 2 * rng.uniform(0.55, 0.85)) + rng.randint(0, 8), 6, 140);
+  return genomeShape(rootKey, physiqueKey, D.APPEARANCES[ai][0],
+    blend("comprehension"), blend("constitution"), blend("soul"), blend("luck"), blend("charm"));
+}
+
+/* --------------------------- NPC cultivator profiles --------------------- */
+// Every named NPC is a cultivator in their own right: a spiritual root, physique,
+// realm and techniques — from which their combat power derives (same maths as you).
+const NPC_TECH_POOL = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing");
+export function npcPower(npc) {
+  const rf = (npc.realm || 0) * 10 + (npc.stage || 0) + 1;
+  const g = npc.geno || {};
+  const con = g.constitution || 40, soul = g.soul || 40;
+  const techAtk = (npc.techniques || []).reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][3] : 0), 0);
+  const p = Math.pow(rf, 2.1) * (1 + con * 0.8 / 100 + soul * 0.5 / 100) + techAtk * rf;
+  return Math.max(2, Math.round(p));
+}
+export const npcRealmName = npc => D.REALMS[npc.realm || 0][0];
+export const npcRootName = npc => { const r = D.ROOT_TYPES.find(x => x[0] === (npc.geno && npc.geno.rootKey)); return r ? r[1] : "Unknown"; };
+// Fill in any missing cultivator fields (idempotent; back-derives realm from an
+// existing power for older saves). opts: { realm, stage, power }.
+export function ensureNpcProfile(npc, rng, opts = {}) {
+  if (!npc) return npc;
+  if (!npc.geno) npc.geno = rollGenome(rng);
+  if (npc.physiqueKey == null) npc.physiqueKey = npc.geno.physiqueKey;
+  if (npc.realm == null) {
+    if (opts.realm != null) npc.realm = clamp(opts.realm, 0, D.REALMS.length - 1);
+    else if (npc.power) npc.realm = clamp(Math.round((Math.pow(Math.max(1, npc.power), 1 / 2.1) - 1) / 10), 0, D.REALMS.length - 1);
+    else npc.realm = 0;
+  }
+  if (npc.stage == null) npc.stage = opts.stage != null ? opts.stage : (npc.realm > 0 ? rng.randint(0, Math.max(0, D.REALMS[npc.realm][2] - 1)) : 0);
+  if (!npc.techniques) {
+    const techs = ["basic_breathing"], avail = NPC_TECH_POOL.slice();
+    const n = Math.min(avail.length, Math.floor(npc.realm / 2) + (rng.random() < 0.6 ? 1 : 0));
+    for (let i = 0; i < n && avail.length; i++) techs.push(avail.splice(Math.floor(rng.random() * avail.length), 1)[0]);
+    npc.techniques = techs;
+  }
+  if (npc.element === undefined) { const r = rollRoot(rng, npc.geno.rootKey); npc.element = r.elements.length ? r.elements[0] : null; }
+  if (opts.power != null) npc.power = opts.power;
+  else if (!npc.power) npc.power = npcPower(npc);
+  // Their own age and lifespan — higher realms (and a tempered root) live far longer.
+  if (npc.maxAge == null) npc.maxAge = D.REALMS[npc.realm][3];
+  if (npc.age == null) {
+    const base = { master: 60, disciple: 16, family: 28 }[npc.role] || 22;
+    npc.age = opts.age != null ? opts.age : Math.min(npc.maxAge - 2, base + npc.realm * 8 + rng.randint(-5, 12));
+  }
+  return npc;
+}
+
+// How far an NPC can climb, by the talent of their spiritual root (their destiny,
+// as yours is yours). The rootless cannot gather qi at all.
+const NPC_REALM_CAP = { none: 0, waste: 3, quad: 4, triple: 5, dual: 6, heavenly: 8, variant: 9, chaos: 10 };
+// Advance an NPC one step along their own cultivation each year. Returns "realm"
+// when they break into a new realm, "stage" for a lesser step, else null.
+export function advanceNpc(npc, rng) {
+  if (!npc || !npc.alive || npc.realm == null || !npc.geno) return null;
+  const rootKey = npc.geno.rootKey || "waste";
+  if (rootKey === "none") return null;                 // the rootless cannot gather qi
+  const cap = NPC_REALM_CAP[rootKey] != null ? NPC_REALM_CAP[rootKey] : 4;
+  if (npc.realm >= cap) { npc.power = Math.max(npc.power || 0, Math.round(npcPower(npc) * rng.uniform(1.0, 1.01))); return null; }
+  const tier = D.ROOT_TIER[rootKey] || 0;
+  const speed = (0.30 + tier * 0.22) / Math.pow(1.5, npc.realm);     // talent quickens; high realms slow
+  npc.cultProgress = (npc.cultProgress || 0) + speed * rng.uniform(0.6, 1.25);
+  if (npc.cultProgress < 1) return null;
+  npc.cultProgress -= 1;
+  let broke = false;
+  if (npc.stage < D.REALMS[npc.realm][2] - 1) npc.stage += 1;
+  else { npc.realm += 1; npc.stage = 0; broke = true; }
+  if (broke) {
+    npc.maxAge = D.REALMS[npc.realm][3];                              // a new realm lengthens their life
+    if (rng.random() < 0.4) {                                          // and sometimes a new art
+      const unknown = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing" && !(npc.techniques || []).includes(k));
+      if (unknown.length) (npc.techniques = npc.techniques || ["basic_breathing"]).push(rng.choice(unknown));
+    }
+  }
+  npc.power = Math.max(npc.power || 0, npcPower(npc));
+  return broke ? "realm" : "stage";
+}
+
+/* ------------------------- the Heaven Board (天骄榜) ---------------------- */
+// A roster of the era's young geniuses — high-talent NPC cultivators you are
+// ranked against by raw power. They advance (and die) like any cultivator.
+const GENIUS_TITLES = ["the Sword Prodigy", "the Jade Phoenix", "the Young Patriarch", "the Frostfire Genius",
+  "the Heaven's Pride", "the Demon-Slayer", "the Cloud Walker", "the Thunder Scion", "the Peerless Maiden",
+  "the Dao Child", "the Blood Marquis", "the Azure Dragon", "the Starpicker", "the Undying Youth"];
+// A genius exists on their own terms — an absolute realm, not scaled to the player.
+function makeGenius(rng, realm) {
+  const rootKey = rng.choice(["triple", "dual", "dual", "heavenly", "heavenly", "variant", "quad", "chaos"]);
+  const r = realm != null ? realm : rng.choices([2, 3, 4, 5, 6, 7], [24, 28, 22, 14, 8, 4]);
+  const g = { name: npcName(rng), role: "genius", alive: true, affinity: 0, geno: Object.assign(rollGenome(rng), { rootKey }), title: rng.choice(GENIUS_TITLES) };
+  return ensureNpcProfile(g, rng, { realm: r });
+}
+// The era's roll of foremost young cultivators — generated and ranked on their
+// own merits, existing whether or not the player ever awakens a root.
+export function generateRankboard(rng, size = 12) {
+  const board = [];
+  for (let i = 0; i < size; i++) board.push(makeGenius(rng));
+  return board;
+}
+// Advance the board a year; replace any who die of old age with rising newcomers.
+export function ageRankboard(c, rng) {
+  if (!c.rankboard) return;
+  for (let i = 0; i < c.rankboard.length; i++) {
+    const g = c.rankboard[i];
+    advanceNpc(g, rng);
+    if (g.age != null) { g.age += 1; if (g.age > g.maxAge) c.rankboard[i] = makeGenius(rng, rng.randint(2, 3)); }   // a young star rises
+  }
+}
+// Everyone on the board plus you, sorted by power (desc). Returns {ranked, you}.
+export function rankboardStanding(c) {
+  const me = { name: c.name, you: true, power: power(c), realm: c.realm, title: "you" };
+  const ranked = [...(c.rankboard || []).map(g => ({ name: g.name, power: g.power || npcPower(g), realm: g.realm, title: g.title, ref: g })), me]
+    .sort((a, b) => b.power - a.power);
+  return { ranked, rank: ranked.findIndex(x => x.you) + 1, total: ranked.length };
+}
 export function reincarnate(old, rng, name) {
   const c = generateCharacter(rng, name);
   c.reincarnationCount = old.reincarnationCount + 1;
@@ -723,6 +874,29 @@ export function buyPill(c, key, rng) {
   c.spiritStones -= p;
   return [`You buy a ${D.PILL_BY_KEY[key][1]} for ${p} stones.`].concat(grantPill(c, key, rng, 1));
 }
+export const priceTalisman = (c, key) => Math.round((D.TALISMANS[key].price || 30) * eraPriceMult(c));
+export function buyTalisman(c, key, rng) {
+  const t = D.TALISMANS[key]; if (!t) return ["No such talisman."];
+  const p = priceTalisman(c, key);
+  if (c.spiritStones < p) return [`You cannot afford the ${t.name} (${p} stones).`];
+  c.spiritStones -= p; if (!c.talismans) c.talismans = {}; c.talismans[key] = (c.talismans[key] || 0) + 1;
+  return [`You buy a ${t.name} for ${p} stones.`];
+}
+// Inscribe a talisman yourself (a deed): costs herbs; soul & comprehension ease it.
+export function inscribeTalisman(c, key, rng) {
+  const t = D.TALISMANS[key]; if (!t) return ["No such talisman."];
+  if (c.herbs < t.herbs) return [`You need ${t.herbs} spirit herbs to inscribe a ${t.name}; you have ${c.herbs}.`];
+  if (!c.talismans) c.talismans = {};
+  c.herbs -= t.herbs;
+  const chance = clamp(0.45 + c.soul / 200 + c.comprehension / 350 + (c.alchemySkill || 0) * 0.004, 0.1, 0.97);
+  if (rng.random() <= chance) {
+    const n = 1 + (rng.random() < 0.30 ? 1 : 0);
+    c.talismans[key] = (c.talismans[key] || 0) + n;
+    return [`Brush dancing in cinnabar and qi, you inscribe ${n} ${t.name}${n > 1 ? "s" : ""}. (${Math.floor(chance * 100)}% success)`];
+  }
+  return [`The spirit-script smears and the paper blackens — the inscription fails. (${Math.floor(chance * 100)}% success)`];
+}
+
 export function buyHerbs(c, n = 5) {
   const p = priceHerbs(c, n);
   if (c.spiritStones < p) return [`You cannot afford ${n} spirit herbs (${p} stones).`];
