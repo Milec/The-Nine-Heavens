@@ -108,8 +108,53 @@ export function generateWorld(rng) {
   convertToward("wild", 3, 1);
   convertToward("ruin", 2, 1);
   if (!count("frontier")) { const outer = free().filter(l => biomeIndex(l.biome) >= 3).sort((a, b) => biomeIndex(b.biome) - biomeIndex(a.biome)); if (outer.length) retype(outer[0], "frontier", rng); }
+  buildLinks(locs);
   return { locations: locs, start: 0 };
 }
+
+const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+
+// Lay the roads: every place links to its three nearest neighbours (symmetric),
+// then a union-find pass joins any stragglers so the whole realm is reachable.
+// One road hop = one travel deed, so distance becomes the cost of the journey.
+export function buildLinks(locs) {
+  for (const a of locs) a.links = locs.filter(b => b.id !== a.id).sort((p, q) => dist2(a, p) - dist2(a, q)).slice(0, 3).map(b => b.id);
+  for (const a of locs) for (const bid of a.links) { const b = locs[bid]; if (b && !b.links.includes(a.id)) b.links.push(a.id); }
+  const parent = locs.map(l => l.id);
+  const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const uni = (x, y) => { parent[find(x)] = find(y); };
+  for (const a of locs) for (const bid of a.links) uni(a.id, bid);
+  const comps = () => { const m = {}; for (const l of locs) (m[find(l.id)] = m[find(l.id)] || []).push(l.id); return Object.values(m); };
+  let guard = 0, cs = comps();
+  while (cs.length > 1 && guard++ < 60) {
+    const A = cs[0]; let best = null;
+    for (const aid of A) for (const l of locs) { if (find(l.id) === find(aid)) continue; const d = dist2(locs[aid], l); if (!best || d < best.d) best = { a: aid, b: l.id, d }; }
+    if (!best) break;
+    locs[best.a].links.push(best.b); locs[best.b].links.push(best.a); uni(best.a, best.b);
+    cs = comps();
+  }
+}
+
+// Shortest road (fewest hops) from one place to another. Returns the list of
+// location ids [from, ..., to], or null if somehow unreachable.
+export function path(c, fromId, toId) {
+  if (!c.world) return null;
+  const locs = c.world.locations;
+  if (fromId === toId) return [fromId];
+  const prev = { [fromId]: -1 }, q = [fromId];
+  while (q.length) {
+    const cur = q.shift();
+    for (const nb of (locs[cur] && locs[cur].links) || []) {
+      if (prev[nb] !== undefined) continue;
+      prev[nb] = cur;
+      if (nb === toId) { const p = [toId]; let x = cur; while (x !== -1) { p.unshift(x); x = prev[x]; } return p; }
+      q.push(nb);
+    }
+  }
+  return null;
+}
+// How many travel deeds a journey to `toId` costs from where you stand now.
+export function travelDeeds(c, toId) { const p = path(c, c.location, toId); return p ? Math.max(1, p.length - 1) : 99; }
 
 /* ----------------------------- helpers ---------------------------------- */
 export const locById = (c, id) => (c.world && c.world.locations[id]) || null;
@@ -142,8 +187,11 @@ export function ensureWorld(c, rng, fresh = false) {
   if (fresh || !c.world || !Array.isArray(c.world.locations) || !c.world.locations.length) {
     c.world = generateWorld(rng);
     c.location = c.world.start;
+    c.journeyTo = null;
   }
   if (c.location == null || !locById(c, c.location)) c.location = c.world.start;
+  // Backfill roads for any world saved before the network existed.
+  if (c.world.locations[0] && !c.world.locations[0].links) buildLinks(c.world.locations);
   // Migrate an old save's free-floating region onto a fitting map location.
   syncLocation(c);
   return c.world;

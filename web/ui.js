@@ -313,6 +313,11 @@ function useAction(cat = "act") {
   state.deeds[cat] = deedsLeft(cat) - 1;
   return true;
 }
+// Spend several deeds of a kind at once (a long journey eats more of the year).
+function spendDeeds(cat, n) {
+  if (!state.deeds) state.deeds = defaultDeeds();
+  state.deeds[cat] = Math.max(0, deedsLeft(cat) - n);
+}
 // Run an effect without letting it advance the year (undo any internal aging).
 function preserveAge(fn) {
   const c = state.c, a = c.age, wasAlive = c.alive;
@@ -909,15 +914,24 @@ function openWorldMap() {
   if (!c.world) W.ensureWorld(c, state.rng);
   openOverlay("The Realm 寰宇", body => {
     const locs = c.world.locations, here = W.currentLoc(c);
-    body.appendChild(el("p", "note", `You stand at <b>${escapeHtml(here ? here.name : "—")}</b>${here && here.cn ? ` (${escapeHtml(here.cn)})` : ""} — ${W.typeOf(here).label}. The realm runs from the safe heartland outward to its deadly, treasure-strewn marches.`));
+    body.appendChild(el("p", "note", `You stand at <b>${escapeHtml(here ? here.name : "—")}</b>${here && here.cn ? ` (${escapeHtml(here.cn)})` : ""} — ${W.typeOf(here).label}. The realm runs from the safe heartland outward to its deadly, treasure-strewn marches. Distant places take more than a year's travel — you rest at waystations along the road.`));
+
+    // A journey already underway: offer to ride on toward the remembered goal.
+    if (c.journeyTo != null && c.journeyTo !== c.location && W.locById(c, c.journeyTo)) {
+      const dest = W.locById(c, c.journeyTo), left = W.travelDeeds(c, c.journeyTo);
+      const cont = el("button", "mbtn full primary");
+      cont.innerHTML = `Continue to ${escapeHtml(dest.name)}<small>${left} stage${left > 1 ? "s" : ""} of road remain</small>`;
+      cont.onclick = () => travelTo(c.journeyTo);
+      body.appendChild(cont);
+    }
 
     // ---- visual map: roads + biome-tinted place pins ----
     const map = el("div", "worldmap");
     const seen = new Set(); let roads = "";
-    for (const a of locs) for (const b of locs.slice().filter(x => x.id !== a.id).sort((p, q) => loc2(a, p) - loc2(a, q)).slice(0, 2)) {
-      const key = Math.min(a.id, b.id) + "-" + Math.max(a.id, b.id);
+    for (const a of locs) for (const bid of a.links || []) {
+      const key = Math.min(a.id, bid) + "-" + Math.max(a.id, bid);
       if (seen.has(key)) continue; seen.add(key);
-      roads += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
+      const b = locs[bid]; if (b) roads += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
     }
     map.innerHTML = `<svg class="wm-roads" viewBox="0 0 100 100" preserveAspectRatio="none">${roads}</svg>`;
     for (const loc of locs) {
@@ -934,11 +948,13 @@ function openWorldMap() {
     const ordered = locs.slice().sort((a, b) => (a.id === c.location ? -1 : b.id === c.location ? 1 : loc2(here, a) - loc2(here, b)));
     for (const loc of ordered) {
       const reg = D.REGION_BY_KEY[loc.biome], danger = reg ? reg[3] : 1;
+      const cost = loc.id === c.location ? 0 : W.travelDeeds(c, loc.id);
       const tags = [W.typeOf(loc).label,
         loc.sectKey ? "⚑ " + D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0] : null,
         c.abodeLocation === loc.id ? "your abode" : null].filter(Boolean);
+      const dist = loc.id === c.location ? "here" : `${cost} deed${cost > 1 ? "s" : ""} away`;
       const row = el("div", "listrow" + (loc.id === c.location ? " bound" : ""));
-      row.innerHTML = `<div class="lr-ava biome-${biomeIdx(loc.biome)}">${icon(W.typeOf(loc).icon, { size: 18 })}</div><div class="lr-main"><div class="lr-title">${loc.id === c.location ? "★ " : ""}${escapeHtml(loc.name)}</div><div class="lr-sub">${escapeHtml(tags.join(" · "))} · ${reg ? reg[1] : ""} (${DANGER_TIER(danger)})</div></div>`;
+      row.innerHTML = `<div class="lr-ava biome-${biomeIdx(loc.biome)}">${icon(W.typeOf(loc).icon, { size: 18 })}</div><div class="lr-main"><div class="lr-title">${loc.id === c.location ? "★ " : ""}${escapeHtml(loc.name)} <span class="lr-sub" style="display:inline">· ${dist}</span></div><div class="lr-sub">${escapeHtml(tags.join(" · "))} · ${reg ? reg[1] : ""} (${DANGER_TIER(danger)})</div></div>`;
       row.onclick = () => openLocationCard(loc.id);
       body.appendChild(row);
     }
@@ -964,22 +980,45 @@ function openLocationCard(id) {
     if (locals.length) body.appendChild(el("p", "note", `People you know here: ${locals.slice(0, 6).map(n => escapeHtml(n.name)).join(", ")}.`));
     if (id === c.location) body.appendChild(el("p", "note", "✦ You are here."));
     else {
+      const cost = W.travelDeeds(c, id), avail = deedsLeft("act"), years = Math.ceil(cost / DEEDS_PER_CAT);
+      body.appendChild(el("p", "note", `The road runs ${cost} stage${cost > 1 ? "s" : ""} (${cost} travel deed${cost > 1 ? "s" : ""}). ${cost <= avail ? "You can reach it this year." : `Too far for one year — you'll rest at waystations along the way (about ${years} year${years > 1 ? "s" : ""} of travel).`}`));
       const go = el("button", "mbtn full primary");
-      go.innerHTML = `Journey to ${escapeHtml(loc.name)}<small>a travel deed · ${DANGER_TIER(danger)} country</small>`;
+      go.innerHTML = `Set out for ${escapeHtml(loc.name)}<small>${cost <= avail ? `arrive this year · ${cost} deed${cost > 1 ? "s" : ""}` : `${avail > 0 ? "travel " + Math.min(avail, cost) + " stage" + (Math.min(avail, cost) > 1 ? "s" : "") + " now, rest, continue" : "no deeds left — age up first"}`}</small>`;
       go.onclick = () => travelTo(id);
       body.appendChild(go);
     }
     backBtn(body, openWorldMap);
   });
 }
+// Travel is a journey by road, one hop per deed. A far place can't be reached
+// in a single year's three deeds — you stop at a waystation and ride on after
+// aging up. `c.journeyTo` remembers your destination so you can continue.
 function travelTo(id) {
-  const c = state.c, loc = W.locById(c, id);
-  if (!loc) return;
-  if (!ageAllows("travel") || !useAction()) return;
-  c.location = id; W.syncLocation(c);
+  const c = state.c;
+  if (!ageAllows("travel")) return;
+  const p = W.path(c, c.location, id);
+  if (!p || p.length < 2) return;                  // already there, or no road
+  const avail = deedsLeft("act");
+  if (avail <= 0) {
+    closeOverlay();
+    logMessages(["You have no strength left for the road this year. Tap ⊕ Age Up, then travel on."]);
+    renderProfile(); return;
+  }
+  const totalHops = p.length - 1;
+  const hops = Math.min(avail, totalHops, DEEDS_PER_CAT);
+  const arriveId = p[hops];
+  spendDeeds("act", hops);
+  c.location = arriveId; W.syncLocation(c);
+  const dest = W.locById(c, id), at = W.locById(c, arriveId), reg = D.REGION_BY_KEY[at.biome];
   closeOverlay();
-  const reg = D.REGION_BY_KEY[loc.biome];
-  logMessages([`You journey to ${loc.name}${loc.cn ? ` (${loc.cn})` : ""} — ${W.typeOf(loc).label} in the ${reg ? reg[1] : "wilds"}. ${reg && reg[3] > 1.1 ? `The dangers here run ×${reg[3]}.` : "A measure of safety, here."}`]);
+  if (arriveId === id) {
+    c.journeyTo = null;
+    logMessages([`You journey to ${dest.name}${dest.cn ? ` (${dest.cn})` : ""} — ${W.typeOf(dest).label} in the ${reg ? reg[1] : "wilds"}. ${reg && reg[3] > 1.1 ? `The dangers here run ×${reg[3]}.` : "A measure of safety, here."}`]);
+  } else {
+    c.journeyTo = id;
+    const left = totalHops - hops;
+    logMessages([`The road to ${dest.name} is long. You break your journey at ${at.name} (${reg ? reg[1] : "the wilds"}) — ${left} stage${left > 1 ? "s" : ""} of road still ahead. Rest a year (⊕ Age Up), then travel on.`]);
+  }
   endActivityYear();
 }
 function openAchievements(backFn) {

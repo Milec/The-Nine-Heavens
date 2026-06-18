@@ -191,7 +191,7 @@ function newCharacter() {
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
-    world: null, location: 0, abodeLocation: null, priceMult: 1,
+    world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
     mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
   };
