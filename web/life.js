@@ -4,6 +4,7 @@
 
 import * as E from "./engine.js";
 import * as D from "./data.js";
+import * as World from "./world.js";
 import { rollYearEvents } from "./events.js";
 
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -18,8 +19,11 @@ function augment(c, rng, sex) {
   c.awakened = false;
   c.firedEvents = [];
   c.mastery = c.mastery || {};
-  c.region = c.region || "azuredomain";
+  World.ensureWorld(c, rng);            // make sure this soul has a realm to roam
+  if (!c.movementArts) c.movementArts = [];
+  if (!c.moveMastery) c.moveMastery = {};
   if (c.abode == null) c.abode = 0;
+  if (c.abodeLocation == null) c.abodeLocation = null;
   if (c.abodeRegion == null) c.abodeRegion = null;
   if (c.ownSect === undefined) c.ownSect = null;
   if (c.legacySect === undefined) c.legacySect = null;
@@ -190,6 +194,9 @@ function meetPerson(c, rng, role, opts = {}) {
       : Math.max(0, Math.min(top, r + rng.randint(-1, 1)));
     E.ensureNpcProfile(n, rng, { realm: opts.realm != null ? opts.realm : hint, power: opts.power });
   }
+  // Everyone you meet hails from somewhere — kin share your home; others, the
+  // place you met them. Lets the world feel peopled by locals.
+  n.home = opts.home != null ? opts.home : (c.location || 0);
   c.relationships.push(n);
   return n;
 }
@@ -238,8 +245,9 @@ export function succeedAsHeir(old, child, rng) {
   c.generation = (old.generation || 1) + 1;
   c.era = old.era; c.eraYears = old.eraYears;          // the same world the forebear knew
   if (old.rankboard) c.rankboard = old.rankboard;
-  // inherit the family estate and a share of the fortune
-  c.abode = old.abode || 0; c.abodeRegion = old.abodeRegion || null;
+  // inherit the family estate and a share of the fortune (re-rooted in the new realm)
+  c.abode = old.abode || 0;
+  if (c.abode > 0) { c.abodeLocation = c.location; c.abodeRegion = c.region; } else { c.abodeLocation = null; c.abodeRegion = null; }
   if (old.ownSect) c.ownSect = Object.assign({}, old.ownSect, { founded: c.age, _tier: null });
   c.spiritStones += Math.floor((old.spiritStones || 0) * 0.6);
   c.herbs += Math.floor((old.herbs || 0) * 0.5);
@@ -492,6 +500,21 @@ export function oddJobs(c, rng) {
   finishYear(c, rng, msgs);
   return msgs;
 }
+// Drill your movement art for a season, sharpening its proficiency (a deed).
+export function practiceMovement(c, rng) {
+  if (!c.alive) return ["You are dead."];
+  const key = E.bestMovementArt(c);
+  if (!key) return ["You know no movement art to drill. Seek a 轻功 manual at a market."];
+  const m = D.MOVEMENT_BY_KEY[key];
+  const gain = rng.randint(20, 36) + Math.floor((c.soul || 0) / 12) + Math.floor((c.comprehension || 0) / 15);
+  const before = E.moveRankName(E.moveFraction(c, key));
+  E.trainMovement(c, key, gain);
+  const after = E.moveRankName(E.moveFraction(c, key));
+  c.happiness = clampN(c.happiness - 1, 0, 100);
+  const msgs = [`You drill the ${m[1]} (${m[2]}) across crag and gorge for a season. (+${gain} proficiency)`];
+  if (after !== before) msgs.push(`  ✦ Your ${m[1]} ripens to ${after} — you cover ground faster now.`);
+  return msgs;
+}
 export function trainTechnique(c, rng, techKey) {
   if (!c.alive) return ["You are dead."];
   if (!c.mastery) c.mastery = {};
@@ -693,7 +716,13 @@ export function teachTo(c, npc, techKey) {
 // Who lives at your abode — a dao companion, taken-in disciples — found via the
 // `resides` flag on a relationship, so it all lives inside c.relationships.
 export const abodeResidents = c => c.relationships.filter(n => n.alive && n.resides);
-export const abodeRegionKey = c => c.abodeRegion || c.region || "azuredomain";
+// The abode's biome — from the map location it was staked on, with old saves
+// falling back to the stored region key.
+export const abodeRegionKey = c => {
+  const loc = (c.abodeLocation != null && World.locById) ? World.locById(c, c.abodeLocation) : null;
+  return (loc && loc.biome) || c.abodeRegion || c.region || "azuredomain";
+};
+export const abodeLocName = c => { const loc = (c.abodeLocation != null) ? World.locById(c, c.abodeLocation) : null; return loc ? loc.name : null; };
 
 // The abode's yearly bounty, drawn from its grade, its region's wildness, the
 // disciples who tend its fields and a foraging spirit beast.
@@ -724,10 +753,11 @@ export function upgradeAbode(c) {
   const was = c.abode || 0;
   c.spiritStones -= next[3];
   c.abode = next[0];
-  if (!was) c.abodeRegion = c.region || "azuredomain";   // an abode is rooted where you raise it
+  if (!was) { c.abodeLocation = c.location; c.abodeRegion = World.biomeKeyOf(World.currentLoc(c)) || c.region || "azuredomain"; }   // rooted where you raise it
   note(c, `${was ? "Upgraded your abode to" : "Established"} the ${next[1]} (${next[2]}).`);
   const reg = D.REGION_BY_KEY[abodeRegionKey(c)];
-  const where = was ? "" : ` in the ${reg ? reg[1] : "wilds"}`;
+  const here = abodeLocName(c);
+  const where = was ? "" : ` at ${here || (reg ? reg[1] : "the wilds")}`;
   return [`${was ? "You pour resources into the works, and your abode rises into" : "You stake your claim on a spirit vein" + where + " and raise"} the ${next[1]} (${next[2]})! Each year it now yields ${next[5]} spirit herbs and ${next[6]} stones${reg && reg[3] > 1 ? ` (×${reg[3]} for the wild region)` : ""}, and quickens your cultivation by +${Math.round(next[4] * 100)}%.`];
 }
 

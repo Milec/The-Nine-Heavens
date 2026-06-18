@@ -3,6 +3,7 @@
  * message strings, mutating the character. The UI layer renders those messages. */
 
 import * as D from "./data.js";
+import * as World from "./world.js";
 
 /* ----------------------------- RNG --------------------------------------- */
 // Small seedable PRNG (mulberry32) so a saga can be reproduced from a seed.
@@ -190,6 +191,8 @@ function newCharacter() {
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
+    world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
+    movementArts: [], moveMastery: {},
     mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
   };
@@ -237,6 +240,7 @@ export function generateCharacter(rng, name, opts = {}) {
 
   recomputeMaxAge(c);
   recomputeMaxHp(c);
+  World.ensureWorld(c, rng, true);   // born into a freshly generated realm
   note(c, `Born as ${c.name}, ${c.backgroundName}.`);
   note(c, `Spiritual root: ${c.root.display}.`);
   return c;
@@ -860,11 +864,14 @@ function applyPill(c, key, rng) { return grantPill(c, key, rng, 1); }
 /* ------------------------------ market (坊市) ---------------------------- */
 // Prices float with the world era — dear in a Drought, cheap in an Age of Abundance.
 export const eraPriceMult = c => D.eraAt(c.era)[7] || 1;
+// Prices float with the era AND with where you trade — a remote frontier stall
+// charges more than a prosperous heartland city (c.priceMult, set on arrival).
+const marketMult = c => (D.eraAt(c.era)[7] || 1) * (c.priceMult || 1);
 const TREASURE_BASE = { Mortal: 25, Spirit: 130, Earth: 600, Heaven: 3000, Immortal: 16000 };
-export const priceHerbs = (c, n = 5) => Math.max(2, Math.round((c.realm + 1) * 1.6 * n * eraPriceMult(c)));
-export const pricePill = (c, key) => Math.round((D.PILL_BY_KEY[key][2] * 8 + 15) * eraPriceMult(c));
-export const priceTech = (c, tier) => Math.round([60, 130, 320, 900][tier] * eraPriceMult(c));
-export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.ARTIFACT_BY_KEY[key][2]] || 50) * eraPriceMult(c));
+export const priceHerbs = (c, n = 5) => Math.max(2, Math.round((c.realm + 1) * 1.6 * n * marketMult(c)));
+export const pricePill = (c, key) => Math.round((D.PILL_BY_KEY[key][2] * 8 + 15) * marketMult(c));
+export const priceTech = (c, tier) => Math.round([60, 130, 320, 900][tier] * marketMult(c));
+export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.ARTIFACT_BY_KEY[key][2]] || 50) * marketMult(c));
 // Selling fetches a fraction of the buy price.
 export const sellHerbs = (c, n = 5) => Math.max(1, Math.round(priceHerbs(c, n) * 0.45));
 export const sellTreasureValue = (c, key) => Math.max(1, Math.round(priceTreasure(c, key) * 0.4));
@@ -875,7 +882,51 @@ export function buyPill(c, key, rng) {
   c.spiritStones -= p;
   return [`You buy a ${D.PILL_BY_KEY[key][1]} for ${p} stones.`].concat(grantPill(c, key, rng, 1));
 }
-export const priceTalisman = (c, key) => Math.round((D.TALISMANS[key].price || 30) * eraPriceMult(c));
+export const priceTalisman = (c, key) => Math.round((D.TALISMANS[key].price || 30) * marketMult(c));
+export const priceMovement = (c, key) => priceTech(c, D.MOVEMENT_BY_KEY[key][3]);
+
+/* --------------------- movement arts & travel speed (轻功) --------------- *
+ * A cultivator's footwork ripens with practice: more road-stages per travel
+ * deed, until the strong can leap mountains and fold the road. */
+export const MOVE_FULL = 600;   // proficiency points for full mastery of an art
+export const moveFraction = (c, key) => Math.min(1, ((c.moveMastery && c.moveMastery[key]) || 0) / MOVE_FULL);
+export const moveRankName = frac => frac >= 1 ? "Perfected" : frac >= 0.66 ? "Master" : frac >= 0.33 ? "Adept" : frac > 0 ? "Novice" : "Untrained";
+// The road-stages you cover per travel deed (a float). Realm-borne flight and a
+// tempered body lend innate swiftness; a mastered movement art does the rest.
+export function travelSpeed(c) {
+  const r = c.realm || 0, b = c.bodyRealm || 0;
+  let s = 1;                                                   // a mortal's plod
+  s += r >= 8 ? 3 : r >= 6 ? 2 : r >= 5 ? 1.5 : r >= 3 ? 1 : r >= 2 ? 0.5 : 0;   // qi-borne flight
+  s += b >= 4 ? 1 : b >= 2 ? 0.5 : 0;                          // a swift, tempered body
+  let art = 0;
+  for (const k of (c.movementArts || [])) { const m = D.MOVEMENT_BY_KEY[k]; if (m) art = Math.max(art, m[4] * moveFraction(c, k)); }
+  return s + art;
+}
+export const hopsPerDeed = c => Math.max(1, Math.floor(travelSpeed(c)));
+// Travel deeds (rounded up) to reach a place, given your speed.
+export function travelDeeds(c, toId) { return Math.max(1, Math.ceil(World.travelHops(c, toId) / hopsPerDeed(c))); }
+// The art you lean on most — the one giving the greatest effective speed now.
+export function bestMovementArt(c) {
+  let best = null, bs = -1;
+  for (const k of (c.movementArts || [])) { const m = D.MOVEMENT_BY_KEY[k]; if (!m) continue; const eff = m[4] * moveFraction(c, k); if (eff > bs) { bs = eff; best = k; } }
+  return best;
+}
+export function buyMovementArt(c, key) {
+  const m = D.MOVEMENT_BY_KEY[key]; if (!m) return ["No such art."];
+  if ((c.movementArts || []).includes(key)) return [`You already know the ${m[1]}.`];
+  const p = priceMovement(c, key);
+  if (c.spiritStones < p) return [`You cannot afford the ${m[1]} manual (${p} stones).`];
+  c.spiritStones -= p; (c.movementArts = c.movementArts || []).push(key);
+  c.moveMastery = c.moveMastery || {};
+  c.moveMastery[key] = Math.max(c.moveMastery[key] || 0, Math.round(MOVE_FULL * 0.15));   // a beginner's footing
+
+  note(c, `Learned the ${m[1]} (${m[2]}).`);
+  return [`You buy and begin to drill the ${m[1]} (${m[2]}) for ${p} stones. Your footwork quickens. (${m[5]})`];
+}
+export function trainMovement(c, key, pts) {
+  if (!key) return; c.moveMastery = c.moveMastery || {};
+  c.moveMastery[key] = Math.min(MOVE_FULL, (c.moveMastery[key] || 0) + Math.max(0, Math.round(pts)));
+}
 export function buyTalisman(c, key, rng) {
   const t = D.TALISMANS[key]; if (!t) return ["No such talisman."];
   const p = priceTalisman(c, key);
@@ -1310,4 +1361,47 @@ export function maybeAwardEpithet(c, rng, opts = {}) {
   c.epithets.push({ id: e.id, text, tier: e.tier });
   note(c, `Became known across the world as 「${text}」.`);
   return [`✦ A new name spreads through the cultivation world — they have taken to calling you 「${text}」.`];
+}
+
+/* ---------------------------- sparring reward ---------------------------- *
+ * A friendly bout is real training: trading blows against a live opponent
+ * deepens the art you lean on, polishes your dao, and now and then leaves a
+ * lasting gain. A win teaches more than a loss — but a loss still teaches.
+ * `opts.scale` weights the stakes (an arena bout matters more than a yard spar). */
+export function sparReward(c, rng, outcome, opts = {}) {
+  if (!c.alive) return [];
+  const scale = opts.scale != null ? opts.scale : 1;
+  const win = outcome === "win";
+  const msgs = [];
+  c.mastery = c.mastery || {};
+  // Deepen the technique you rely on most (else your most advanced one).
+  const techs = (c.techniques || []).filter(t => D.TECHNIQUES[t]);
+  if (techs.length) {
+    const tech = techs.reduce((best, t) => ((c.mastery[t] || 0) >= (c.mastery[best] || 0) ? t : best), techs[techs.length - 1]);
+    const gain = Math.max(1, Math.round((win ? rng.randint(4, 8) : rng.randint(1, 3)) * scale));
+    const before = D.masteryRank(c.mastery[tech] || 0)[0];
+    c.mastery[tech] = (c.mastery[tech] || 0) + gain;
+    const name = D.TECHNIQUES[tech][0];
+    const rank = D.masteryRank(c.mastery[tech]);
+    msgs.push(`  Crossing blows hones ${name}. (+${gain} mastery)`);
+    if (rank[0] !== before) msgs.push(`  ✦ ${name} advances to ${rank[0]} (+${Math.round(rank[2] * 100)}% effect)!`);
+  }
+  // A hard exchange clarifies the dao: a little qi toward your next stage.
+  if (c.awakened && c.root && c.root.key !== "none") {
+    const frac = (win ? rng.uniform(0.06, 0.12) : rng.uniform(0.02, 0.05)) * scale;
+    c.qi += qiToNext(c) * frac;
+    msgs.push("  Reading a real opponent sharpens your insight; your qi deepens.");
+  }
+  // Sometimes the lesson sticks for good.
+  if (rng.random() < (win ? 0.3 : 0.15) * scale) {
+    if (win && rng.random() < 0.5 && c.constitution < 160) {
+      c.constitution = Math.min(160, c.constitution + 1); recomputeMaxHp(c);
+      msgs.push("  Trading hits tempers your body. (+1 Constitution)");
+    } else if (c.comprehension < 160) {
+      c.comprehension = Math.min(160, c.comprehension + 1);
+      msgs.push(win ? "  Out-reading your foe sharpens your martial sense. (+1 Comprehension)"
+                    : "  Even beaten, you learn the shape of your mistakes. (+1 Comprehension)");
+    }
+  }
+  return msgs;
 }

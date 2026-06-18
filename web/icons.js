@@ -41,6 +41,12 @@ const ICONS = {
   avElder:    '<circle cx="12" cy="8.3" r="3.2"/><path d="M6 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="12" cy="4.3" r="2.3"/>',
   avImmortal: '<circle cx="12" cy="8.4" r="3.2"/><path d="M6 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><path d="M6.6 4.5a5.4 5.4 0 0 0 10.8 0"/><path d="M12 1.6v1.7"/>',
 
+  // ---- world-map place types ----
+  city:       '<path d="M3 20h18"/><path d="M5 20V9l4-2v13"/><path d="M9 20V7l5-3v16"/><path d="M14 20V9l5 2v9"/><path d="M11.5 11v2M11.5 15v2"/>',
+  town:       '<path d="M3 20h18"/><path d="M5 20v-7l5-4 5 4v7"/><path d="M9.2 20v-4h1.6v4"/><path d="M16 20v-6l3-2v8"/>',
+  wild:       '<path d="M12 3c2.4 2.4 2.4 6.2 0 9-2.4-2.8-2.4-6.6 0-9Z"/><path d="M12 12v9"/><path d="M12 15c-1.6-1.8-4-2.1-5.6-1 .8 2 3.2 2.9 5.6 1Z"/>',
+  ruin:       '<path d="M3 21h18"/><path d="M5 21V8l3 2v11"/><path d="M11 21V5l3 3v13"/><path d="M17 21v-8l2 1.5V21"/>',
+
   menu:       '<path d="M5 7h14M5 12h14M5 17h14"/>',
   close:      '<path d="M6 6l12 12M18 6 6 18"/>',
   chevron:    '<path d="M9 5l7 7-7 7"/>',
