@@ -363,15 +363,18 @@ export function advanceNpc(npc, rng) {
 const GENIUS_TITLES = ["the Sword Prodigy", "the Jade Phoenix", "the Young Patriarch", "the Frostfire Genius",
   "the Heaven's Pride", "the Demon-Slayer", "the Cloud Walker", "the Thunder Scion", "the Peerless Maiden",
   "the Dao Child", "the Blood Marquis", "the Azure Dragon", "the Starpicker", "the Undying Youth"];
-function makeGenius(rng, c) {
+// A genius exists on their own terms — an absolute realm, not scaled to the player.
+function makeGenius(rng, realm) {
   const rootKey = rng.choice(["triple", "dual", "dual", "heavenly", "heavenly", "variant", "quad", "chaos"]);
-  const realm = clamp((c.realm || 0) + rng.randint(-2, 3), 1, D.REALMS.length - 1);
+  const r = realm != null ? realm : rng.choices([2, 3, 4, 5, 6, 7], [24, 28, 22, 14, 8, 4]);
   const g = { name: npcName(rng), role: "genius", alive: true, affinity: 0, geno: Object.assign(rollGenome(rng), { rootKey }), title: rng.choice(GENIUS_TITLES) };
-  return ensureNpcProfile(g, rng, { realm });
+  return ensureNpcProfile(g, rng, { realm: r });
 }
-export function generateRankboard(rng, c, size = 12) {
+// The era's roll of foremost young cultivators — generated and ranked on their
+// own merits, existing whether or not the player ever awakens a root.
+export function generateRankboard(rng, size = 12) {
   const board = [];
-  for (let i = 0; i < size; i++) board.push(makeGenius(rng, c));
+  for (let i = 0; i < size; i++) board.push(makeGenius(rng));
   return board;
 }
 // Advance the board a year; replace any who die of old age with rising newcomers.
@@ -380,7 +383,7 @@ export function ageRankboard(c, rng) {
   for (let i = 0; i < c.rankboard.length; i++) {
     const g = c.rankboard[i];
     advanceNpc(g, rng);
-    if (g.age != null) { g.age += 1; if (g.age > g.maxAge) c.rankboard[i] = makeGenius(rng, c); }
+    if (g.age != null) { g.age += 1; if (g.age > g.maxAge) c.rankboard[i] = makeGenius(rng, rng.randint(2, 3)); }   // a young star rises
   }
 }
 // Everyone on the board plus you, sorted by power (desc). Returns {ranked, you}.

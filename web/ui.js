@@ -353,16 +353,18 @@ function openCultivate() {
     const sg = el("div", "menu-grid");
     addBtn(sg, "Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : "adventure & battle", doWander, { disabled: c.age < AGE_MIN.wander || !isCultivator(c) });
     addBtn(sg, "Techniques & Mastery", "train your arts", openTechniques);
-    addBtn(sg, "The Heaven Board", "天骄榜 · the era's geniuses", openRankboard, { disabled: !isCultivator(c) });
+    addBtn(sg, "The Heaven Board", "天骄榜 · the era's geniuses", openRankboard);
     body.appendChild(sg);
   });
 }
 function openRankboard() {
   const c = state.c;
-  if (!c.rankboard) c.rankboard = E.generateRankboard(state.rng, c);
+  if (!c.rankboard) c.rankboard = E.generateRankboard(state.rng);
   openOverlay("Heaven Board 天骄榜", body => {
     const { ranked, rank, total } = E.rankboardStanding(c);
-    body.appendChild(el("p", "note", `The roll of the era's foremost young cultivators, ranked by raw power. You stand <b>#${rank} of ${total}</b> — climb it by out-cultivating them. Challenge a rival above you to test yourself: win and your renown soars; lose and it dims.`));
+    const last = rank === total;
+    const standing = last ? `You do not yet rank among them — you stand <b>last, #${rank} of ${total}</b>` : `You stand <b>#${rank} of ${total}</b>`;
+    body.appendChild(el("p", "note", `The roll of the era's foremost young cultivators, ranked by raw power — geniuses who walk their own road whether or not you ever awaken. ${standing}. Climb it by out-cultivating them; challenge a rival above you to test yourself — win and your renown soars, lose and it dims.`));
     ranked.forEach((x, i) => {
       const row = el("div", "listrow" + (x.you ? " bound" : ""));
       const sub = x.you ? "— you —" : `${x.title} · ${D.REALMS[x.realm][0]} · power ${Math.floor(x.power)}`;

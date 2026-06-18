@@ -25,6 +25,7 @@ function augment(c, rng, sex) {
   if (c.legacySect === undefined) c.legacySect = null;
   if (c.generation == null) c.generation = 1;
   if (c.era == null) { c.era = D.ERAS[Math.floor(rng.random() * D.ERAS.length)][0]; c.eraYears = 20 + Math.floor(rng.random() * 35); }
+  if (c.rankboard == null) c.rankboard = E.generateRankboard(rng);   // the era's geniuses exist on their own
   if (c.bodyRealm == null) c.bodyRealm = 0;
   if (c.temper == null) c.temper = 0;
   if (c.longevityBonus == null) c.longevityBonus = 0;
@@ -61,6 +62,7 @@ export function reincarnateLife(old, rng, name) {
   }
   carryLegacySect(c, old, rng);
   c.era = old.era; c.eraYears = old.eraYears;   // the world keeps turning across rebirth
+  if (old.rankboard) c.rankboard = old.rankboard;
   return c;
 }
 
@@ -234,6 +236,7 @@ export function succeedAsHeir(old, child, rng) {
   c.age = Math.max(16, childAge(old, child));
   c.generation = (old.generation || 1) + 1;
   c.era = old.era; c.eraYears = old.eraYears;          // the same world the forebear knew
+  if (old.rankboard) c.rankboard = old.rankboard;
   // inherit the family estate and a share of the fortune
   c.abode = old.abode || 0; c.abodeRegion = old.abodeRegion || null;
   if (old.ownSect) c.ownSect = Object.assign({}, old.ownSect, { founded: c.age, _tier: null });
