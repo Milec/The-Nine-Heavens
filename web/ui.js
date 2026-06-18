@@ -131,6 +131,37 @@ function logMessages(msgs) {
 function logBanner(html) { const log = $("log"), t = el("div", "turn"); t.appendChild(el("div", "banner", html)); log.appendChild(t); log.scrollTop = log.scrollHeight; }
 function logYear(age) { const log = $("log"), t = el("div", "turn"); t.appendChild(el("div", "year-tag", `❖ Age ${age}`)); log.appendChild(t); log.scrollTop = log.scrollHeight; }
 
+/* ---------------------- automatic stat-change readout -------------------- *
+ * Rather than instrument every place a stat is touched, we snapshot the
+ * meaningful stats and, on each profile render (which follows every action and
+ * every aged-up year), log exactly what changed and by how much. Object
+ * identity baselines silently whenever a new life begins, so no spurious lines. */
+const TRACKED_STATS = [
+  ["comprehension", "Comprehension"], ["constitution", "Constitution"], ["soul", "Soul Sense"],
+  ["luck", "Fortune"], ["charm", "Charm"], ["alchemySkill", "Alchemy"],
+  ["reputation", "Fame"], ["karma", "Karma"],
+];
+function snapStats(c) { const s = {}; for (const [k] of TRACKED_STATS) s[k] = Math.round(c[k] || 0); return s; }
+function reportStatChanges(c) {
+  if (!c) return;
+  if (state.prevStatsOwner !== c) { state.prevStats = snapStats(c); state.prevStatsOwner = c; return; }
+  const prev = state.prevStats, now = snapStats(c);
+  const lines = [];
+  for (const [k, label] of TRACKED_STATS) {
+    const d = (now[k] || 0) - (prev[k] || 0);
+    if (!d) continue;
+    const up = d > 0;
+    lines.push(`${up ? "▲" : "▼"} ${label} ${up ? "+" : ""}${d} (now ${now[k]})`);
+  }
+  state.prevStats = now;
+  if (lines.length) {
+    const log = $("log"); if (!log) return;
+    const t = el("div", "turn stat-turn");
+    for (const ln of lines) t.appendChild(el("div", "line stat " + (ln[0] === "▲" ? "up" : "down"), escapeHtml(ln)));
+    log.appendChild(t); log.scrollTop = log.scrollHeight;
+  }
+}
+
 /* ------------------------------ profile ---------------------------------- */
 function vbar(label, val, max, cls, valText, tip) {
   return `<div class="vbar${tip ? " tappable" : ""}"${tip ? ` data-tip="${tip}"` : ""}><div class="vb-label"><span>${label}</span><span>${valText != null ? valText : Math.floor(val)}</span></div>
@@ -221,6 +252,7 @@ function renderProfile() {
   ageTab.classList.toggle("ready", c.awakened && E.canBreakthrough(c));
   const allSpent = ["cult", "act", "social"].every(cat => deedsLeft(cat) <= 0);
   ageTab.classList.toggle("spent", allSpent && c.alive);
+  reportStatChanges(c);
   save();
   checkAchievements();
 }

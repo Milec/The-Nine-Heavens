@@ -139,6 +139,11 @@ body {
 .line.trib { color: var(--blue); }
 .line.demon { color: var(--purple); }
 .line.spacer { height: .4rem; }
+/* automatic stat-change readout — compact, colour-coded deltas after an action */
+.stat-turn { padding: 4px 2px 9px; }
+.line.stat { margin: 1px 0; font-size: .8rem; font-weight: 700; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
+.line.stat.up { color: var(--jade); }
+.line.stat.down { color: var(--red); }
 .year-tag {
   display: inline-flex; align-items: center; gap: 7px; padding: 3px 0; font-weight: 700;
   color: var(--accent); font-size: .7rem; letter-spacing: .22em; text-transform: uppercase; margin: 8px 0 4px;
