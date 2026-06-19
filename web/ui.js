@@ -995,7 +995,15 @@ function openLocationCard(id) {
     if (c.abodeLocation === id) rows.push(["Your abode", c.ownSect ? `mountain seat of the ${c.ownSect.name}` : "rooted here"]);
     body.appendChild(infoRows(rows));
     const locals = c.relationships.filter(n => n.alive && n.home === id);
-    if (locals.length) body.appendChild(el("p", "note", `People you know here: ${locals.slice(0, 6).map(n => escapeHtml(n.name)).join(", ")}.`));
+    if (locals.length) {
+      const p = el("p", "note"); p.appendChild(document.createTextNode("People you know here: "));
+      locals.slice(0, 8).forEach((n, i, arr) => {
+        const a = el("span", "loc-person"); a.textContent = n.name; a.onclick = () => openPerson(n);
+        p.appendChild(a); if (i < arr.length - 1) p.appendChild(document.createTextNode(", "));
+      });
+      p.appendChild(document.createTextNode("."));
+      body.appendChild(p);
+    }
     if (id === c.location) {
       body.appendChild(el("p", "note", "✦ You are here."));
       // The place is a hub: jump straight into what stands here.

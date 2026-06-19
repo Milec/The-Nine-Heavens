@@ -1168,15 +1168,17 @@ export function wageSectWar(c, rng, key) {
   const target = D.SECT_BY_KEY[key]; if (!target) return ["No such sect."];
   const r = sectWarRivals(c).find(x => x.key === key);
   const chance = r ? r.chance : 0.4;
-  const msgs = [`Your banner advances on the ${target[1]}. The two sects clash upon the slopes! [${Math.floor(chance * 100)}% chance]`];
+  const broken = (own.conquered || []).includes(key);   // a sect already shattered yields little more
+  const msgs = [`Your banner advances on the ${target[1]}${broken ? ", what remains of it" : ""}. The two sects clash upon the slopes! [${Math.floor(chance * 100)}% chance]`];
   if (rng.random() <= chance) {
-    const presGain = rng.randint(25, 60) + Math.round((target[4] || 1) * 12);
-    const memGain = rng.randint(3, 10), spoils = rng.randint(40, 120);
-    own.prestige += presGain; own.members += memGain; c.spiritStones += spoils; c.reputation += 6;
+    const mult = broken ? 0.3 : 1;
+    const presGain = Math.round((rng.randint(25, 60) + (target[4] || 1) * 12) * mult);
+    const memGain = Math.round(rng.randint(3, 10) * mult), spoils = Math.round(rng.randint(40, 120) * mult);
+    own.prestige += presGain; own.members += memGain; c.spiritStones += spoils; c.reputation += broken ? 1 : 6;
     own.conquered = own.conquered || []; if (!own.conquered.includes(key)) own.conquered.push(key);
     c.karma += target[2] === "demonic" ? 2 : -2;
-    msgs.push(`✦ Victory! The ${target[1]} is broken; its survivors bow to your banner. (+${presGain} prestige, +${memGain} disciples, +${spoils} stones, +6 fame)`);
-    if (rng.random() < 0.3) pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.4 ? "Earth" : null)));
+    msgs.push(`✦ Victory! The ${target[1]} is ${broken ? "scattered anew" : "broken; its survivors bow to your banner"}. (+${presGain} prestige, +${memGain} disciples, +${spoils} stones${broken ? "" : ", +6 fame"})`);
+    if (!broken && rng.random() < 0.3) pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.4 ? "Earth" : null)));
     note(c, `Warred down the ${target[1]}.`);
   } else {
     const presLoss = rng.randint(15, 40), memLoss = rng.randint(2, 8);

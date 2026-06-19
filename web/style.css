@@ -258,6 +258,8 @@ body {
 .rl-row.past .rl-mark { color: var(--jade); }
 .rl-row.past .rl-name { color: var(--muted); }
 .rl-row.future { opacity: .85; }
+.loc-person { color: var(--jade); cursor: pointer; border-bottom: 1px dotted var(--jade); }
+.loc-person:active { color: var(--accent); }
 
 /* ============================ world map =============================== */
 .worldmap {
