@@ -1073,7 +1073,7 @@ export function promotionTrialFoe(c, rng) {
   const factor = D.SECT_TRIAL_FACTOR[nxt] || 0;
   if (factor <= 0) return null;
   const nm = ["the Gate Warden", "an Enforcement Elder", "the Hall Guardian", "a Grand Elder's Shadow", "the Sect Protector"][Math.min(4, nxt - 1)];
-  return [nm, power(c) * (0.7 + factor * 0.5) * rng.uniform(0.95, 1.12), (c.realm + 1) * 6, "rogue"];
+  return [nm, power(c) * (0.6 + factor * 0.45) * rng.uniform(0.92, 1.06), (c.realm + 1) * 6, "rogue"];
 }
 // Apply a successful promotion (after any trial is passed).
 export function completePromotion(c) {

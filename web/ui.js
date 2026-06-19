@@ -969,7 +969,7 @@ function openWorldMap() {
       const cost = loc.id === c.location ? 0 : E.travelDeeds(c, loc.id);
       const tags = [W.typeOf(loc).label,
         loc.sectKey ? "⚑ " + D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0] : null,
-        c.abodeLocation === loc.id ? "your abode" : null].filter(Boolean);
+        c.abodeLocation === loc.id ? (c.ownSect ? "⚑ your sect's seat" : "your abode") : null].filter(Boolean);
       const dist = loc.id === c.location ? "here" : `${cost} deed${cost > 1 ? "s" : ""} away`;
       const row = el("div", "listrow" + (loc.id === c.location ? " bound" : ""));
       row.innerHTML = `<div class="lr-ava biome-${biomeIdx(loc.biome)}">${icon(W.typeOf(loc).icon, { size: 18 })}</div><div class="lr-main"><div class="lr-title">${loc.id === c.location ? "★ " : ""}${escapeHtml(loc.name)} <span class="lr-sub" style="display:inline">· ${dist}</span></div><div class="lr-sub">${escapeHtml(tags.join(" · "))} · ${reg ? reg[1] : ""} (${DANGER_TIER(danger)})</div></div>`;
@@ -992,11 +992,20 @@ function openLocationCard(id) {
     ];
     if (loc.sectKey) rows.push(["Sect seat", D.SECT_BY_KEY[loc.sectKey][1]]);
     if (t.delve > 0) rows.push(["Secret realms", "sealed ruins to delve"]);
-    if (c.abodeLocation === id) rows.push(["Your abode", "rooted here"]);
+    if (c.abodeLocation === id) rows.push(["Your abode", c.ownSect ? `mountain seat of the ${c.ownSect.name}` : "rooted here"]);
     body.appendChild(infoRows(rows));
     const locals = c.relationships.filter(n => n.alive && n.home === id);
     if (locals.length) body.appendChild(el("p", "note", `People you know here: ${locals.slice(0, 6).map(n => escapeHtml(n.name)).join(", ")}.`));
-    if (id === c.location) body.appendChild(el("p", "note", "✦ You are here."));
+    if (id === c.location) {
+      body.appendChild(el("p", "note", "✦ You are here."));
+      // The place is a hub: jump straight into what stands here.
+      const acts = el("div", "menu-grid");
+      const act = (label, sub, fn) => { const b = el("button", "mbtn"); b.innerHTML = `${escapeHtml(label)}<small>${escapeHtml(sub)}</small>`; b.onclick = fn; acts.appendChild(b); };
+      if (t.market) act("Visit the Market", "buy & sell here", openMarket);
+      if (loc.sectKey && c.awakened) act("Sect Affairs", D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0], openSect);
+      if (c.abodeLocation === id) act("Your Abode", c.ownSect ? "your sect's seat" : "manage your home", openAbode);
+      if (acts.children.length) body.appendChild(acts);
+    }
     else {
       const hops = W.travelHops(c, id), cost = E.travelDeeds(c, id), avail = deedsLeft("act"), years = Math.ceil(cost / DEEDS_PER_CAT);
       body.appendChild(el("p", "note", `The road runs ${hops} stage${hops > 1 ? "s" : ""} — ${cost} travel deed${cost > 1 ? "s" : ""} at your pace (${E.hopsPerDeed(c)}/deed). ${cost <= avail ? "You can reach it this year." : `Too far for one year — you'll rest at waystations along the way (about ${years} year${years > 1 ? "s" : ""} of travel).`}`));
@@ -1283,10 +1292,13 @@ function openFoundSect() {
 }
 function openQuests() {
   const c = state.c;
-  openOverlay("Contribution Quests", body => {
+  const REWARD_LABEL = { herbs: "+herbs", pill: "+pills", rep: "+fame", treasure: "+treasure" };
+  openOverlay("Sect Missions 任务", body => {
+    body.appendChild(el("p", "note", `Run missions to earn contribution toward promotion (you have run ${c.sectMissions || 0}). Higher ranks unlock graver, richer charges.`));
     for (const q of E.availableQuests(c)) {
+      const bonus = REWARD_LABEL[q[6]] ? " · " + REWARD_LABEL[q[6]] : "";
       const row = el("div", "listrow");
-      row.innerHTML = `<div class="lr-ava">📜</div><div class="lr-main"><div class="lr-title">${q[0]}</div><div class="lr-sub">+${q[2]} contrib · +${q[3]} stones · risk ${Math.floor(q[4] * 100)}%<br>${q[5]}</div></div>`;
+      row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${q[0]}</div><div class="lr-sub">+${q[2]} contrib · +${q[3]} stones${bonus} · risk ${Math.floor(q[4] * 100)}%<br>${q[5]}</div></div>`;
       row.onclick = () => { if (!ageAllows("quest")) return; runTimed(() => E.doQuest(c, state.rng, q)); };
       body.appendChild(row);
     }
