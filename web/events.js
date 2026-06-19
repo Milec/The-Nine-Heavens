@@ -280,8 +280,33 @@ export const EVENTS = [
     cond: c => c.sectKey,
     text: () => "War-drums sound: a rival sect marches on your mountain. The elders call every disciple to the front.",
     choices: [
-      { label: "Fight for your sect", result: (c, rng, A) => { const res = A.fight(); if (c.alive) { c.contribution += 40; c.reputation += 4; res.push("Your sect repels the invaders. Your valour earns contribution and renown."); } return ["You take your place in the battle-line."].concat(res); } },
+      { label: "Fight on the front line", result: (c, rng, A) => { const res = A.fight(); if (c.alive) { const cc = 40 + c.sectRank * 12; c.contribution += cc; c.reputation += 4; c.sectMissions = (c.sectMissions || 0) + 1; res.push(`Your sect repels the invaders. Your valour earns ${cc} contribution, renown, and a mark of merit. (+contribution, counts as a mission)`); } return ["You take your place in the battle-line."].concat(res); } },
+      { label: "Hold the rearguard (safer)", result: (c, rng, A) => { c.contribution += 12; A.happy(-1); return "You guard the wounded and the wards at the rear. Honest service, if no glory. (+12 contribution)"; } },
       { label: "Hide until it passes", result: (c, rng, A) => { c.reputation -= 6; A.happy(-4); return "You cower in the herb-cellar while others bleed. The sect remembers cowards."; } },
+    ],
+  },
+  {
+    id: "elder_favor", weight: 4, awakened: true, cond: c => c.sectKey && c.sectRank >= 1, cooldown: 6,
+    text: c => `Word comes from your sect's inner hall: a senior elder has taken note of your diligence and offers a private word.`,
+    choices: [
+      { label: "Show humble respect", result: (c, rng, A) => { c.contribution += rng.randint(20, 45); if (rng.random() < 0.4) { cap(c, "comprehension", 2); return "The elder shares a fragment of dao insight and commends you to the sect master. (+contribution, +Comprehension)"; } return "The elder marks you as a disciple to watch. Your standing in the sect rises. (+contribution)"; } },
+      { label: "Ask for a personal teaching", result: (c, rng, A) => { if (rng.random() < 0.35 + c.charm / 250) { const t = A.learnTech(); return t ? `Impressed by your boldness, the elder imparts an art: ${t}!` : "The elder nods and quickens your cultivation instead."; } A.happy(-2); c.contribution = Math.max(0, c.contribution - 5); return "The elder finds you presumptuous and waves you off. (−a little contribution)"; } },
+    ],
+  },
+  {
+    id: "rival_disciple", weight: 4, minRealm: 2, awakened: true, cond: c => c.sectKey, cooldown: 5,
+    text: () => "A swaggering senior brother of your own sect blocks the training hall and demands you 'know your place' in a friendly bout.",
+    choices: [
+      { label: "Accept the bout", result: (c, rng, A) => { if (rng.random() < 0.4 + c.comprehension / 300 + c.constitution / 300) { c.contribution += 18; c.reputation += 2; cap(c, "comprehension", 1); return "You best your senior before the watching disciples; your name rises in the inner halls. (+contribution, +Comprehension)"; } A.heal(-8); A.happy(-3); return "He drubs you soundly and struts off. You nurse bruises and a grudge."; } },
+      { label: "Bow out gracefully", result: (c, rng, A) => { cap(c, "soul", 1); return "You decline with a calm word. Let him crow; a still heart needs no audience. (+Soul Sense)"; } },
+    ],
+  },
+  {
+    id: "own_sect_raided", weight: 4, awakened: true, cond: c => c.ownSect && c.ownSect.prestige >= 30,
+    text: c => `A jealous rival sect, galled by the rise of the ${c.ownSect.name}, raids your mountain seat in the night!`,
+    choices: [
+      { label: "Lead the defence yourself", result: (c, rng, A) => { const res = A.fight(); if (c.alive) { c.ownSect.prestige += 25; c.reputation += 5; res.push(`You throw back the raiders at the gates of the ${c.ownSect.name}. Your legend — and your sect's — grows. (+prestige, +fame)`); } return ["You rush to the wall as alarm-gongs ring."].concat(res); } },
+      { label: "Let the elders handle it", result: (c, rng, A) => { const lost = rng.randint(10, 25); c.ownSect.prestige = Math.max(0, c.ownSect.prestige - lost); c.ownSect.members = Math.max(0, c.ownSect.members - rng.randint(2, 6)); A.happy(-4); return `Your disciples fight without you and are scattered; the ${c.ownSect.name} loses face and followers. (−${lost} prestige)`; } },
     ],
   },
   /* ------------------------------ nemesis ------------------------------- */

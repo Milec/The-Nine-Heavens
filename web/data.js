@@ -113,6 +113,13 @@ export const TECHNIQUES = {
   mountain_seal: ["Mountain-Bearing Seal", 2, 0.20, 14, "An Earth art that drops a mountain's weight on a foe, crushing and pinning them."],
   heaven_slash: ["Heaven-Splitting Sabre", 3, 0.42, 20, "A single annihilating cut that leaves you spent."],
   samsara_palm: ["Samsara Heaven-Turning Palm", 3, 0.50, 18, "Turn the wheel of life and death; void force that rends the foe and mends you."],
+  // — sect-exclusive signature arts (taught only by their sect, at high rank) —
+  cloudmist_veil: ["Cloud-Mist Veiling Art (云雾隐)", 3, 0.30, 12, "Cloud Mist's hidden art — wreathe yourself in mist, shielded, serene, untouchable."],
+  fiveelem_cycle: ["Five Elements Rotation (五行轮转)", 3, 0.42, 20, "Turn the five phases in endless cycle, each blow striking a foe's weakness."],
+  spiritbeast_primal: ["Primal Beast Descent (蛮兽降世)", 3, 0.40, 22, "Call the savage spirit of the primordial beasts down into your own flesh."],
+  azure_formation: ["Azure Sword Formation (青云剑阵)", 3, 0.55, 26, "The Azure Cloud Sect's grand formation of ten thousand azure flying swords."],
+  heavensword_myriad: ["Ten-Thousand Swords Return (万剑归宗)", 3, 0.60, 30, "The Heavenly Sword Sect's supreme art — every blade under heaven heeds your call."],
+  bloodcult_sea: ["Boundless Blood Sea (血海无边)", 3, 0.45, 22, "Drown the world in a sea of blood that feeds your every wound. The heavens recoil."],
 };
 
 /* Movement arts (轻功): a light-body discipline letting a cultivator skim rivers
@@ -159,26 +166,60 @@ export const ROOT_TIER = { none:0, waste:0, quad:1, triple:2, dual:3, heavenly:4
 // Representative root for a given tier (used by bloodline genetics).
 export const ROOT_BY_TIER = { 0:"waste", 1:"quad", 2:"triple", 3:"dual", 4:"heavenly", 5:"variant", 6:"chaos" };
 
-// [name, minRealm, minContribution, speedBonus, stipend]
+// [name, minRealm, minContribution, speedBonus, stipend, minMissions, minReputation]
+// Promotion now also demands missions run for the sect and a name worth the rank;
+// from Core Disciple up, a promotion trial-by-combat stands between the ranks.
 export const SECT_RANKS = [
-  ["Outer Disciple (外门弟子)", 0, 0, 0.00, 2],
-  ["Inner Disciple (内门弟子)", 2, 60, 0.10, 6],
-  ["Core Disciple (核心弟子)", 3, 220, 0.22, 16],
-  ["Elder (长老)", 4, 650, 0.38, 45],
-  ["Grand Elder (太上长老)", 6, 2200, 0.58, 120],
-  ["Sect Master (宗主)", 7, 6500, 0.85, 300],
+  ["Outer Disciple (外门弟子)", 0, 0,    0.00, 2,    0,  0],
+  ["Inner Disciple (内门弟子)", 2, 60,   0.10, 6,    2,  0],
+  ["Core Disciple (核心弟子)", 3, 220,  0.22, 16,   5,  25],
+  ["Elder (长老)",             4, 650,  0.38, 45,   9,  60],
+  ["Grand Elder (太上长老)",   6, 2200, 0.58, 120,  14, 120],
+  ["Sect Master (宗主)",       7, 6500, 0.85, 300,  20, 200],
 ];
+// A promotion trial pits you against a rank-guardian whose strength scales with
+// the rank you reach into (index by the target rank). 0 = no trial (auto).
+export const SECT_TRIAL_FACTOR = [0, 0, 0.85, 1.0, 1.2, 1.5];
 
-// [name, minRank, contribution, stones, danger, blurb]
+// Each sect teaches its own arts, unlocked as you climb its ranks and paid for in
+// contribution. The last entry of each is the sect's exclusive signature art.
+// [techKey, minRank (index into SECT_RANKS), contributionCost]
+export const SECT_ARTS = {
+  cloudmist:   [["azure_cloud", 0, 35], ["moon_mirror", 1, 110], ["mirror_parry", 2, 220], ["cloudmist_veil", 3, 460]],
+  fiveelem:    [["frost_lotus", 0, 45], ["tide_palm", 1, 110], ["mountain_seal", 1, 130], ["nine_yang", 2, 230], ["fiveelem_cycle", 3, 480]],
+  spiritbeast: [["five_beasts", 0, 35], ["spirit_bind", 1, 120], ["vajra_body", 2, 220], ["spiritbeast_primal", 3, 470]],
+  azure:       [["azure_cloud", 0, 45], ["sword_rain", 1, 140], ["great_void", 3, 430], ["azure_formation", 4, 820]],
+  heavensword: [["sword_rain", 0, 55], ["thunder_step", 1, 150], ["heaven_slash", 3, 440], ["heavensword_myriad", 4, 920]],
+  bloodcult:   [["blood_refine", 0, 45], ["spirit_bind", 1, 120], ["samsara_palm", 3, 440], ["bloodcult_sea", 3, 480]],
+};
+
+// [name, minRank, contribution, stones, danger, blurb, reward?]
+// reward (optional): "herbs" | "pill" | "rep" | "treasure" — a flavourful bonus
+// beyond the usual stones, so missions vary in what they give as well as ask.
 export const SECT_QUESTS = [
-  ["Tend the Spirit Herb Gardens", 0, 8, 4, 0.05, "Quiet, patient work weeding the sect's spirit fields."],
+  // — Outer Disciple chores —
+  ["Tend the Spirit Herb Gardens", 0, 8, 4, 0.05, "Quiet, patient work weeding the sect's spirit fields.", "herbs"],
   ["Patrol the Outer Mountain", 0, 14, 8, 0.25, "Walk the boundary wards and chase off stray beasts."],
-  ["Gather Frost Lotus on the Cold Peak", 0, 20, 12, 0.30, "Climb the freezing summit for a rare alchemical bloom."],
+  ["Gather Frost Lotus on the Cold Peak", 0, 20, 12, 0.30, "Climb the freezing summit for a rare alchemical bloom.", "herbs"],
+  ["Sweep the Ancestral Hall", 0, 10, 5, 0.02, "Dust the patriarchs' tablets and trim ten thousand candle-wicks."],
+  ["Carry a Message to a Branch Hall", 0, 16, 10, 0.18, "Run a sealed dispatch down the mountain roads before the new moon."],
+  // — Inner Disciple duties —
   ["Hunt a Rampaging Spirit Beast", 1, 38, 26, 0.55, "A horned beast has been savaging the foothill villages."],
   ["Subjugate a Rogue Cultivator", 1, 55, 42, 0.60, "A masked rogue has been robbing the sect's outer disciples."],
+  ["Guard the Treasury by Night", 1, 44, 30, 0.40, "Stand the midnight watch over the sect's vault of relics."],
+  ["Recover Stolen Sect Manuals", 1, 62, 40, 0.58, "Thieves made off with three jade slips of the sect's arts — get them back.", "rep"],
+  // — Core Disciple charges —
   ["Escort an Elder's Caravan", 2, 90, 64, 0.45, "Guard a treasure caravan across bandit-haunted passes."],
   ["Cleanse a Demonic Nest", 2, 150, 115, 0.72, "Burn out a corpse-refiner's lair festering in the marsh."],
+  ["Win Face at an Allied Sect's Feast", 2, 110, 70, 0.20, "Represent the sect at a grand banquet; do not lose face.", "rep"],
+  ["Tend the Grand Alchemy Furnace", 2, 120, 60, 0.35, "Mind a month-long refining; the elders will share the pills.", "pill"],
+  // — Elder commissions —
   ["Chart a Secret Realm Rift", 3, 280, 210, 0.66, "Enter a newly-opened ruin and map its perils for the sect."],
+  ["Slay a Devil-Path Elder", 3, 360, 240, 0.80, "A demonic elder has cursed the sect's water; end them.", "treasure"],
+  ["Negotiate a Border Truce", 3, 300, 180, 0.30, "Broker peace with a jealous neighbour sect before blood is spilled.", "rep"],
+  // — Grand Elder undertakings —
+  ["Lead a Punitive Expedition", 4, 620, 460, 0.78, "Take a war-band to humble a sect that slighted yours."],
+  ["Seal a Rampaging Earth Dragon", 4, 760, 520, 0.85, "An ancient dragon stirs beneath the spirit vein; bind it or die.", "treasure"],
 ];
 
 export function relationshipLabel(a) {

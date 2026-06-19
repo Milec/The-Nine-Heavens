@@ -53,8 +53,8 @@ export function realmLabel(c) {
   return s ? `${realmName(c)} – ${s}` : realmName(c);
 }
 export const qiToNext = c => D.REALMS[c.realm][4] * (1 + c.stage * 0.55);
-const techQiBonus = c => c.techniques.reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][2] : 0), 0);
-const techAtkBonus = c => c.techniques.reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][3] : 0), 0);
+const techQiBonus = c => c.techniques.reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][2] : 0), 0) + (c.customTechs || []).reduce((a, ct) => a + (ct.qiBonus || 0), 0);
+const techAtkBonus = c => c.techniques.reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][3] : 0), 0) + (c.customTechs || []).reduce((a, ct) => a + (ct.atkPct || 0), 0);
 export const sectOf = c => c.sectKey ? D.SECT_BY_KEY[c.sectKey] : null;
 export const sectName = c => sectOf(c) ? sectOf(c)[1] : "Rogue Cultivator (散修)";
 export const rankName = c => sectOf(c) ? D.SECT_RANKS[c.sectRank][0] : "";
@@ -187,12 +187,12 @@ function newCharacter() {
     comprehension: 30, constitution: 30, soul: 30, luck: 30, charm: 30,
     realm: 0, stage: 0, qi: 0, maxAge: 80, bodyRealm: 0, temper: 0, longevityBonus: 0,
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
-    sectKey: null, sectRank: 0, contribution: 0, titles: [], epithets: [], relationships: [],
+    sectKey: null, sectRank: 0, contribution: 0, sectMissions: 0, sectJoinedAge: null, titles: [], epithets: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
-    movementArts: [], moveMastery: {},
+    movementArts: [], moveMastery: {}, customTechs: [],
     mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
   };
@@ -1034,7 +1034,7 @@ export function attemptJoin(c, rng, sectKey) {
   const chance = joinChance(c, sect);
   const msgs = [`You present yourself to the ${sect[1]} for assessment... [${Math.floor(chance * 100)}% chance]`];
   if (rng.random() <= chance) {
-    c.sectKey = sectKey; c.sectRank = 0; c.contribution = 0; c.reputation += sect[8];
+    c.sectKey = sectKey; c.sectRank = 0; c.contribution = 0; c.sectMissions = 0; c.sectJoinedAge = c.age; c.reputation += sect[8];
     note(c, `Joined the ${sect[1]} as an Outer Disciple.`);
     msgs.push(`☯ Accepted! You don the robes of the ${sect[1]}.`);
     if (sect[2] === "demonic") msgs.push("  The righteous world now eyes you with suspicion.");
@@ -1045,40 +1045,77 @@ export function attemptJoin(c, rng, sectKey) {
 }
 export function leaveSect(c) {
   if (!c.sectKey) return ["You belong to no sect."];
-  const n = sectName(c); note(c, `Left the ${n}.`); c.sectKey = null; c.sectRank = 0; c.contribution = 0;
+  const n = sectName(c); note(c, `Left the ${n}.`); c.sectKey = null; c.sectRank = 0; c.contribution = 0; c.sectMissions = 0; c.sectJoinedAge = null;
   return [`You sever ties with the ${n} and walk the lonely road of a rogue cultivator once more.`];
 }
 export function nextRankReq(c) {
   const nxt = c.sectRank + 1;
   if (!c.sectKey || nxt >= D.SECT_RANKS.length) return null;
-  const [name, minRealm, minContrib] = D.SECT_RANKS[nxt];
-  return [name, minRealm, minContrib];
+  const [name, minRealm, minContrib, , , minMissions, minRep] = D.SECT_RANKS[nxt];
+  return [name, minRealm, minContrib, minMissions || 0, minRep || 0];
 }
-export function canPromote(c) {
-  const r = nextRankReq(c); if (!r) return false;
-  return c.realm >= r[1] && c.contribution >= r[2];
+// Every requirement still standing between you and your next rank (empty = ready).
+export function promotionBlockers(c) {
+  const r = nextRankReq(c); if (!r) return null;
+  const [name, minRealm, minContrib, minMissions, minRep] = r;
+  const out = [];
+  if (c.realm < minRealm) out.push(`reach ${D.REALMS[minRealm][0]} (you are ${realmName(c)})`);
+  if (c.contribution < minContrib) out.push(`${minContrib} contribution (have ${c.contribution})`);
+  if ((c.sectMissions || 0) < minMissions) out.push(`${minMissions} sect missions run (done ${c.sectMissions || 0})`);
+  if (minRep && c.reputation < minRep) out.push(`${minRep} fame (have ${c.reputation})`);
+  return out;
 }
+export const canPromote = c => { const b = promotionBlockers(c); return !!b && b.length === 0; };
+// Promotion into Core Disciple and above is earned in a trial-by-combat against
+// a rank-guardian. Returns the foe spec, or null if this rank needs no trial.
+export function promotionTrialFoe(c, rng) {
+  const nxt = c.sectRank + 1;
+  const factor = D.SECT_TRIAL_FACTOR[nxt] || 0;
+  if (factor <= 0) return null;
+  const nm = ["the Gate Warden", "an Enforcement Elder", "the Hall Guardian", "a Grand Elder's Shadow", "the Sect Protector"][Math.min(4, nxt - 1)];
+  return [nm, power(c) * (0.6 + factor * 0.45) * rng.uniform(0.92, 1.06), (c.realm + 1) * 6, "rogue"];
+}
+// Apply a successful promotion (after any trial is passed).
+export function completePromotion(c) {
+  const r = nextRankReq(c); if (!r) return ["You already sit at the very summit of your sect."];
+  c.contribution -= r[2]; c.sectRank += 1; c.reputation += 4 + c.sectRank * 3;
+  note(c, `Promoted to ${r[0]}.`);
+  return [`☯ The sect elevates you to ${r[0]}!`, "  Your standing rises and the sect's arrays and stipends open wider to you."];
+}
+// Legacy direct promotion (used where no interactive trial is run): checks reqs,
+// then for trial ranks resolves the duel automatically by power.
 export function attemptPromotion(c, rng) {
   if (!c.sectKey) return ["You belong to no sect."];
   const r = nextRankReq(c); if (!r) return ["You already sit at the very summit of your sect."];
-  const [name, minRealm, minContrib] = r;
-  if (c.realm < minRealm) return [`Promotion to ${name} requires ${D.REALMS[minRealm][0]} (you are ${realmName(c)}).`];
-  if (c.contribution < minContrib) return [`Promotion to ${name} requires ${minContrib} contribution (you have ${c.contribution}).`];
-  c.contribution -= minContrib; c.sectRank += 1; c.reputation += 4 + c.sectRank * 3;
-  note(c, `Promoted to ${name}.`);
-  return [`☯ The sect elevates you to ${name}!`, "  Your standing rises and the sect's arrays open wider to you."];
+  const b = promotionBlockers(c);
+  if (b.length) return [`Promotion to ${r[0]} still needs: ${b.join("; ")}.`];
+  const foe = promotionTrialFoe(c, rng);
+  if (foe) {
+    const chance = clamp(power(c) / (power(c) + foe[1]), 0.12, 0.95);
+    const msgs = [`The elders set a promotion trial: best ${foe[0]} to earn ${r[0]}. [${Math.floor(chance * 100)}% chance]`];
+    if (rng.random() > chance) { c.hp = Math.max(1, c.hp - c.maxHp * 0.18); msgs.push(`✗ ${foe[0]} bests you before the watching hall. The rank is not yet yours — grow stronger and try again.`); return msgs; }
+    msgs.push(`✦ You overcome ${foe[0]} in the trial ring.`);
+    pushAll(msgs, completePromotion(c));
+    return msgs;
+  }
+  return completePromotion(c);
 }
 export const availableQuests = c => c.sectKey ? D.SECT_QUESTS.filter(q => q[1] <= c.sectRank) : [];
 export function doQuest(c, rng, quest) {
-  const [name, , contribution, stones, danger, blurb] = quest;
+  const [name, , contribution, stones, danger, blurb, reward] = quest;
   if (!c.sectKey) return ["You belong to no sect."];
   c.age += 1;
   const msgs = [`Quest accepted: ${name}.`, `  ${blurb}`];
   if (rng.random() < danger) { msgs.push("  Trouble finds you on the way!"); pushAll(msgs, fight(c, rng)); if (!c.alive) return msgs; }
   const bonus = 1.0 + (rng.random() < c.luck / 250.0 ? 0.5 : 0.0);
   const ec = Math.floor(contribution * bonus), es = Math.floor(stones * bonus);
-  c.contribution += ec; c.spiritStones += es; c.reputation += 1;
+  c.contribution += ec; c.spiritStones += es; c.reputation += 1; c.sectMissions = (c.sectMissions || 0) + 1;
   msgs.push(`  Quest complete! (+${ec} contribution, +${es} spirit stones, +1 reputation)`);
+  // A flavourful extra reward, by mission kind.
+  if (reward === "herbs") { const h = rng.randint(3, 8) + c.realm; c.herbs += h; msgs.push(`  You bring back ${h} spirit herbs besides. (+herbs)`); }
+  else if (reward === "pill") { const p = rng.randint(1, 3); c.pills += p; msgs.push(`  The elders share ${p} pill(s) from the furnace. (+pills)`); }
+  else if (reward === "rep") { const rp = rng.randint(3, 7); c.reputation += rp; msgs.push(`  Your name travels; the sect gains face through you. (+${rp} fame)`); }
+  else if (reward === "treasure") { pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.3 ? "Earth" : null))); }
   if (bonus > 1.0) msgs.push("  Fortune smiled -- the elders are especially pleased.");
   if (c.age > c.maxAge && c.alive) { c.alive = false; c.causeOfDeath = "old age on a sect errand"; msgs.push(`☠ Your lifespan ends at ${c.age}, far from home.`); }
   return msgs;
@@ -1096,6 +1133,190 @@ export function exchangeContribution(c, rng) {
   const g = rng.randint(2, 4); c.pills += g; msgs.push(`  You collect ${g} Qi-Gathering Pills.`);
   return msgs;
 }
+
+/* ----------------------- sect hierarchy & wars -------------------------- */
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+// The stable notable figures of a named world sect — its Sect Master and Elders —
+// so a sect's leadership reads the same each time you look upon its hierarchy.
+export function sectFigures(sectKey) {
+  const sect = D.SECT_BY_KEY[sectKey]; if (!sect) return null;
+  const rng = new RNG(hashStr("figures:" + sectKey));
+  const baseRealm = Math.min(D.REALMS.length - 1, 5 + (sect[4] || 1));
+  const master = { name: npcName(rng), realm: baseRealm, title: "Sect Master" };
+  const elders = [];
+  const n = 2 + (sect[4] >= 3 ? 1 : 0);
+  for (let i = 0; i < n; i++) elders.push({ name: npcName(rng), realm: Math.max(3, baseRealm - rng.randint(1, 3)), title: i === 0 ? "Grand Elder" : "Elder" });
+  return { master, elders };
+}
+/* The realm's great sects are not static: their might drifts year by year, and a
+ * sect you shatter rebuilds over a decade or so — so the war map keeps shifting. */
+const sectBaseMight = s => (s[4] || 1) * 60 + 100;
+export function ensureSectWorld(c) {
+  if (!c.sectWorld) { c.sectWorld = {}; for (const s of D.SECTS) c.sectWorld[s[0]] = { strength: sectBaseMight(s), broken: 0 }; }
+  for (const s of D.SECTS) if (!c.sectWorld[s[0]]) c.sectWorld[s[0]] = { strength: sectBaseMight(s), broken: 0 };
+  return c.sectWorld;
+}
+// One year for the world's sects: the broken slowly rebuild, the rest rise and
+// fall on their own fortunes. Called from the yearly tick when you lead a sect.
+export function tickSectWorld(c, rng) {
+  const w = ensureSectWorld(c);
+  for (const s of D.SECTS) {
+    const st = w[s[0]], base = sectBaseMight(s);
+    if (st.broken > 0) { st.broken -= 1; if (st.broken <= 0) st.strength = base * 0.7; }   // risen from the ashes
+    else st.strength = clamp(st.strength * rng.uniform(0.95, 1.06), base * 0.5, base * 2.6);
+  }
+}
+// The named sects your own founded sect may come to blows with, each with the
+// odds your banner would prevail against theirs — and whether they lie broken.
+export function sectWarRivals(c) {
+  const own = c.ownSect; if (!own) return [];
+  const w = ensureSectWorld(c), eraD = (D.eraAt(c.era)[5]) || 1;
+  return D.SECTS.map(s => {
+    const st = w[s[0]], theirs = st.strength * eraD;
+    const mine = (own.prestige || 0) + (own.members || 0) * 3 + power(c) / 40;
+    const chance = clamp(mine / (mine + theirs), 0.06, 0.94);
+    return { key: s[0], sect: s, strength: Math.round(theirs), chance, broken: st.broken > 0, brokenYears: st.broken, hostile: (own.alignment === "demonic") !== (s[2] === "demonic") };
+  });
+}
+// March your sect to war against a rival sect (a deed). Win and you break them
+// for years, absorbing disciples, prestige, fame and spoils; lose and you bleed.
+export function wageSectWar(c, rng, key) {
+  const own = c.ownSect; if (!own) return ["You lead no sect to send to war."];
+  const target = D.SECT_BY_KEY[key]; if (!target) return ["No such sect."];
+  const w = ensureSectWorld(c), st = w[key];
+  const r = sectWarRivals(c).find(x => x.key === key);
+  const chance = r ? r.chance : 0.4;
+  const broken = st.broken > 0;   // a sect already in ruins yields little more
+  const msgs = [`Your banner advances on the ${target[1]}${broken ? ", what remains of it" : ""}. The two sects clash upon the slopes! [${Math.floor(chance * 100)}% chance]`];
+  if (rng.random() <= chance) {
+    const mult = broken ? 0.3 : 1;
+    const presGain = Math.round((rng.randint(25, 60) + (target[4] || 1) * 12) * mult);
+    const memGain = Math.round(rng.randint(3, 10) * mult), spoils = Math.round(rng.randint(40, 120) * mult);
+    own.prestige += presGain; own.members += memGain; c.spiritStones += spoils; c.reputation += broken ? 1 : 6;
+    if (!broken) { st.broken = rng.randint(8, 15); st.strength = Math.max(sectBaseMight(target) * 0.25, st.strength * 0.3); }
+    own.conquered = own.conquered || []; if (!own.conquered.includes(key)) own.conquered.push(key);
+    c.karma += target[2] === "demonic" ? 2 : -2;
+    msgs.push(`✦ Victory! The ${target[1]} is ${broken ? "scattered anew" : "broken; its survivors bow to your banner"}. (+${presGain} prestige, +${memGain} disciples, +${spoils} stones${broken ? "" : ", +6 fame"})`);
+    if (!broken && rng.random() < 0.3) pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.4 ? "Earth" : null)));
+    note(c, `Warred down the ${target[1]}.`);
+  } else {
+    const presLoss = rng.randint(15, 40), memLoss = rng.randint(2, 8);
+    own.prestige = Math.max(0, own.prestige - presLoss); own.members = Math.max(0, own.members - memLoss);
+    st.strength = clamp(st.strength * rng.uniform(1.05, 1.18), 0, sectBaseMight(target) * 3);   // a repelled foe grows bolder
+    c.reputation -= 3; c.hp = Math.max(1, c.hp - c.maxHp * 0.25);
+    msgs.push(`✗ The ${target[1]} throws back your assault with heavy losses. (−${presLoss} prestige, ${memLoss} disciples slain, and you are wounded)`);
+    note(c, `Lost a war against the ${target[1]}.`);
+  }
+  return msgs;
+}
+
+/* ----------------------- sect arts (传功) ------------------------------- */
+export const sectArts = c => (c.sectKey && D.SECT_ARTS[c.sectKey]) || [];
+// Learn one of your sect's arts: gated by your rank, paid in contribution.
+export function learnSectArt(c, techKey) {
+  if (!c.sectKey) return ["You belong to no sect."];
+  const entry = (D.SECT_ARTS[c.sectKey] || []).find(a => a[0] === techKey);
+  if (!entry) return ["Your sect does not teach that art."];
+  const [key, minRank, cost] = entry;
+  if (c.techniques.includes(key)) return [`You have already mastered the ${D.TECHNIQUES[key][0]}.`];
+  if (c.sectRank < minRank) return [`The ${D.TECHNIQUES[key][0]} is taught only to ${D.SECT_RANKS[minRank][0]} and above.`];
+  if (c.contribution < cost) return [`The ${D.TECHNIQUES[key][0]} costs ${cost} contribution; you have ${c.contribution}.`];
+  c.contribution -= cost; c.techniques.push(key);
+  note(c, `Learned the sect art ${D.TECHNIQUES[key][0]}.`);
+  return [`☯ The sect imparts its art — you learn the ${D.TECHNIQUES[key][0]}! (${D.TECHNIQUES[key][4]})`];
+}
+
+/* --------------------- forging your own arts (创功) --------------------- *
+ * The pinnacle of dao mastery: weave an original technique from your own
+ * element and insight. Demanding in attributes and materials, and never sure. */
+const round2 = v => Math.round(v * 100) / 100;
+const forgeMag = c => clamp((c.comprehension + c.soul) / 200 + (c.realm || 0) * 0.04 + (c.daoInsight || 0) * 0.02, 0.5, 1.6);
+export const forgeTechCap = c => Math.min(6, Math.floor((c.comprehension || 0) / 40) + Math.floor((c.realm || 0) / 2));
+export const FORGE_STYLES = {
+  strike:  { label: "Strike",  desc: "a clean elemental blow" },
+  torrent: { label: "Torrent", desc: "a flurry of three quick strikes" },
+  ruin:    { label: "Ruin",    desc: "one devastating, draining blow" },
+  ward:    { label: "Ward",    desc: "a defensive art — shield & regeneration" },
+  mend:    { label: "Mend",    desc: "a healing art that cleanses wounds" },
+};
+export function canForgeTech(c) {
+  if (!c.awakened) return [false, "Your dao is not yet awakened."];
+  if ((c.realm || 0) < 3) return [false, "Reach Foundation Establishment before you dare forge an original art."];
+  if ((c.comprehension || 0) < 80) return [false, "Forging an art demands rare insight — at least 80 Comprehension."];
+  if ((c.soul || 0) < 70) return [false, "Your spiritual sense is too dim to model a new art — at least 70 Soul Sense."];
+  if ((c.customTechs || []).length >= forgeTechCap(c)) return [false, `Your mind can hold no more than ${forgeTechCap(c)} self-forged arts — deepen your Comprehension and realm.`];
+  return [true, null];
+}
+// A deterministic spec for the art your nature + choices would yield: its combat
+// skill, passive bonuses, material cost, and odds of success.
+export function forgeTechSpec(c, element, style, name) {
+  const mag = forgeMag(c);
+  const elem = element && element !== "none" ? element : null;
+  const nm = (name && name.trim()) || "Nameless Art";
+  let skill, tier, qi;
+  if (style === "ruin") { skill = { dmg: round2(0.85 + mag * 0.28), pierce: 0.4, element: elem, self: { type: "weaken", turns: 1, value: 0.3 } }; qi = Math.round(28 + mag * 8); tier = 3; }
+  else if (style === "torrent") { skill = { dmg: round2(0.20 + mag * 0.07), hits: 3, element: elem }; qi = Math.round(20 + mag * 5); tier = 2; }
+  else if (style === "ward") { skill = { type: "defend", shield: round2(0.15 + mag * 0.06), self: { type: "regen", turns: 3, value: round2(0.03 + mag * 0.02) }, qiRestore: 0.1 }; qi = Math.round(12 + mag * 3); tier = 2; }
+  else if (style === "mend") { skill = { type: "heal", heal: round2(0.18 + mag * 0.09), cleanse: true, qiRestore: 0.08 }; qi = Math.round(16 + mag * 5); tier = 2; }
+  else { skill = { dmg: round2(0.42 + mag * 0.2), element: elem }; qi = Math.round(14 + mag * 6); tier = mag > 1.1 ? 3 : 2; }
+  const key = "custom_" + Math.floor(Math.random() * 1e9).toString(36) + (c.customTechs || []).length;
+  skill.id = key; skill.tech = key; skill.name = nm; skill.qi = qi;
+  skill.desc = `Your own forged art${elem ? ` of ${elem}` : ""} — ${FORGE_STYLES[style] ? FORGE_STYLES[style].desc : "a clean blow"}.`;
+  const qiBonus = round2(0.04 + mag * 0.10), atkPct = Math.round(4 + mag * 9);
+  const stones = Math.round(140 + tier * 180 + mag * 220), herbs = Math.round(15 + tier * 12);
+  const attuned = elem && c.root && c.root.elements && c.root.elements.includes(elem);
+  const chance = clamp(0.32 + c.comprehension / 300 + c.soul / 400 + (c.daoInsight || 0) * 0.04 + (attuned ? 0.1 : 0), 0.2, 0.95);
+  return { key, name: nm, element: elem, tier, qiBonus, atkPct, blurb: skill.desc, skill, stones, herbs, chance };
+}
+export function forgeTech(c, rng, element, style, name) {
+  const [ok, reason] = canForgeTech(c); if (!ok) return [reason];
+  const spec = forgeTechSpec(c, element, style, name);
+  if (c.spiritStones < spec.stones) return [`You lack the spirit stones to model the qi-formation: need ${spec.stones} (have ${c.spiritStones}).`];
+  if (c.herbs < spec.herbs) return [`You lack the spirit herbs to brew the medium: need ${spec.herbs} (have ${c.herbs}).`];
+  c.spiritStones -= spec.stones; c.herbs -= spec.herbs;
+  const msgs = [`You seal yourself away to forge the ${spec.name}${spec.element ? ` of ${spec.element}` : ""}, weaving qi into a wholly new shape... [${Math.floor(spec.chance * 100)}%]`];
+  if (rng.random() <= spec.chance) {
+    c.customTechs = c.customTechs || [];
+    c.customTechs.push({ key: spec.key, name: spec.name, element: spec.element, tier: spec.tier, qiBonus: spec.qiBonus, atkPct: spec.atkPct, blurb: spec.blurb, skill: spec.skill });
+    note(c, `Forged an original art: ${spec.name}.`);
+    msgs.push(`☯ Eureka — the formation holds! You forge the ${spec.name}, an art wholly your own, now yours to wield and to teach. (${spec.skill.desc})`);
+  } else {
+    const back = Math.round(spec.stones * 0.4); c.spiritStones += back;
+    c.comprehension = Math.min(160, c.comprehension + 1);
+    msgs.push(`✗ The qi-formation collapses before it sets. You salvage ${back} stones from the wreckage — and the failure sharpens your understanding. (+Comprehension)`);
+  }
+  return msgs;
+}
+// Look up any technique (standard or self-forged) by key.
+export function techTier(c, key) { return D.TECHNIQUES[key] ? D.TECHNIQUES[key][1] : ((c.customTechs || []).find(ct => ct.key === key) || { tier: 1 }).tier; }
+export function techName(c, key) { return D.TECHNIQUES[key] ? D.TECHNIQUES[key][0] : ((c.customTechs || []).find(ct => ct.key === key) || { name: "a lost art" }).name; }
+
+/* ------------------ your sect's library (藏经阁) ----------------------- *
+ * A founder enshrines arts they have mastered; each enriches the sect's
+ * teachings, lifting its prestige and its standing in the world's wars. */
+export function assignableSectTechs(c) {
+  if (!c.ownSect) return [];
+  const lib = (c.ownSect.library || []).map(e => e.key);
+  const out = [];
+  for (const t of c.techniques) if (D.TECHNIQUES[t] && t !== "basic_breathing" && !lib.includes(t)) out.push({ key: t, name: D.TECHNIQUES[t][0], tier: D.TECHNIQUES[t][1] });
+  for (const ct of (c.customTechs || [])) if (!lib.includes(ct.key)) out.push({ key: ct.key, name: ct.name, tier: ct.tier, custom: true });
+  return out;
+}
+export function assignSectTech(c, key) {
+  if (!c.ownSect) return ["You lead no sect."];
+  c.ownSect.library = c.ownSect.library || [];
+  if (c.ownSect.library.some(e => e.key === key)) return ["That art already stands in the sect library."];
+  const known = c.techniques.includes(key) || (c.customTechs || []).some(ct => ct.key === key);
+  if (!known) return ["You can only enshrine arts you yourself have mastered."];
+  const tier = techTier(c, key), nm = techName(c, key);
+  c.ownSect.library.push({ key, name: nm, tier });
+  const boost = tier * 6;
+  c.ownSect.prestige += boost;
+  note(c, `Enshrined ${nm} in the ${c.ownSect.name}'s library.`);
+  return [`You enshrine the ${nm} in your sect's library; its disciples will train in it for generations. (+${boost} prestige)`];
+}
+export const sectLibrary = c => (c.ownSect && c.ownSect.library) || [];
+export const sectLibraryBonus = s => (s && s.library) ? s.library.reduce((a, e) => a + (e.tier || 1), 0) : 0;
 export function tournament(c, rng) {
   if (!c.sectKey) return ["Only sect disciples may enter the sect tournament."];
   c.age += 1;

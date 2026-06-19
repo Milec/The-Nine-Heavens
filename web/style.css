@@ -80,7 +80,7 @@ body {
   transition: background .15s ease, color .15s ease;
 }
 .pf-more:active { background: var(--panel); color: var(--gold); }
-.pf-bars { display: flex; gap: 12px; margin-top: 11px; }
+.pf-bars { display: flex; gap: 12px; margin-top: 9px; }
 .vbar { flex: 1; }
 .vbar .vb-label { display: flex; justify-content: space-between; font-size: .58rem; color: var(--muted); margin-bottom: 4px; letter-spacing: .08em; text-transform: uppercase; }
 .vbar .vb-track { height: 5px; border-radius: 3px; background: #0c0f1a; overflow: hidden; }
@@ -91,7 +91,7 @@ body {
 .vb-fill.hp { background: linear-gradient(90deg, #8a3a44, #e8736b); }
 
 /* the innate-attribute banner — five compact tiered stats, glyph + standing */
-.pf-attrs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px; }
+.pf-attrs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 8px; }
 .attr-tile {
   display: flex; flex-direction: column; align-items: center; gap: 1px;
   padding: 4px 2px 3px; border-radius: 6px; cursor: pointer;
@@ -109,13 +109,18 @@ body {
 .attr-tile.tier-top .ic, .attr-tile.tier-top .at-name { color: var(--accent); }
 .attr-tile.tier-top { border-color: var(--accent2); background: var(--aura); }
 
-.pf-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.pf-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: .7rem; padding: 4px 9px; border-radius: var(--r-sm); background: var(--panel);
   border: 1px solid var(--line); color: var(--muted); white-space: nowrap; line-height: 1.1;
 }
 .chip .chip-ic { color: var(--ink2); }
+/* the combined deeds chip: three budgets (☯/⚔/❤) side by side */
+.deeds-chip { gap: 8px; padding: 4px 10px; }
+.deeds-chip .dg { display: inline-flex; align-items: center; gap: 3px; }
+.deeds-chip .dp { font-size: .56rem; letter-spacing: .5px; color: var(--jade); }
+.deeds-chip.warn .dp { color: var(--accent); }
 .chip b { color: var(--ink); font-weight: 700; letter-spacing: .02em; }
 .chip.warn { border-color: var(--accent2); color: var(--accent); background: var(--aura); }
 .chip.warn .chip-ic { color: var(--accent); }
@@ -238,6 +243,23 @@ body {
 .listrow.disabled { opacity: .5; }
 .affbar { height: 6px; border-radius: 4px; background: #20263f; overflow: hidden; margin-top: 6px; border: 1px solid var(--line); }
 .affbar > div { height: 100%; }
+
+/* ============================ sect hierarchy ========================= */
+.rankladder { display: flex; flex-direction: column; gap: 3px; margin: 4px 0 6px; }
+.rl-row {
+  display: flex; align-items: center; gap: 9px; padding: 7px 11px; border-radius: var(--r-sm);
+  background: var(--panel); border: 1px solid var(--line); font-size: .84rem;
+}
+.rl-row .rl-mark { width: 12px; text-align: center; color: var(--muted); flex: none; }
+.rl-row .rl-name { flex: 1; min-width: 0; font-weight: 700; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rl-row .rl-req { color: var(--muted); font-size: .72rem; text-align: right; flex: none; max-width: 52%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rl-row.current { border-color: var(--accent2); background: var(--aura); }
+.rl-row.current .rl-mark, .rl-row.current .rl-name, .rl-row.current .rl-req { color: var(--accent); }
+.rl-row.past .rl-mark { color: var(--jade); }
+.rl-row.past .rl-name { color: var(--muted); }
+.rl-row.future { opacity: .85; }
+.loc-person { color: var(--jade); cursor: pointer; border-bottom: 1px dotted var(--jade); }
+.loc-person:active { color: var(--accent); }
 
 /* ============================ world map =============================== */
 .worldmap {
