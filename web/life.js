@@ -89,6 +89,7 @@ function carryLegacySect(c, old, rng) {
       members: Math.floor(s.members * decay),
       steward: heir ? heir.name : null,
       generations: 1,
+      library: s.library || [],   // the sect's enshrined arts endure across rebirth
     };
     note(c, heir
       ? `Your sect, the ${s.name}, endures under your disciple ${heir.name}'s stewardship, awaiting your return.`
@@ -523,7 +524,7 @@ export function trainTechnique(c, rng, techKey) {
   const before = D.masteryRank(c.mastery[techKey] || 0)[0];
   c.mastery[techKey] = (c.mastery[techKey] || 0) + gain;
   c.happiness = clampN(c.happiness - 2, 0, 100);
-  const name = D.TECHNIQUES[techKey][0];
+  const name = E.techName(c, techKey);   // standard or self-forged
   const rank = D.masteryRank(c.mastery[techKey]);
   const msgs = [`You drill ${name} relentlessly for a year. (+${gain} mastery)`];
   if (rank[0] !== before) msgs.push(`  ✦ ${name} advances to ${rank[0]} (+${Math.round(rank[2] * 100)}% effect)!`);
@@ -803,7 +804,7 @@ export function foundSect(c, rng, name) {
   const sectName = (name && name.trim()) || `${rng.choice(D.SECT_NAME_ADJ)} ${rng.choice(D.SECT_NAME_NOUN)}`;
   const alignment = c.karma <= -40 ? "demonic" : c.karma >= 40 ? "righteous" : "neutral";
   const core = c.relationships.filter(n => n.alive && n.role === "disciple").length;
-  c.ownSect = { name: sectName, prestige: 0, members: 5 + core * 4, founded: c.age, alignment, _tier: null };
+  c.ownSect = { name: sectName, prestige: 0, members: 5 + core * 4, founded: c.age, alignment, _tier: null, library: [] };
   // your resident disciples become the founding core — settle them at the seat
   for (const n of c.relationships) if (n.alive && n.role === "disciple") n.resides = true;
   c.reputation += 10;
@@ -823,7 +824,7 @@ function sectYearly(c, rng, events) {
     const gain = Math.max(1, Math.round((cap - s.members) * (0.04 + c.reputation / 4000 + s.prestige / 9000)));
     s.members = Math.min(cap, s.members + gain);
   } else if (s.members > cap) s.members = cap;
-  s.prestige += c.realm * 0.6 + Math.min(6, c.abode || 0) * 0.5 + s.members * 0.02 + coreDisc * 0.5 + Math.max(0, c.reputation) * 0.01;
+  s.prestige += c.realm * 0.6 + Math.min(6, c.abode || 0) * 0.5 + s.members * 0.02 + coreDisc * 0.5 + Math.max(0, c.reputation) * 0.01 + E.sectLibraryBonus(s);
   const tier = D.sectTier(s.prestige);
   c.reputation += tier[4];
   c.spiritStones += Math.round(s.members * 0.4 * (1 + Math.min(6, c.abode || 0) * 0.2));
@@ -876,7 +877,7 @@ export function reclaimSect(c, rng) {
   if (c.spiritStones < RECLAIM_SECT_COST) return [`Reclaiming the rites and re-seating the sect costs ${RECLAIM_SECT_COST} spirit stones. (You have ${c.spiritStones}.)`];
   const lg = c.legacySect;
   c.spiritStones -= RECLAIM_SECT_COST;
-  c.ownSect = { name: lg.name, prestige: lg.prestige, members: Math.min(sectCapacity(c), lg.members), founded: c.age, alignment: lg.alignment, _tier: null };
+  c.ownSect = { name: lg.name, prestige: lg.prestige, members: Math.min(sectCapacity(c), lg.members), founded: c.age, alignment: lg.alignment, _tier: null, library: lg.library || [] };
   c.legacySect = null;
   c.reputation += 8;
   if (!c.titles.includes("Founder")) c.titles.push("Founder");

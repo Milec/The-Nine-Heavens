@@ -53,8 +53,8 @@ export function realmLabel(c) {
   return s ? `${realmName(c)} – ${s}` : realmName(c);
 }
 export const qiToNext = c => D.REALMS[c.realm][4] * (1 + c.stage * 0.55);
-const techQiBonus = c => c.techniques.reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][2] : 0), 0);
-const techAtkBonus = c => c.techniques.reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][3] : 0), 0);
+const techQiBonus = c => c.techniques.reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][2] : 0), 0) + (c.customTechs || []).reduce((a, ct) => a + (ct.qiBonus || 0), 0);
+const techAtkBonus = c => c.techniques.reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][3] : 0), 0) + (c.customTechs || []).reduce((a, ct) => a + (ct.atkPct || 0), 0);
 export const sectOf = c => c.sectKey ? D.SECT_BY_KEY[c.sectKey] : null;
 export const sectName = c => sectOf(c) ? sectOf(c)[1] : "Rogue Cultivator (散修)";
 export const rankName = c => sectOf(c) ? D.SECT_RANKS[c.sectRank][0] : "";
@@ -192,7 +192,7 @@ function newCharacter() {
     artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
-    movementArts: [], moveMastery: {},
+    movementArts: [], moveMastery: {}, customTechs: [],
     mastery: {},
     hp: 50, maxHp: 50, alive: true, causeOfDeath: "", log: [],
   };
@@ -1225,6 +1225,98 @@ export function learnSectArt(c, techKey) {
   note(c, `Learned the sect art ${D.TECHNIQUES[key][0]}.`);
   return [`☯ The sect imparts its art — you learn the ${D.TECHNIQUES[key][0]}! (${D.TECHNIQUES[key][4]})`];
 }
+
+/* --------------------- forging your own arts (创功) --------------------- *
+ * The pinnacle of dao mastery: weave an original technique from your own
+ * element and insight. Demanding in attributes and materials, and never sure. */
+const round2 = v => Math.round(v * 100) / 100;
+const forgeMag = c => clamp((c.comprehension + c.soul) / 200 + (c.realm || 0) * 0.04 + (c.daoInsight || 0) * 0.02, 0.5, 1.6);
+export const forgeTechCap = c => Math.min(6, Math.floor((c.comprehension || 0) / 40) + Math.floor((c.realm || 0) / 2));
+export const FORGE_STYLES = {
+  strike:  { label: "Strike",  desc: "a clean elemental blow" },
+  torrent: { label: "Torrent", desc: "a flurry of three quick strikes" },
+  ruin:    { label: "Ruin",    desc: "one devastating, draining blow" },
+  ward:    { label: "Ward",    desc: "a defensive art — shield & regeneration" },
+  mend:    { label: "Mend",    desc: "a healing art that cleanses wounds" },
+};
+export function canForgeTech(c) {
+  if (!c.awakened) return [false, "Your dao is not yet awakened."];
+  if ((c.realm || 0) < 3) return [false, "Reach Foundation Establishment before you dare forge an original art."];
+  if ((c.comprehension || 0) < 80) return [false, "Forging an art demands rare insight — at least 80 Comprehension."];
+  if ((c.soul || 0) < 70) return [false, "Your spiritual sense is too dim to model a new art — at least 70 Soul Sense."];
+  if ((c.customTechs || []).length >= forgeTechCap(c)) return [false, `Your mind can hold no more than ${forgeTechCap(c)} self-forged arts — deepen your Comprehension and realm.`];
+  return [true, null];
+}
+// A deterministic spec for the art your nature + choices would yield: its combat
+// skill, passive bonuses, material cost, and odds of success.
+export function forgeTechSpec(c, element, style, name) {
+  const mag = forgeMag(c);
+  const elem = element && element !== "none" ? element : null;
+  const nm = (name && name.trim()) || "Nameless Art";
+  let skill, tier, qi;
+  if (style === "ruin") { skill = { dmg: round2(0.85 + mag * 0.28), pierce: 0.4, element: elem, self: { type: "weaken", turns: 1, value: 0.3 } }; qi = Math.round(28 + mag * 8); tier = 3; }
+  else if (style === "torrent") { skill = { dmg: round2(0.20 + mag * 0.07), hits: 3, element: elem }; qi = Math.round(20 + mag * 5); tier = 2; }
+  else if (style === "ward") { skill = { type: "defend", shield: round2(0.15 + mag * 0.06), self: { type: "regen", turns: 3, value: round2(0.03 + mag * 0.02) }, qiRestore: 0.1 }; qi = Math.round(12 + mag * 3); tier = 2; }
+  else if (style === "mend") { skill = { type: "heal", heal: round2(0.18 + mag * 0.09), cleanse: true, qiRestore: 0.08 }; qi = Math.round(16 + mag * 5); tier = 2; }
+  else { skill = { dmg: round2(0.42 + mag * 0.2), element: elem }; qi = Math.round(14 + mag * 6); tier = mag > 1.1 ? 3 : 2; }
+  const key = "custom_" + Math.floor(Math.random() * 1e9).toString(36) + (c.customTechs || []).length;
+  skill.id = key; skill.tech = key; skill.name = nm; skill.qi = qi;
+  skill.desc = `Your own forged art${elem ? ` of ${elem}` : ""} — ${FORGE_STYLES[style] ? FORGE_STYLES[style].desc : "a clean blow"}.`;
+  const qiBonus = round2(0.04 + mag * 0.10), atkPct = Math.round(4 + mag * 9);
+  const stones = Math.round(140 + tier * 180 + mag * 220), herbs = Math.round(15 + tier * 12);
+  const attuned = elem && c.root && c.root.elements && c.root.elements.includes(elem);
+  const chance = clamp(0.32 + c.comprehension / 300 + c.soul / 400 + (c.daoInsight || 0) * 0.04 + (attuned ? 0.1 : 0), 0.2, 0.95);
+  return { key, name: nm, element: elem, tier, qiBonus, atkPct, blurb: skill.desc, skill, stones, herbs, chance };
+}
+export function forgeTech(c, rng, element, style, name) {
+  const [ok, reason] = canForgeTech(c); if (!ok) return [reason];
+  const spec = forgeTechSpec(c, element, style, name);
+  if (c.spiritStones < spec.stones) return [`You lack the spirit stones to model the qi-formation: need ${spec.stones} (have ${c.spiritStones}).`];
+  if (c.herbs < spec.herbs) return [`You lack the spirit herbs to brew the medium: need ${spec.herbs} (have ${c.herbs}).`];
+  c.spiritStones -= spec.stones; c.herbs -= spec.herbs;
+  const msgs = [`You seal yourself away to forge the ${spec.name}${spec.element ? ` of ${spec.element}` : ""}, weaving qi into a wholly new shape... [${Math.floor(spec.chance * 100)}%]`];
+  if (rng.random() <= spec.chance) {
+    c.customTechs = c.customTechs || [];
+    c.customTechs.push({ key: spec.key, name: spec.name, element: spec.element, tier: spec.tier, qiBonus: spec.qiBonus, atkPct: spec.atkPct, blurb: spec.blurb, skill: spec.skill });
+    note(c, `Forged an original art: ${spec.name}.`);
+    msgs.push(`☯ Eureka — the formation holds! You forge the ${spec.name}, an art wholly your own, now yours to wield and to teach. (${spec.skill.desc})`);
+  } else {
+    const back = Math.round(spec.stones * 0.4); c.spiritStones += back;
+    c.comprehension = Math.min(160, c.comprehension + 1);
+    msgs.push(`✗ The qi-formation collapses before it sets. You salvage ${back} stones from the wreckage — and the failure sharpens your understanding. (+Comprehension)`);
+  }
+  return msgs;
+}
+// Look up any technique (standard or self-forged) by key.
+export function techTier(c, key) { return D.TECHNIQUES[key] ? D.TECHNIQUES[key][1] : ((c.customTechs || []).find(ct => ct.key === key) || { tier: 1 }).tier; }
+export function techName(c, key) { return D.TECHNIQUES[key] ? D.TECHNIQUES[key][0] : ((c.customTechs || []).find(ct => ct.key === key) || { name: "a lost art" }).name; }
+
+/* ------------------ your sect's library (藏经阁) ----------------------- *
+ * A founder enshrines arts they have mastered; each enriches the sect's
+ * teachings, lifting its prestige and its standing in the world's wars. */
+export function assignableSectTechs(c) {
+  if (!c.ownSect) return [];
+  const lib = (c.ownSect.library || []).map(e => e.key);
+  const out = [];
+  for (const t of c.techniques) if (D.TECHNIQUES[t] && t !== "basic_breathing" && !lib.includes(t)) out.push({ key: t, name: D.TECHNIQUES[t][0], tier: D.TECHNIQUES[t][1] });
+  for (const ct of (c.customTechs || [])) if (!lib.includes(ct.key)) out.push({ key: ct.key, name: ct.name, tier: ct.tier, custom: true });
+  return out;
+}
+export function assignSectTech(c, key) {
+  if (!c.ownSect) return ["You lead no sect."];
+  c.ownSect.library = c.ownSect.library || [];
+  if (c.ownSect.library.some(e => e.key === key)) return ["That art already stands in the sect library."];
+  const known = c.techniques.includes(key) || (c.customTechs || []).some(ct => ct.key === key);
+  if (!known) return ["You can only enshrine arts you yourself have mastered."];
+  const tier = techTier(c, key), nm = techName(c, key);
+  c.ownSect.library.push({ key, name: nm, tier });
+  const boost = tier * 6;
+  c.ownSect.prestige += boost;
+  note(c, `Enshrined ${nm} in the ${c.ownSect.name}'s library.`);
+  return [`You enshrine the ${nm} in your sect's library; its disciples will train in it for generations. (+${boost} prestige)`];
+}
+export const sectLibrary = c => (c.ownSect && c.ownSect.library) || [];
+export const sectLibraryBonus = s => (s && s.library) ? s.library.reduce((a, e) => a + (e.tier || 1), 0) : 0;
 export function tournament(c, rng) {
   if (!c.sectKey) return ["Only sect disciples may enter the sect tournament."];
   c.age += 1;

@@ -66,6 +66,7 @@ for (const k in SKILLS) if (SKILLS[k].tech) SKILL_BY_TECH[SKILLS[k].tech] = SKIL
 export function playerSkills(c) {
   const list = [SKILLS.strike, SKILLS.guard];
   for (const t of c.techniques) if (SKILL_BY_TECH[t]) list.push(SKILL_BY_TECH[t]);
+  for (const ct of (c.customTechs || [])) if (ct.skill) list.push(ct.skill);   // your own forged arts
   return list;
 }
 

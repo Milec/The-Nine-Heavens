@@ -454,6 +454,7 @@ function openCultivate() {
     // ---- shared ----
     const sg = el("div", "menu-grid");
     addBtn(sg, "Techniques & Mastery", "drill your learned arts", openTechniques, { full: true });
+    { const [ok] = E.canForgeTech(c); addBtn(sg, "Forge Your Own Art 创功", ok ? "weave a new technique from your dao" : "needs Foundation, 80 Comp, 70 Soul", openForgeTech, { full: true, disabled: !ok }); }
     body.appendChild(sg);
   });
 }
@@ -651,21 +652,93 @@ function openTechniques() {
   const c = state.c;
   openOverlay("Techniques & Mastery", body => {
     const skills = c.techniques.map(t => ({ t, s: Object.values(C.SKILLS).find(x => x.tech === t) })).filter(o => o.s);
-    if (!skills.length) { body.appendChild(el("p", "note", "You have learned no combat techniques yet. Find manuals in ruins, from masters, or the sect store.")); return; }
-    body.appendChild(el("p", "note", "Using a technique in battle deepens its mastery, raising its power. Tap one to drill it for a year (+mastery)."));
-    for (const { t, s } of skills) {
+    for (const ct of (c.customTechs || [])) if (ct.skill) skills.push({ t: ct.key, s: ct.skill, forged: true });
+    if (!skills.length) { body.appendChild(el("p", "note", "You have learned no combat techniques yet. Find manuals in ruins, from masters, the sect store — or forge your own from the Cultivate tab.")); return; }
+    body.appendChild(el("p", "note", "Using a technique in battle deepens its mastery, raising its power. Tap one to drill it for a year (+mastery). ✦ marks an art you forged yourself."));
+    for (const { t, s, forged } of skills) {
       const pts = (c.mastery && c.mastery[t]) || 0;
       const rank = D.masteryRank(pts), next = D.masteryNext(pts);
       const pctTo = next ? clampPct(pts - rank[1], next[1] - rank[1]) : 100;
       const eff = s.type === "heal" ? `heal ${Math.round(s.heal * 100)}%+` : s.type === "defend" ? "shield" : `${Math.round(s.dmg * 100)}% power dmg`;
       const row = el("div", "listrow");
       row.innerHTML = `<div class="lr-ava">${s.element ? C.elementIcon(s.element) : "✊"}</div><div class="lr-main">
-        <div class="lr-title">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${rank[0]} (+${Math.round(rank[2] * 100)}%)</span></div>
+        <div class="lr-title">${escapeHtml(s.name)}${forged ? " ✦" : ""} <span class="lr-sub" style="display:inline">· ${rank[0]} (+${Math.round(rank[2] * 100)}%)</span></div>
         <div class="lr-sub">${eff}${s.qi ? ` · ⊙${s.qi} qi` : " · free"}${next ? ` · ${pts}/${next[1]} → ${next[0]}` : " · perfected"}</div>
         <div class="affbar"><div style="width:${pctTo}%;background:var(--gold2)"></div></div></div>`;
       row.onclick = () => runTimed(() => L.trainTechnique(c, state.rng, t), "cult");
       body.appendChild(row);
     }
+  });
+}
+// Forge an original technique from your element and insight — costly and uncertain.
+function openForgeTech() {
+  const c = state.c;
+  const elems = ["none", ...((c.root && c.root.elements) || [])];
+  const styles = Object.keys(E.FORGE_STYLES);
+  const sel = { element: elems.length > 1 ? elems[1] : "none", style: "strike", name: "" };
+  openOverlay("Forge Your Own Art 创功", body => {
+    const [ok, reason] = E.canForgeTech(c);
+    if (!ok) { body.appendChild(el("p", "note", reason)); backBtn(body, openCultivate); return; }
+    const render = () => {
+      body.innerHTML = "";
+      body.appendChild(el("p", "note", `Weave qi into a shape no manual holds; its power grows with your Comprehension, Soul Sense and realm, and may collapse if your insight falls short. You hold ${c.spiritStones} stones · ${c.herbs} herbs · ${(c.customTechs || []).length}/${E.forgeTechCap(c)} forged arts.`));
+      const nm = el("input", "txtfield"); nm.type = "text"; nm.placeholder = "Name your art (or leave it nameless)"; nm.maxLength = 30; nm.value = sel.name;
+      nm.oninput = () => { sel.name = nm.value; };
+      body.appendChild(nm);
+      const seg = (label, opts, cur, key, fmt) => {
+        body.appendChild(el("div", "cr-label", label));
+        const rowEl = el("div", "seg"); rowEl.style.flexWrap = "wrap"; rowEl.style.gap = "6px";
+        for (const o of opts) { const b = el("button"); b.className = cur === o ? "on" : ""; b.textContent = fmt ? fmt(o) : o; b.onclick = () => { sel[key] = o; render(); }; rowEl.appendChild(b); }
+        body.appendChild(rowEl);
+      };
+      seg("Element", elems, sel.element, "element", o => o === "none" ? "Neutral" : o);
+      seg("Form", styles, sel.style, "style", o => E.FORGE_STYLES[o].label);
+      const s = E.forgeTechSpec(c, sel.element, sel.style, sel.name);
+      const eff = s.skill.type === "heal" ? `heals ${Math.round(s.skill.heal * 100)}% +cleanse` : s.skill.type === "defend" ? `shield ${Math.round(s.skill.shield * 100)}% +regen` : `${Math.round(s.skill.dmg * 100)}% power${s.skill.hits ? ` ×${s.skill.hits}` : ""}${s.skill.pierce ? ` · pierce ${Math.round(s.skill.pierce * 100)}%` : ""}`;
+      const pv = el("div", "cr-preview");
+      pv.appendChild(el("div", "cr-pv-top", `<b>${escapeHtml(s.name)}</b>${s.element ? ` · ${s.element}` : " · Neutral"} · ${E.FORGE_STYLES[sel.style].label} · tier ${s.tier}`));
+      pv.appendChild(infoRows([
+        ["In battle", `${eff} · ⊙${s.skill.qi} qi`],
+        ["Passive", `+${Math.round(s.qiBonus * 100)}% qi-power, +${s.atkPct} attack`],
+        ["Materials", `${s.stones} stones · ${s.herbs} herbs`],
+        ["Success", `${Math.floor(s.chance * 100)}%${(c.root && c.root.elements && c.root.elements.includes(s.element)) ? " (attuned)" : ""}`],
+      ]));
+      body.appendChild(pv);
+      const afford = c.spiritStones >= s.stones && c.herbs >= s.herbs;
+      const forgeBtn = el("button", "mbtn full primary");
+      forgeBtn.innerHTML = `Forge the Art<small>${afford ? `a deed · ${Math.floor(s.chance * 100)}% · ${s.stones} stones, ${s.herbs} herbs` : "not enough materials"}</small>`;
+      if (afford) forgeBtn.onclick = () => runTimed(() => E.forgeTech(c, state.rng, sel.element, sel.style, sel.name), "cult");
+      else forgeBtn.disabled = true;
+      body.appendChild(forgeBtn);
+      backBtn(body, openCultivate);
+    };
+    render();
+  });
+}
+function openOwnSectLibrary() {
+  const c = state.c;
+  openOverlay("Sect Library 藏经阁", body => {
+    if (!c.ownSect) { backBtn(body, openSect); return; }
+    const lib = E.sectLibrary(c);
+    body.appendChild(el("p", "note", `Enshrine arts you have mastered in your sect's library; its disciples train in them for generations, lifting the sect's prestige and its might in war. The library adds <b>+${E.sectLibraryBonus(c.ownSect)}</b> prestige each year.`));
+    if (lib.length) {
+      body.appendChild(el("div", "section-h", "Enshrined Arts"));
+      for (const e of lib) {
+        const row = el("div", "listrow bound");
+        row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${escapeHtml(e.name)}</div><div class="lr-sub">tier ${e.tier} · +${e.tier} prestige/year</div></div>`;
+        body.appendChild(row);
+      }
+    }
+    const avail = E.assignableSectTechs(c);
+    body.appendChild(el("div", "section-h", "Arts You Can Enshrine"));
+    if (!avail.length) { body.appendChild(el("p", "note", "You have no further arts to enshrine — learn or forge more.")); }
+    for (const a of avail) {
+      const row = el("div", "listrow");
+      row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${escapeHtml(a.name)}${a.custom ? " ✦" : ""}</div><div class="lr-sub">tier ${a.tier} · enshrine for +${a.tier * 6} prestige now, +${a.tier}/year</div></div>`;
+      row.onclick = () => { logMessages(E.assignSectTech(c, a.key)); renderProfile(); save(); openOwnSectLibrary(); };
+      body.appendChild(row);
+    }
+    backBtn(body, openSect);
   });
 }
 // Build a small grid of leaf-action buttons (the classic mbtn). Returns the grid.
@@ -1277,6 +1350,7 @@ function renderOwnSect(c, body) {
   mk("Hold a Recruitment", s.members < cap ? "a deed · draw new disciples" : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng)), true, s.members < cap);
   if (c.realm >= 4 && L.getDisciples(c).length < 4)
     mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
+  mk("Sect Library 藏经阁", `enshrine your arts · +${E.sectLibraryBonus(s)}/yr`, openOwnSectLibrary, true);
   mk("Sect Conflicts 宗门之争", "wage war on rival sects", openSectWar, true);
   body.appendChild(grid);
   // ---- your own sect's hierarchy ----
@@ -1395,7 +1469,7 @@ function openSheet() {
       ["Spirit Stones", c.spiritStones], ["Spirit Herbs", c.herbs],
       ["Qi / Healing / Breakthrough Pills", `${c.pills} / ${c.healingPills} / ${c.breakthroughPills}`],
       ...(c.talismans && Object.values(c.talismans).some(n => n > 0) ? [["Talismans 符箓", D.TALISMAN_ORDER.filter(k => (c.talismans[k] || 0) > 0).map(k => `${D.TALISMANS[k].name.split(" ")[0]}×${c.talismans[k]}`).join(", ")]] : []),
-      ["Techniques", c.techniques.map(t => D.TECHNIQUES[t][0]).join(", ")],
+      ["Techniques", [...c.techniques.map(t => D.TECHNIQUES[t][0]), ...(c.customTechs || []).map(ct => ct.name + " ✦")].join(", ")],
     ]));
     const ach = el("button", "mbtn full"); ach.innerHTML = "✦ Achievements & Legacy";
     ach.onclick = () => openAchievements(openSheet); body.appendChild(ach);
@@ -1672,6 +1746,8 @@ function resumeFrom(sv) {
   if (c.sectJoinedAge === undefined) c.sectJoinedAge = c.sectKey ? c.age : null;
   if (!c.movementArts) c.movementArts = [];
   if (!c.moveMastery) c.moveMastery = {};
+  if (!c.customTechs) c.customTechs = [];
+  if (c.ownSect && !c.ownSect.library) c.ownSect.library = [];
   if (!c.region) c.region = "azuredomain";
   W.ensureWorld(c, state.rng);   // old saves get a freshly generated realm, located sensibly
   closeOverlay(); $("log").innerHTML = ""; logBanner("☯ YOUR SAGA CONTINUES ☯"); renderProfile();
