@@ -234,9 +234,16 @@ function renderProfile() {
   const chips = $("pf-chips"); chips.innerHTML = "";
   const add = (label, val, cls, tip) => { const ch = el("span", "chip" + (cls ? " " + cls : "") + (tip ? " tappable" : ""), `${label} <b>${val}</b>`); if (tip) ch.onclick = () => showTip(tip); chips.appendChild(ch); };
   add("Age", `${c.age}/${c.maxAge}`, "", "age");
-  for (const cat of ["cult", "act", "social"]) {
-    const n = deedsLeft(cat);
-    add(DEED_ICON[cat], "●".repeat(n) + "○".repeat(Math.max(0, DEEDS_PER_CAT - n)), n <= 0 ? "warn" : "good", "deeds");
+  // One compact deeds chip: the three yearly budgets side by side.
+  {
+    const parts = ["cult", "act", "social"].map(cat => {
+      const n = deedsLeft(cat);
+      return `<span class="dg">${DEED_ICON[cat]}<span class="dp">${"●".repeat(n)}${"○".repeat(Math.max(0, DEEDS_PER_CAT - n))}</span></span>`;
+    }).join("");
+    const allSpent = ["cult", "act", "social"].every(cat => deedsLeft(cat) <= 0);
+    const ch = el("span", "chip deeds-chip tappable" + (allSpent ? " warn" : ""), parts);
+    ch.onclick = () => showTip("deeds");
+    chips.appendChild(ch);
   }
   if (c.awakened) add(icon("power", { size: 13, cls: "chip-ic" }), Math.floor(E.power(c)), "", "power");
   add("Fame", D.standingLabel(c.reputation), c.reputation >= 90 ? "good" : c.reputation <= -12 ? "bad" : "", "fame");
@@ -674,9 +681,9 @@ function openActivities() {
     const grid = el("div", "menu-grid");
     const ab = D.abodeAt(c.abode || 0);
     navCard(grid, "🥋", "Training", "temper body · study · rest · earn", actTrain);
-    navCard(grid, "⚔️", "Adventure", "wander · hunt · spar · delve", actAdventure);
+    navCard(grid, "⚔️", "Adventure", "travel · wander · hunt · delve", actAdventure);
     navCard(grid, "⚗️", "Crafting", "refine pills · inscribe talismans", actCraft);
-    navCard(grid, "💰", "Commerce", "the market 坊市 · travel the realm", actCommerce);
+    navCard(grid, "💰", "Commerce", "the market 坊市 · buy & sell", actCommerce);
     navCard(grid, "🏯", "Home & Assets", ab ? `${ab[1]} · treasures · beast` : "found an abode · treasures · beast", actHome);
     navCard(grid, "🌏", "The Wider World", "the Heaven Board · your legacy", actWorld);
     body.appendChild(grid);
@@ -702,8 +709,9 @@ function actAdventure() {
     const young = key => c.age < (AGE_MIN[key] || 0), sub = (key, n) => young(key) ? `from age ${AGE_MIN[key]}` : n;
     const canHunt = isCultivator(c), canBoss = canHunt && isStrong(c);
     const here = W.currentLoc(c), reg = D.REGION_BY_KEY[c.region], t = W.typeOf(here);
-    if (here) body.appendChild(el("p", "note", `You range out from <b>${escapeHtml(here.name)}</b> — ${reg ? reg[1] : ""} (${DANGER_TIER(reg ? reg[3] : 1)} country).${t.hunt ? " The surrounding wilds teem with spirit-beasts." : ""}${t.delve ? " Sealed ruins lie close at hand — ripe for delving." : ""} Travel the Realm (Commerce) to find deadlier, richer lands.`));
+    if (here) body.appendChild(el("p", "note", `You range out from <b>${escapeHtml(here.name)}</b> — ${reg ? reg[1] : ""} (${DANGER_TIER(reg ? reg[3] : 1)} country).${t.hunt ? " The surrounding wilds teem with spirit-beasts." : ""}${t.delve ? " Sealed ruins lie close at hand — ripe for delving." : ""} Travel the realm below to find deadlier, richer lands.`));
     const g = leafGrid(body);
+    g.mk("Travel the Realm", c.age < AGE_MIN.travel ? `from age ${AGE_MIN.travel}` : (here ? "now at " + here.name : "the world map"), openWorldMap, { full: true, disabled: c.age < AGE_MIN.travel });
     g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander });
     g.mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
     g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
@@ -725,10 +733,10 @@ function actCraft() {
 function actCommerce() {
   const c = state.c;
   openOverlay("Commerce 坊市", body => {
-    const here = W.currentLoc(c), market = W.hasMarket(c);
+    const market = W.hasMarket(c);
     const g = leafGrid(body);
-    g.mk("Visit the Market", market ? `💎 ${c.spiritStones} · buy & sell` : "no market in the wilds — travel first", openMarket, { full: true, disabled: !market });
-    g.mk("Travel the Realm", c.age < AGE_MIN.travel ? `from age ${AGE_MIN.travel}` : (here ? "now at " + here.name : "the world map"), openWorldMap, { full: true, disabled: c.age < AGE_MIN.travel });
+    if (!market) body.appendChild(el("p", "note", "No market out here in the wilds — travel to a city, town or village (Adventure → Travel the Realm) to trade."));
+    g.mk("Visit the Market", market ? `💎 ${c.spiritStones} · buy & sell` : "no market here — travel to a settlement", openMarket, { full: true, disabled: !market });
     backBtn(body, openActivities);
   });
 }
@@ -968,7 +976,7 @@ function openWorldMap() {
       row.onclick = () => openLocationCard(loc.id);
       body.appendChild(row);
     }
-    backBtn(body, actCommerce);
+    backBtn(body, actAdventure);
   });
 }
 function openLocationCard(id) {
@@ -1109,15 +1117,18 @@ function openSect() {
     if (!c.awakened) { body.appendChild(el("p", "note", "You cannot join a sect before your spiritual root awakens.")); return; }
     if (c.ownSect) { renderOwnSect(c, body); return; }
     if (!c.sectKey) {
-      body.appendChild(el("p", "note", "Join a sect for a cultivation bonus, a yearly stipend, a rank ladder, quests and tournaments. Better sects demand rarer talent. Each keeps a mountain seat somewhere in the realm."));
+      body.appendChild(el("p", "note", "Join a sect for a cultivation bonus, a yearly stipend, a rank ladder, quests and tournaments. Better sects demand rarer talent — and you must present yourself at a sect's mountain seat to seek entry. Tap one to find the way there."));
       for (const s of D.SECTS) {
         const ok = c.realm >= s[5];
-        const gate = ok ? `${Math.floor(E.joinChance(c, s) * 100)}% accepted` : `needs ${D.REALMS[s[5]][0]}`;
         const seat = W.sectSeat(c, s[0]);
-        const seatTxt = seat ? `seat: ${seat.name}${seat.id === c.location ? " (you are here)" : ""}` : "";
-        const row = el("div", "listrow" + (ok ? "" : " disabled"));
-        row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${s[1]}</div><div class="lr-sub">${s[2]} · ${gate}${seatTxt ? " · " + seatTxt : ""}<br>${s[9]}</div></div>`;
-        if (ok) row.onclick = () => runFree(() => E.attemptJoin(c, state.rng, s[0]));
+        const atSeat = !!(seat && seat.id === c.location);
+        const gate = !ok ? `needs ${D.REALMS[s[5]][0]}`
+          : atSeat ? `${Math.floor(E.joinChance(c, s) * 100)}% accepted · you are at the gate`
+          : seat ? `journey to ${seat.name} to seek entry` : "seat unknown";
+        const row = el("div", "listrow" + (!ok ? " disabled" : atSeat ? " bound" : ""));
+        row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${s[1]}${atSeat ? " ★" : ""}</div><div class="lr-sub">${s[2]} · ${gate}<br>${s[9]}</div></div>`;
+        if (ok && atSeat) row.onclick = () => runFree(() => E.attemptJoin(c, state.rng, s[0]));
+        else if (ok && seat) row.onclick = () => openLocationCard(seat.id);
         body.appendChild(row);
       }
       body.appendChild(el("div", "section-h", "开宗立派 · Your Own Sect"));
