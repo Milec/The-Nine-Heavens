@@ -1153,17 +1153,69 @@ function openSect() {
       }
       return;
     }
-    body.appendChild(infoRows([["Sect", E.sectName(c)], ["Rank", E.rankName(c)], ["Contribution", c.contribution]]));
+    body.appendChild(infoRows([
+      ["Sect", E.sectName(c)],
+      ["Your rank", E.rankName(c)],
+      ["Contribution", c.contribution],
+      ["Missions run", c.sectMissions || 0],
+      ["Years a disciple", c.sectJoinedAge != null ? Math.max(0, c.age - c.sectJoinedAge) : "—"],
+    ]));
+    // ---- the sect's hierarchy ladder ----
+    body.appendChild(el("div", "section-h", "Hierarchy 品级"));
+    renderRankLadder(c, body);
+    const fig = E.sectFigures(c.sectKey);
+    if (fig) body.appendChild(el("p", "note", `Above you stand Sect Master <b>${escapeHtml(fig.master.name)}</b> (${D.REALMS[fig.master.realm][0]}), and the elders ${fig.elders.map(e => `${escapeHtml(e.name)} (${e.title})`).join(", ")}.`));
+    // ---- promotion status ----
     const req = E.nextRankReq(c);
-    if (req) body.appendChild(el("p", "note", E.canPromote(c) ? `Promotion to ${req[0]}: READY` : `Next rank ${req[0]} — needs ${D.REALMS[req[1]][0]} & ${req[2]} contribution.`));
+    if (req) {
+      const blockers = E.promotionBlockers(c);
+      body.appendChild(el("p", "note", blockers.length
+        ? `To rise to <b>${req[0]}</b> you must still: ${blockers.join("; ")}.`
+        : `You meet every requirement for <b>${req[0]}</b> — face the promotion trial when ready.`));
+    }
     const grid = el("div", "menu-grid");
-    const mk = (l, s, h, full) => { const b = el("button", "mbtn" + (full ? " full" : "")); b.innerHTML = `${l}<small>${s}</small>`; b.onclick = h; grid.appendChild(b); };
-    mk("Take a Quest", "a deed · earn contribution", openQuests);
-    mk("Attempt Promotion", "climb the ranks", () => runFree(() => E.attemptPromotion(c, state.rng)));
+    const mk = (l, s, h, full) => { const b = el("button", "mbtn" + (full ? " full" : "")); b.innerHTML = `${l}<small>${escapeHtml(s)}</small>`; b.onclick = h; grid.appendChild(b); };
+    mk("Take a Mission", "a deed · earn contribution", openQuests);
+    mk("Seek Promotion", req ? (E.canPromote(c) ? "trial of rank" : "view requirements") : "at the summit", doPromotion);
     mk("Grand Tournament", "a deed · interactive duels", doTournament);
-    mk("Sect Store", "25 contrib → pills", () => runFree(() => E.exchangeContribution(c, state.rng)));
+    mk("Sect Store", "25 contrib → pills & manuals", () => runFree(() => E.exchangeContribution(c, state.rng)));
     const leave = el("button", "mbtn full danger"); leave.innerHTML = "Leave the Sect<small>go rogue</small>"; leave.onclick = () => runFree(() => E.leaveSect(c)); grid.appendChild(leave);
     body.appendChild(grid);
+  });
+}
+// The rank ladder, Sect Master at the top down to Outer Disciple, with your rung
+// lit and the requirements of the ranks still above you.
+function renderRankLadder(c, body) {
+  const wrap = el("div", "rankladder");
+  for (let i = D.SECT_RANKS.length - 1; i >= 0; i--) {
+    const rk = D.SECT_RANKS[i];
+    const state = i < c.sectRank ? "past" : i === c.sectRank ? "current" : "future";
+    const mark = state === "current" ? "▶" : state === "past" ? "✓" : "·";
+    let req;
+    if (i === 0) req = "entry rank";
+    else { const bits = [D.REALMS[rk[1]][0], `${rk[2]} contrib`]; if (rk[5]) bits.push(`${rk[5]} missions`); if (rk[6]) bits.push(`${rk[6]} fame`); req = bits.join(" · "); }
+    const detail = state === "current" ? "you are here" : state === "past" ? "attained" : req;
+    const row = el("div", "rl-row " + state);
+    row.innerHTML = `<span class="rl-mark">${mark}</span><span class="rl-name">${rk[0]}</span><span class="rl-req">${escapeHtml(detail)}</span>`;
+    wrap.appendChild(row);
+  }
+  body.appendChild(wrap);
+}
+function doPromotion() {
+  const c = state.c;
+  const req = E.nextRankReq(c);
+  if (!req) { closeOverlay(); logMessages(["You already sit at the very summit of your sect."]); renderProfile(); return; }
+  const blockers = E.promotionBlockers(c);
+  if (blockers.length) { closeOverlay(); logMessages([`To rise to ${req[0]} you must still: ${blockers.join("; ")}.`]); renderProfile(); return; }
+  const foe = E.promotionTrialFoe(c, state.rng);
+  if (!foe) { runFree(() => E.completePromotion(c)); return; }     // low ranks: no trial
+  closeOverlay();
+  logMessages([`The elders set a promotion trial: best ${foe[0]} before the assembled sect to earn ${req[0]}.`]);
+  const enemy = C.makeEnemy(c, state.rng, { kind: "rogue", name: foe[0], power: foe[1], element: null, reward: 0 });
+  startBattle(enemy, { title: `Rank Trial · ${req[0]}`, nonLethal: true, noSpoils: true }, (outcome) => {
+    if (state.c.alive && outcome === "win") logMessages(E.completePromotion(c));
+    else if (state.c.alive) logMessages([`✗ ${foe[0]} bests you before the watching hall. The rank is not yet yours — grow stronger and return.`]);
+    renderProfile(); if (!state.c.alive) checkDeath(); else openSect();
   });
 }
 function renderOwnSect(c, body) {
@@ -1187,8 +1239,35 @@ function renderOwnSect(c, body) {
   mk("Hold a Recruitment", s.members < cap ? "a deed · draw new disciples" : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng)), true, s.members < cap);
   if (c.realm >= 4 && L.getDisciples(c).length < 4)
     mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
+  mk("Sect Conflicts 宗门之争", "wage war on rival sects", openSectWar, true);
   body.appendChild(grid);
+  // ---- your own sect's hierarchy ----
+  body.appendChild(el("div", "section-h", "Your Hierarchy 麾下"));
+  const core = L.getDisciples(c).filter(n => n.alive);
+  const ladder = el("div", "rankladder");
+  const row = (mark, name, title, cls) => `<div class="rl-row ${cls}"><span class="rl-mark">${mark}</span><span class="rl-name">${escapeHtml(name)}</span><span class="rl-req">${escapeHtml(title)}</span></div>`;
+  let html = row("▶", c.name, "Founder & Sect Master", "current");
+  core.slice(0, 6).forEach((n, i) => { html += row("·", n.name, i < 2 ? "Grand Elder" : "Core Disciple", "past"); });
+  ladder.innerHTML = html;
+  body.appendChild(ladder);
+  body.appendChild(el("p", "note", `${s.members} disciples in all throng the outer and inner halls beneath your core.${(s.conquered || []).length ? ` Your banner has broken ${s.conquered.length} rival sect${s.conquered.length > 1 ? "s" : ""}.` : ""}`));
   const dis = el("button", "mbtn full danger"); dis.innerHTML = "Disband the Sect<small>lower your banner</small>"; dis.onclick = () => runFree(() => L.disbandSect(c)); body.appendChild(dis);
+}
+function openSectWar() {
+  const c = state.c;
+  openOverlay("Sect Conflicts 宗门之争", body => {
+    if (!c.ownSect) { body.appendChild(el("p", "note", "You lead no sect to send to war.")); backBtn(body, openSect); return; }
+    body.appendChild(el("p", "note", `March the ${D.sectTier(c.ownSect.prestige)[1]} against a rival sect (a deed). Victory absorbs their disciples, prestige and fame — and may seize spoils; defeat bleeds your sect and wounds you.`));
+    for (const r of E.sectWarRivals(c)) {
+      const s = r.sect;
+      const sub = `${s[2]} · base might ${r.strength} · ${Math.floor(r.chance * 100)}% to prevail${r.conquered ? " · already broken" : ""}${r.hostile ? " · sworn foes" : ""}`;
+      const rrow = el("div", "listrow" + (r.conquered ? " bound" : ""));
+      rrow.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${s[1]}</div><div class="lr-sub">${sub}<br>${s[9]}</div></div>`;
+      rrow.onclick = () => { if (!useAction("act")) return; logMessages(E.wageSectWar(c, state.rng, r.key)); renderProfile(); if (!state.c.alive) checkDeath(); else openSectWar(); };
+      body.appendChild(rrow);
+    }
+    backBtn(body, openSect);
+  });
 }
 function openFoundSect() {
   const c = state.c;
@@ -1547,6 +1626,8 @@ function resumeFrom(sv) {
   if (!c.sex) c.sex = "male";
   if (!c.mastery) c.mastery = {};
   if (!c.epithets) c.epithets = [];
+  if (c.sectMissions == null) c.sectMissions = 0;
+  if (c.sectJoinedAge === undefined) c.sectJoinedAge = c.sectKey ? c.age : null;
   if (!c.movementArts) c.movementArts = [];
   if (!c.moveMastery) c.moveMastery = {};
   if (!c.region) c.region = "azuredomain";

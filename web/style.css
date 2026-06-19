@@ -244,6 +244,21 @@ body {
 .affbar { height: 6px; border-radius: 4px; background: #20263f; overflow: hidden; margin-top: 6px; border: 1px solid var(--line); }
 .affbar > div { height: 100%; }
 
+/* ============================ sect hierarchy ========================= */
+.rankladder { display: flex; flex-direction: column; gap: 3px; margin: 4px 0 6px; }
+.rl-row {
+  display: flex; align-items: center; gap: 9px; padding: 7px 11px; border-radius: var(--r-sm);
+  background: var(--panel); border: 1px solid var(--line); font-size: .84rem;
+}
+.rl-row .rl-mark { width: 12px; text-align: center; color: var(--muted); flex: none; }
+.rl-row .rl-name { flex: 1; min-width: 0; font-weight: 700; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rl-row .rl-req { color: var(--muted); font-size: .72rem; text-align: right; flex: none; max-width: 52%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rl-row.current { border-color: var(--accent2); background: var(--aura); }
+.rl-row.current .rl-mark, .rl-row.current .rl-name, .rl-row.current .rl-req { color: var(--accent); }
+.rl-row.past .rl-mark { color: var(--jade); }
+.rl-row.past .rl-name { color: var(--muted); }
+.rl-row.future { opacity: .85; }
+
 /* ============================ world map =============================== */
 .worldmap {
   position: relative; width: 100%; aspect-ratio: 1 / 0.74; margin: 4px 0 12px;
