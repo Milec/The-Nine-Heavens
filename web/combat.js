@@ -52,6 +52,13 @@ export const SKILLS = {
   mountain_seal: { id: "mountain_seal", tech: "mountain_seal", name: "Mountain-Bearing Seal", qi: 22, dmg: 0.60, element: "Earth", target: { type: "stun", turns: 1, value: 0, chance: 0.35 }, desc: "Drop a mountain's weight on the foe — heavy Earth damage that may pin them." },
   heaven_slash: { id: "heaven_slash", tech: "heaven_slash", name: "Heaven-Splitting Slash", qi: 32, dmg: 0.95, pierce: 0.4, element: "Metal", self: { type: "weaken", turns: 1, value: 0.30 }, desc: "A colossal cut — but it leaves you spent (weakened) next turn." },
   samsara_palm: { id: "samsara_palm", tech: "samsara_palm", name: "Samsara Heaven-Turning Palm", qi: 30, dmg: 0.72, element: "Void", lifesteal: 0.35, desc: "Turn the wheel of life and death: heavy void damage that mends you." },
+  // — sect-exclusive signature arts —
+  cloudmist_veil: { id: "mist_veil", tech: "cloudmist_veil", name: "Cloud-Mist Veil", qi: 16, type: "defend", shield: 0.18, self: { type: "regen", turns: 3, value: 0.05 }, qiRestore: 0.12, desc: "Vanish into mist: a shield, steady regeneration, and restored qi." },
+  fiveelem_cycle: { id: "elem_cycle", tech: "fiveelem_cycle", name: "Five Elements Rotation", qi: 24, dmg: 0.30, hits: 2, pierce: 0.3, desc: "Strike twice through the cycle of the five phases, piercing defences." },
+  spiritbeast_primal: { id: "primal_descent", tech: "spiritbeast_primal", name: "Primal Beast Descent", qi: 26, dmg: 0.58, self: { type: "empower", turns: 3, value: 0.20 }, desc: "Beast-fury made flesh: heavy damage and +20% damage for 3 turns." },
+  azure_formation: { id: "azure_array", tech: "azure_formation", name: "Azure Sword Formation", qi: 30, dmg: 0.34, hits: 3, element: "Metal", desc: "A formation of azure flying swords: three elemental strikes." },
+  heavensword_myriad: { id: "myriad_return", tech: "heavensword_myriad", name: "Ten-Thousand Swords Return", qi: 38, dmg: 1.05, pierce: 0.5, element: "Metal", desc: "Every blade under heaven descends at once — a realm-shaking cut." },
+  bloodcult_sea: { id: "blood_sea", tech: "bloodcult_sea", name: "Boundless Blood Sea", qi: 30, dmg: 0.66, element: "Dark", lifesteal: 0.6, karma: -2, desc: "A tide of blood that drowns the foe and heals you deeply. It stains the soul." },
 };
 const SKILL_BY_TECH = {};
 for (const k in SKILLS) if (SKILLS[k].tech) SKILL_BY_TECH[SKILLS[k].tech] = SKILLS[k];

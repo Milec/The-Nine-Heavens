@@ -816,6 +816,7 @@ export function foundSect(c, rng, name) {
 // from your strength and following, spreads your name, and pays a stipend.
 function sectYearly(c, rng, events) {
   const s = c.ownSect; if (!s) return;
+  E.tickSectWorld(c, rng);   // the realm's rival sects rise, fall and rebuild
   const cap = sectCapacity(c);
   const coreDisc = c.relationships.filter(n => n.alive && n.role === "disciple").length;
   if (s.members < cap) {

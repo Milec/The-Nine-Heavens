@@ -1148,33 +1148,52 @@ export function sectFigures(sectKey) {
   for (let i = 0; i < n; i++) elders.push({ name: npcName(rng), realm: Math.max(3, baseRealm - rng.randint(1, 3)), title: i === 0 ? "Grand Elder" : "Elder" });
   return { master, elders };
 }
+/* The realm's great sects are not static: their might drifts year by year, and a
+ * sect you shatter rebuilds over a decade or so — so the war map keeps shifting. */
+const sectBaseMight = s => (s[4] || 1) * 60 + 100;
+export function ensureSectWorld(c) {
+  if (!c.sectWorld) { c.sectWorld = {}; for (const s of D.SECTS) c.sectWorld[s[0]] = { strength: sectBaseMight(s), broken: 0 }; }
+  for (const s of D.SECTS) if (!c.sectWorld[s[0]]) c.sectWorld[s[0]] = { strength: sectBaseMight(s), broken: 0 };
+  return c.sectWorld;
+}
+// One year for the world's sects: the broken slowly rebuild, the rest rise and
+// fall on their own fortunes. Called from the yearly tick when you lead a sect.
+export function tickSectWorld(c, rng) {
+  const w = ensureSectWorld(c);
+  for (const s of D.SECTS) {
+    const st = w[s[0]], base = sectBaseMight(s);
+    if (st.broken > 0) { st.broken -= 1; if (st.broken <= 0) st.strength = base * 0.7; }   // risen from the ashes
+    else st.strength = clamp(st.strength * rng.uniform(0.95, 1.06), base * 0.5, base * 2.6);
+  }
+}
 // The named sects your own founded sect may come to blows with, each with the
-// odds your banner would prevail against theirs.
+// odds your banner would prevail against theirs — and whether they lie broken.
 export function sectWarRivals(c) {
   const own = c.ownSect; if (!own) return [];
-  const eraD = (D.eraAt(c.era)[5]) || 1;
+  const w = ensureSectWorld(c), eraD = (D.eraAt(c.era)[5]) || 1;
   return D.SECTS.map(s => {
-    const theirs = ((s[4] || 1) * 60 + 100) * eraD;
+    const st = w[s[0]], theirs = st.strength * eraD;
     const mine = (own.prestige || 0) + (own.members || 0) * 3 + power(c) / 40;
     const chance = clamp(mine / (mine + theirs), 0.06, 0.94);
-    const conquered = (own.conquered || []).includes(s[0]);
-    return { key: s[0], sect: s, strength: Math.round(theirs), chance, conquered, hostile: (own.alignment === "demonic") !== (s[2] === "demonic") };
+    return { key: s[0], sect: s, strength: Math.round(theirs), chance, broken: st.broken > 0, brokenYears: st.broken, hostile: (own.alignment === "demonic") !== (s[2] === "demonic") };
   });
 }
-// March your sect to war against a rival sect (a deed). Win and you break them,
-// absorbing disciples, prestige, fame and spoils; lose and you bleed for it.
+// March your sect to war against a rival sect (a deed). Win and you break them
+// for years, absorbing disciples, prestige, fame and spoils; lose and you bleed.
 export function wageSectWar(c, rng, key) {
   const own = c.ownSect; if (!own) return ["You lead no sect to send to war."];
   const target = D.SECT_BY_KEY[key]; if (!target) return ["No such sect."];
+  const w = ensureSectWorld(c), st = w[key];
   const r = sectWarRivals(c).find(x => x.key === key);
   const chance = r ? r.chance : 0.4;
-  const broken = (own.conquered || []).includes(key);   // a sect already shattered yields little more
+  const broken = st.broken > 0;   // a sect already in ruins yields little more
   const msgs = [`Your banner advances on the ${target[1]}${broken ? ", what remains of it" : ""}. The two sects clash upon the slopes! [${Math.floor(chance * 100)}% chance]`];
   if (rng.random() <= chance) {
     const mult = broken ? 0.3 : 1;
     const presGain = Math.round((rng.randint(25, 60) + (target[4] || 1) * 12) * mult);
     const memGain = Math.round(rng.randint(3, 10) * mult), spoils = Math.round(rng.randint(40, 120) * mult);
     own.prestige += presGain; own.members += memGain; c.spiritStones += spoils; c.reputation += broken ? 1 : 6;
+    if (!broken) { st.broken = rng.randint(8, 15); st.strength = Math.max(sectBaseMight(target) * 0.25, st.strength * 0.3); }
     own.conquered = own.conquered || []; if (!own.conquered.includes(key)) own.conquered.push(key);
     c.karma += target[2] === "demonic" ? 2 : -2;
     msgs.push(`✦ Victory! The ${target[1]} is ${broken ? "scattered anew" : "broken; its survivors bow to your banner"}. (+${presGain} prestige, +${memGain} disciples, +${spoils} stones${broken ? "" : ", +6 fame"})`);
@@ -1183,11 +1202,28 @@ export function wageSectWar(c, rng, key) {
   } else {
     const presLoss = rng.randint(15, 40), memLoss = rng.randint(2, 8);
     own.prestige = Math.max(0, own.prestige - presLoss); own.members = Math.max(0, own.members - memLoss);
+    st.strength = clamp(st.strength * rng.uniform(1.05, 1.18), 0, sectBaseMight(target) * 3);   // a repelled foe grows bolder
     c.reputation -= 3; c.hp = Math.max(1, c.hp - c.maxHp * 0.25);
     msgs.push(`✗ The ${target[1]} throws back your assault with heavy losses. (−${presLoss} prestige, ${memLoss} disciples slain, and you are wounded)`);
     note(c, `Lost a war against the ${target[1]}.`);
   }
   return msgs;
+}
+
+/* ----------------------- sect arts (传功) ------------------------------- */
+export const sectArts = c => (c.sectKey && D.SECT_ARTS[c.sectKey]) || [];
+// Learn one of your sect's arts: gated by your rank, paid in contribution.
+export function learnSectArt(c, techKey) {
+  if (!c.sectKey) return ["You belong to no sect."];
+  const entry = (D.SECT_ARTS[c.sectKey] || []).find(a => a[0] === techKey);
+  if (!entry) return ["Your sect does not teach that art."];
+  const [key, minRank, cost] = entry;
+  if (c.techniques.includes(key)) return [`You have already mastered the ${D.TECHNIQUES[key][0]}.`];
+  if (c.sectRank < minRank) return [`The ${D.TECHNIQUES[key][0]} is taught only to ${D.SECT_RANKS[minRank][0]} and above.`];
+  if (c.contribution < cost) return [`The ${D.TECHNIQUES[key][0]} costs ${cost} contribution; you have ${c.contribution}.`];
+  c.contribution -= cost; c.techniques.push(key);
+  note(c, `Learned the sect art ${D.TECHNIQUES[key][0]}.`);
+  return [`☯ The sect imparts its art — you learn the ${D.TECHNIQUES[key][0]}! (${D.TECHNIQUES[key][4]})`];
 }
 export function tournament(c, rng) {
   if (!c.sectKey) return ["Only sect disciples may enter the sect tournament."];

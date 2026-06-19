@@ -113,6 +113,13 @@ export const TECHNIQUES = {
   mountain_seal: ["Mountain-Bearing Seal", 2, 0.20, 14, "An Earth art that drops a mountain's weight on a foe, crushing and pinning them."],
   heaven_slash: ["Heaven-Splitting Sabre", 3, 0.42, 20, "A single annihilating cut that leaves you spent."],
   samsara_palm: ["Samsara Heaven-Turning Palm", 3, 0.50, 18, "Turn the wheel of life and death; void force that rends the foe and mends you."],
+  // — sect-exclusive signature arts (taught only by their sect, at high rank) —
+  cloudmist_veil: ["Cloud-Mist Veiling Art (云雾隐)", 3, 0.30, 12, "Cloud Mist's hidden art — wreathe yourself in mist, shielded, serene, untouchable."],
+  fiveelem_cycle: ["Five Elements Rotation (五行轮转)", 3, 0.42, 20, "Turn the five phases in endless cycle, each blow striking a foe's weakness."],
+  spiritbeast_primal: ["Primal Beast Descent (蛮兽降世)", 3, 0.40, 22, "Call the savage spirit of the primordial beasts down into your own flesh."],
+  azure_formation: ["Azure Sword Formation (青云剑阵)", 3, 0.55, 26, "The Azure Cloud Sect's grand formation of ten thousand azure flying swords."],
+  heavensword_myriad: ["Ten-Thousand Swords Return (万剑归宗)", 3, 0.60, 30, "The Heavenly Sword Sect's supreme art — every blade under heaven heeds your call."],
+  bloodcult_sea: ["Boundless Blood Sea (血海无边)", 3, 0.45, 22, "Drown the world in a sea of blood that feeds your every wound. The heavens recoil."],
 };
 
 /* Movement arts (轻功): a light-body discipline letting a cultivator skim rivers
@@ -173,6 +180,18 @@ export const SECT_RANKS = [
 // A promotion trial pits you against a rank-guardian whose strength scales with
 // the rank you reach into (index by the target rank). 0 = no trial (auto).
 export const SECT_TRIAL_FACTOR = [0, 0, 0.85, 1.0, 1.2, 1.5];
+
+// Each sect teaches its own arts, unlocked as you climb its ranks and paid for in
+// contribution. The last entry of each is the sect's exclusive signature art.
+// [techKey, minRank (index into SECT_RANKS), contributionCost]
+export const SECT_ARTS = {
+  cloudmist:   [["azure_cloud", 0, 35], ["moon_mirror", 1, 110], ["mirror_parry", 2, 220], ["cloudmist_veil", 3, 460]],
+  fiveelem:    [["frost_lotus", 0, 45], ["tide_palm", 1, 110], ["mountain_seal", 1, 130], ["nine_yang", 2, 230], ["fiveelem_cycle", 3, 480]],
+  spiritbeast: [["five_beasts", 0, 35], ["spirit_bind", 1, 120], ["vajra_body", 2, 220], ["spiritbeast_primal", 3, 470]],
+  azure:       [["azure_cloud", 0, 45], ["sword_rain", 1, 140], ["great_void", 3, 430], ["azure_formation", 4, 820]],
+  heavensword: [["sword_rain", 0, 55], ["thunder_step", 1, 150], ["heaven_slash", 3, 440], ["heavensword_myriad", 4, 920]],
+  bloodcult:   [["blood_refine", 0, 45], ["spirit_bind", 1, 120], ["samsara_palm", 3, 440], ["bloodcult_sea", 3, 480]],
+};
 
 // [name, minRank, contribution, stones, danger, blurb, reward?]
 // reward (optional): "herbs" | "pill" | "rep" | "treasure" — a flavourful bonus

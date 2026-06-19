@@ -1194,6 +1194,7 @@ function openSect() {
     const mk = (l, s, h, full) => { const b = el("button", "mbtn" + (full ? " full" : "")); b.innerHTML = `${l}<small>${escapeHtml(s)}</small>`; b.onclick = h; grid.appendChild(b); };
     mk("Take a Mission", "a deed · earn contribution", openQuests);
     mk("Seek Promotion", req ? (E.canPromote(c) ? "trial of rank" : "view requirements") : "at the summit", doPromotion);
+    mk("Sect Library 传功", "learn the sect's signature arts", openSectLibrary);
     mk("Grand Tournament", "a deed · interactive duels", doTournament);
     mk("Sect Store", "25 contrib → pills & manuals", () => runFree(() => E.exchangeContribution(c, state.rng)));
     const leave = el("button", "mbtn full danger"); leave.innerHTML = "Leave the Sect<small>go rogue</small>"; leave.onclick = () => runFree(() => E.leaveSect(c)); grid.appendChild(leave);
@@ -1217,6 +1218,26 @@ function renderRankLadder(c, body) {
     wrap.appendChild(row);
   }
   body.appendChild(wrap);
+}
+function openSectLibrary() {
+  const c = state.c;
+  openOverlay("Sect Library 传功堂", body => {
+    const arts = E.sectArts(c);
+    body.appendChild(el("p", "note", `The ${E.sectName(c)} imparts its arts to those who rise and earn merit. You are ${E.rankName(c).split(" (")[0]} with ${c.contribution} contribution. ✦ marks the sect's exclusive signature art.`));
+    if (!arts.length) { body.appendChild(el("p", "note", "This sect keeps no library of arts to teach.")); backBtn(body, openSect); return; }
+    const sigKey = arts[arts.length - 1][0];
+    const learn = key => { if (!state.c.alive) return; logMessages(E.learnSectArt(c, key)); renderProfile(); save(); openSectLibrary(); };
+    for (const [key, minRank, cost] of arts) {
+      const t = D.TECHNIQUES[key], known = c.techniques.includes(key);
+      const rankOk = c.sectRank >= minRank, afford = c.contribution >= cost, can = !known && rankOk && afford;
+      const gate = known ? "✓ learned" : !rankOk ? `needs ${D.SECT_RANKS[minRank][0].split(" (")[0]}` : !afford ? `${cost} contrib (have ${c.contribution})` : `${cost} contribution`;
+      const row = el("div", "listrow" + (known ? " bound" : can ? "" : " disabled"));
+      row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${t[0]}${key === sigKey ? " ✦" : ""}</div><div class="lr-sub">${gate} · tier ${t[1]}<br>${t[4]}</div></div>`;
+      if (can) row.onclick = () => learn(key);
+      body.appendChild(row);
+    }
+    backBtn(body, openSect);
+  });
 }
 function doPromotion() {
   const c = state.c;
@@ -1274,13 +1295,14 @@ function openSectWar() {
   const c = state.c;
   openOverlay("Sect Conflicts 宗门之争", body => {
     if (!c.ownSect) { body.appendChild(el("p", "note", "You lead no sect to send to war.")); backBtn(body, openSect); return; }
-    body.appendChild(el("p", "note", `March the ${D.sectTier(c.ownSect.prestige)[1]} against a rival sect (a deed). Victory absorbs their disciples, prestige and fame — and may seize spoils; defeat bleeds your sect and wounds you.`));
+    body.appendChild(el("p", "note", `March the ${D.sectTier(c.ownSect.prestige)[1]} against a rival sect (a deed). The realm's sects rise and fall year by year; a sect you break lies in ruins for a decade before it rebuilds. Victory absorbs their disciples, prestige and fame; defeat bleeds your sect and wounds you.`));
     for (const r of E.sectWarRivals(c)) {
       const s = r.sect;
-      const sub = `${s[2]} · base might ${r.strength} · ${Math.floor(r.chance * 100)}% to prevail${r.conquered ? " · already broken" : ""}${r.hostile ? " · sworn foes" : ""}`;
-      const rrow = el("div", "listrow" + (r.conquered ? " bound" : ""));
+      const state2 = r.broken ? ` · in ruins (~${r.brokenYears} yr to rebuild)` : "";
+      const sub = `${s[2]} · might ${r.strength} · ${Math.floor(r.chance * 100)}% to prevail${state2}${r.hostile ? " · sworn foes" : ""}`;
+      const rrow = el("div", "listrow" + (r.broken ? " disabled" : ""));
       rrow.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${s[1]}</div><div class="lr-sub">${sub}<br>${s[9]}</div></div>`;
-      rrow.onclick = () => { if (!useAction("act")) return; logMessages(E.wageSectWar(c, state.rng, r.key)); renderProfile(); if (!state.c.alive) checkDeath(); else openSectWar(); };
+      if (!r.broken) rrow.onclick = () => { if (!useAction("act")) return; logMessages(E.wageSectWar(c, state.rng, r.key)); renderProfile(); if (!state.c.alive) checkDeath(); else openSectWar(); };
       body.appendChild(rrow);
     }
     backBtn(body, openSect);
