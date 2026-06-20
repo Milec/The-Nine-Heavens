@@ -141,8 +141,12 @@ Three more systems round out a cultivator's life:
   arts strike harder and you resist that element in turn — and because a themed set
   shares one element (Five-Thunder → Lightning, Vermilion Blood Path → Dark), a full
   loadout deepens a single attunement, even granting one to a rootless body-cultivator.
-  Your heir inherits your loadout, refinement and all, and a reborn soul may carry one
-  signature treasure across the wheel.
+  Drops are **themed (主题掉落)**, too: a slain foe yields a treasure of **its own
+  element**, each **region** favours its character (the Frost Peaks give Ice, the
+  Demon-Haunted Wastes give Dark, the orthodox heartlands give Metal…), and a
+  **Secret Realm** drops gear matching the realm's own attunement — so *where* and
+  *whom* you hunt shapes *what* you find. Your heir inherits your loadout, refinement
+  and all, and a reborn soul may carry one signature treasure across the wheel.
 - **Talismans (符箓)** — one-use paper charms inscribed with spirit-script: loose a
   **Flame-Burst, Thunderbolt or Flying-Sword** for a no-qi damage burst, raise a
   **Golden-Bell** shield, **mend** your wounds, **bind** a foe in place, or tear

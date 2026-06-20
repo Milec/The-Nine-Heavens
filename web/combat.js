@@ -484,8 +484,8 @@ function finishBattle(B) {
     lines.push(`Victory! +${B.def.reward} spirit stones, +${En.boss ? 8 : 1} reputation.`);
     if (En.kind === "rogue" && (En.name.includes("Demonic") || En.name.includes("Corpse") || En.name.includes("Bandit") || rng.random() < 0.5)) { c.karma += 2; }
     if (En.boss) {
-      // A slain boss always yields a treasure, and a lasting tale.
-      lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng, rng.random() < 0.4 ? "Heaven" : null)));
+      // A slain boss always yields a treasure, themed to the foe's own element.
+      lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng, rng.random() < 0.4 ? "Heaven" : null, { element: En.element || null })));
       c.pills += rng.randint(1, 3); c.herbs += rng.randint(3, 8);
       const title = `Slayer of the ${En.name}`;
       if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, `Slew the ${En.name}.`]); }
@@ -493,7 +493,7 @@ function finishBattle(B) {
       lines.push(...E.maybeAwardEpithet(c, rng, { base: 0.35 }));
     } else if (rng.random() < 0.16 + c.luck / 900) {
       const r = rng.random();
-      if (r < 0.25) lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng)));
+      if (r < 0.25) lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: En.element || null })));
       else if (r < 0.55) { const n = rng.randint(2, 5); c.herbs += n; lines.push(`You gather ${n} spirit herbs.`); }
       else { c.pills += 1; lines.push("You loot a Qi-Gathering Pill."); }
     }

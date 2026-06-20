@@ -286,8 +286,11 @@ export const ARTIFACTS = [
   ["seven_star_sword","Seven-Star Northern Sword", "weapon", "Heaven",   { atk: 0.52, crit: 0.10 },                     "Forged under the seven stars of the north; its edge splits starlight."],
   ["heaven_cleaver",  "Heaven-Cleaving Greatsword","weapon", "Heaven",   { atk: 0.58, crit: 0.05, hp: 0.05 },           "A colossal blade said to have once parted a mountain in a single stroke."],
   ["dragonbone_spear","Dragonbone War Spear",      "weapon", "Heaven",   { atk: 0.54, hp: 0.06 },                       "Wrought from a true dragon's spine; it strikes with the weight of a leviathan."],
+  ["glacial_sword",   "Glacial Tide Sword",        "weapon", "Heaven",   { atk: 0.53, crit: 0.08 },                     "A blade of everfrost that sheathes the foe in killing rime with each stroke."],
+  ["thunderbolt_spear","Thunderbolt Sky-Spear",    "weapon", "Heaven",   { atk: 0.54, crit: 0.07 },                     "A spear that draws down the sky's own thunder at the thrust."],
   ["taibai_sword",    "Tai-Bai Immortal Sword",    "weapon", "Immortal", { atk: 0.94, crit: 0.14 },                     "An immortal's sword-spirit; one cut severs cause from effect."],
   ["mountain_axe",    "Mountain-Splitting Axe",    "weapon", "Immortal", { atk: 0.90, def: 0.08 },                      "A primordial axe that cleaves peaks; its haft alone could anchor a sect."],
+  ["blood_scythe",    "Abyssal Blood Scythe",      "weapon", "Immortal", { atk: 0.90, life: 0.10 },                     "A devil-immortal's scythe that reaps life and pours it into its wielder."],
   // ── Magic Treasures (法宝) ──────────────────────────────────────────────
   ["talisman",        "Yellow Paper Talisman",     "treasure", "Mortal",   { atk: 0.05, def: 0.02 },                    "A bundle of crude warding charms."],
   ["spirit_bottle",   "Azure Spirit-Gathering Bottle","treasure","Spirit", { atk: 0.10, qi: 0.08 },                     "A slender vase that inhales ambient spirit-qi and breathes it back into you."],
@@ -302,9 +305,14 @@ export const ARTIFACTS = [
   ["stars_banner",    "River-of-Stars Banner",     "treasure", "Heaven",   { atk: 0.50, qi: 0.20 },                     "Unfurls a galaxy of killing starlight across the battlefield."],
   ["phoenix_plume",   "Vermilion Phoenix Plume",   "treasure", "Heaven",   { atk: 0.52, hp: 0.10, life: 0.05 },         "A single undying feather wreathed in nirvanic flame that burns and reblooms."],
   ["quaking_seal",    "Heaven-Quaking Mountain Seal","treasure","Heaven",  { atk: 0.50, def: 0.10 },                    "A jade seal heavy as a mountain range; it crushes foes and steadies its bearer."],
+  ["bodhi_seed",      "World-Tree Bodhi Seed",     "treasure", "Heaven",   { atk: 0.50, hp: 0.12, life: 0.05 },         "A seed of the world-tree that buds endless verdant life around its bearer."],
+  ["deluge_pearl",    "Great Deluge Pearl",        "treasure", "Heaven",   { atk: 0.52, qi: 0.10 },                     "A pearl that calls a drowning deluge to sweep the battlefield clean."],
+  ["demon_pagoda",    "Demon-Sealing Pagoda",      "treasure", "Heaven",   { atk: 0.52, def: 0.10 },                    "A black pagoda that swallows devil-qi and seals fiends within its tiers."],
   ["chaos_bell",      "Primordial Chaos Bell",     "treasure", "Immortal", { atk: 0.95, def: 0.10, qiMax: 0.20 },       "A bell from the dawn of the world; one toll unmakes ten thousand spells."],
   ["samsara_disk",    "Wheel-of-Samsara Disk",     "treasure", "Immortal", { atk: 0.88, qi: 0.20, life: 0.10 },         "An immortal artifact that turns the wheel of rebirth, grinding all things back to dust."],
   ["taiyi_vase",      "Taiyi Purifying-Water Vase","treasure", "Immortal", { atk: 0.85, hp: 0.15, life: 0.06 },         "Pours the immortal waters of Taiyi; they drown calamity and mend the body."],
+  ["glacial_coffin",  "Glacial Soul Coffin",       "treasure", "Immortal", { atk: 0.84, def: 0.12 },                    "An immortal coffin of black ice that entombs a foe's spirit in eternal winter."],
+  ["nine_thunder_gourd","Nine-Thunder Calabash",   "treasure", "Immortal", { atk: 0.88, crit: 0.10 },                   "A calabash that brews nine heavenly thunders and pours them out as ruin."],
   // ── Robes & Armour (法袍) ───────────────────────────────────────────────
   ["cloth_robe",      "Coarse Cloth Robe",         "robe", "Mortal",   { def: 0.03, hp: 0.03 },                        "Plain spun cloth — better than baring your skin to a blade."],
   ["hide_vest",       "Beast-Hide Vest",           "robe", "Mortal",   { def: 0.04 },                                  "Cured hide from a low spirit-beast; coarse, but it turns a claw."],
@@ -327,6 +335,7 @@ export const ARTIFACTS = [
   ["thunder_helm",    "Thunder-Pattern Battle Helm","headpiece","Earth",   { hp: 0.10, def: 0.05, crit: 0.05 },        "A war-helm graven with thunder sigils; it steels the body and sharpens the killing blow."],
   ["phoenix_coronet", "Nine-Phoenix Coronet",      "headpiece", "Heaven",   { qi: 0.16, qiMax: 0.20, crit: 0.05 },      "Nine phoenixes take wing about its brow, kindling insight."],
   ["starlit_crown",   "Starlit Phoenix Crown",     "headpiece", "Heaven",   { qi: 0.14, qiMax: 0.18, hp: 0.08 },        "A crown crowned with starfire that nourishes both spirit and flesh."],
+  ["frostmoon_coronet","Frost-Moon Coronet",       "headpiece", "Heaven",   { qi: 0.14, qiMax: 0.18, def: 0.05 },       "A coronet of unmelting ice-jade that cools the mind to perfect, cutting clarity."],
   ["dao_diadem",      "Heavenly Dao Diadem",       "headpiece", "Immortal", { qi: 0.28, qiMax: 0.30, crit: 0.08 },      "A diadem inscribed with the Great Dao itself; comprehension flows like water."],
   ["primal_crown",    "Primordial Spirit Crown",   "headpiece", "Immortal", { qi: 0.26, qiMax: 0.28, crit: 0.06 },      "Bound to a primordial spirit; it floods the sea of consciousness with insight."],
   // ── Boots (灵靴) ────────────────────────────────────────────────────────
@@ -340,6 +349,7 @@ export const ARTIFACTS = [
   ["ninecloud_boots", "Nine-Cloud Soaring Boots",  "boots", "Heaven",   { dodge: 0.19, qi: 0.06 },                      "Ride nine layered clouds; the higher you soar, the freer your qi flows."],
   ["void_boots",      "Void-Treading Sky Boots",   "boots", "Immortal", { dodge: 0.28, crit: 0.08, atk: 0.08 },         "Walk on nothing at all; the void itself yields the road."],
   ["starstep_boots",  "Star-Stepping Immortal Boots","boots","Immortal",{ dodge: 0.26, qiMax: 0.15 },                   "Stride from star to star; distance means nothing, and the heavens lend their qi."],
+  ["gale_boots",      "Gale-Riding Immortal Boots","boots", "Immortal", { dodge: 0.27, atk: 0.08 },                     "Ride a screaming gale into the fray; the wind itself flanks for you."],
   // ── Rings & Pendants (戒指) ─────────────────────────────────────────────
   ["copper_ring",     "Plain Copper Ring",         "ring", "Mortal",   { qi: 0.02 },                                   "A nameless ring with a faint qi-gathering array etched inside."],
   ["jade_ring",       "Jade Spirit Ring",          "ring", "Mortal",   { qi: 0.03, hp: 0.02 },                         "A smooth jade band, cool against the skin, that quiets and steadies the qi."],
@@ -350,6 +360,7 @@ export const ARTIFACTS = [
   ["lifewood_ring",   "Verdant Lifewood Ring",     "ring", "Earth",    { hp: 0.10, life: 0.06 },                       "A ring grown from world-tree heartwood; it nurses the body through any wound."],
   ["heaven_ring",     "Heaven-Refining Ring",      "ring", "Heaven",   { qi: 0.14, qiMax: 0.18, atk: 0.06 },           "A ring-furnace that refines raw heaven-and-earth qi as you wear it."],
   ["astral_ring",     "Astral Star Ring",          "ring", "Heaven",   { crit: 0.08, qi: 0.08 },                       "Set with a captured star; it sharpens the eye to the one fatal opening."],
+  ["tidewater_ring",  "Tidewater Spirit Ring",     "ring", "Heaven",   { qi: 0.12, hp: 0.10 },                         "A ring brimming with an inner sea; its tides buoy both qi and flesh."],
   ["samsara_ring",    "Samsara True-Spirit Ring",  "ring", "Immortal", { qi: 0.20, life: 0.12, crit: 0.06 },           "An immortal ring binding a true-spirit that mends and sharpens its master."],
   ["chaos_ring",      "Chaos Spirit-Treasure Ring","ring", "Immortal", { qi: 0.16, qiMax: 0.16, def: 0.08 },           "A ring holding a sliver of primordial chaos; it shores up body, qi and soul alike."],
 ];
@@ -364,19 +375,22 @@ export const ARTIFACT_ELEMENT = {
   // weapons
   green_spear: "Wood", azure_sword: "Metal", python_whip: "Wood", moonfrost_sabre: "Ice",
   vermilion_blade: "Dark", thunder_halberd: "Lightning", seven_star_sword: "Metal",
-  heaven_cleaver: "Metal", dragonbone_spear: "Earth", taibai_sword: "Metal", mountain_axe: "Earth",
+  heaven_cleaver: "Metal", dragonbone_spear: "Earth", glacial_sword: "Ice", thunderbolt_spear: "Lightning",
+  taibai_sword: "Metal", mountain_axe: "Earth", blood_scythe: "Dark",
   // treasures
   flame_gourd: "Fire", frost_mirror: "Ice", bone_banner: "Dark", thunder_drum: "Lightning",
-  dragon_cauldron: "Fire", stars_banner: "Light", phoenix_plume: "Fire", chaos_bell: "Chaos",
-  samsara_disk: "Void", wood_vine: "Wood", soulbind_mirror: "Light", quaking_seal: "Earth", taiyi_vase: "Water",
+  dragon_cauldron: "Fire", stars_banner: "Light", phoenix_plume: "Fire", quaking_seal: "Earth",
+  bodhi_seed: "Wood", deluge_pearl: "Water", demon_pagoda: "Dark", chaos_bell: "Chaos",
+  samsara_disk: "Void", wood_vine: "Wood", soulbind_mirror: "Light", taiyi_vase: "Water",
+  glacial_coffin: "Ice", nine_thunder_gourd: "Lightning",
   // robes
   tortoise_robe: "Water", vermilion_armor: "Dark", nirvana_robe: "Fire", dragonscale_mail: "Metal",
   // headpieces
-  thunder_helm: "Lightning", phoenix_coronet: "Fire", starlit_crown: "Light",
+  thunder_helm: "Lightning", phoenix_coronet: "Fire", starlit_crown: "Light", frostmoon_coronet: "Ice",
   // boots
-  flametread_boots: "Fire", windwalk_greaves: "Wind", ninecloud_boots: "Wind",
+  flametread_boots: "Fire", windwalk_greaves: "Wind", ninecloud_boots: "Wind", gale_boots: "Wind",
   // rings
-  bloodjade_ring: "Dark", lifewood_ring: "Wood", astral_ring: "Light", chaos_ring: "Chaos",
+  bloodjade_ring: "Dark", lifewood_ring: "Wood", astral_ring: "Light", chaos_ring: "Chaos", tidewater_ring: "Water",
 };
 // Effect accessors (index-independent so the data shape can evolve safely).
 export const artifactSlot    = key => { const a = ARTIFACT_BY_KEY[key]; return a ? a[2] : null; };
@@ -598,6 +612,15 @@ export const REGIONS = [
   ["starfall", "Starfall Frontier", "星陨之地", 2.0, "A shattered immortal battlefield at the edge of the map. Death and fortune in equal measure."],
 ];
 export const REGION_BY_KEY = Object.fromEntries(REGIONS.map(r => [r[0], r]));
+// Each region's elemental character — treasures found there (ruins, caches,
+// quest spoils) lean toward this element, so where you hunt shapes what you find.
+export const REGION_ELEMENT = {
+  azuredomain: "Metal",   // orthodox sword-cultivation heartlands
+  cloudmarsh: "Water",    // trackless wetlands
+  frostpeaks: "Ice",      // killing cold
+  demonwastes: "Dark",    // devil-path and corpse-fiends
+  starfall: "Light",      // a shattered immortal battlefield of fallen stars
+};
 
 /* Cave Abode (洞府): a personal home-base staked on a spirit vein. You establish
  * one and upgrade it across a lifetime; each year it yields spirit herbs and

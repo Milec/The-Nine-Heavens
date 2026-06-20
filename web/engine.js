@@ -781,7 +781,7 @@ function evRuin(c, rng) {
       const tech = unknown.length ? rng.choice(unknown) : "azure_cloud";
       if (!c.techniques.includes(tech)) { c.techniques.push(tech); msgs.push(`  In a jade slip you find: ${D.TECHNIQUES[tech][0]}! (${D.TECHNIQUES[tech][4]})`); }
     } else if (roll < 0.45) {
-      pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng)));
+      pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, null, { element: regionElement(c) })));
     } else if (roll < 0.75) {
       const gain = rng.randint(10, 40) * (c.realm + 1); c.spiritStones += gain; msgs.push(`  A cache of spirit stones! (+${gain})`);
     } else {
@@ -847,12 +847,38 @@ function gradeForRealm(c, rng) {
   if (roll > 1.15) base += 2; else if (roll > 0.9) base += 1;
   return D.ARTIFACT_GRADES[Math.min(base, D.ARTIFACT_GRADES.length - 1)];
 }
-export function randomArtifact(c, rng, grade) {
+export const regionElement = c => D.REGION_ELEMENT[c.region] || null;
+// The distinct elements that treasures actually carry — used to theme drops.
+export const TREASURE_ELEMENTS = [...new Set(Object.values(D.ARTIFACT_ELEMENT))];
+// Pick a treasure key. `opts` may theme the drop: { element, slot, set }.
+// Grade-appropriateness wins over theme — we relax the theme at the target grade
+// before ever dropping to a lower grade, so drops still scale with your realm.
+export function randomArtifact(c, rng, grade, opts = {}) {
   grade = grade || gradeForRealm(c, rng);
-  let pool = D.ARTIFACTS.filter(a => a[3] === grade);
-  let gi = D.ARTIFACT_GRADE_RANK[grade];
-  while (gi >= 0 && pool.length === 0) { pool = D.ARTIFACTS.filter(a => a[3] === D.ARTIFACT_GRADES[gi]); gi--; }
-  return rng.choice(pool)[0];
+  const { element = null, slot = null, set = null } = opts;
+  const gi = D.ARTIFACT_GRADE_RANK[grade], nG = D.ARTIFACT_GRADES.length;
+  const ok = (a, el, sl, st) =>
+    (!st || D.SET_OF_ARTIFACT[a[0]] === st) &&
+    (!sl || a[2] === sl) &&
+    (!el || D.artifactElement(a[0]) === el);
+  const at = (g, el, sl, st) => D.ARTIFACTS.filter(a => a[3] === D.ARTIFACT_GRADES[g] && ok(a, el, sl, st));
+  // 1) Full theme at the target grade, relaxing set then slot (keep element).
+  for (const t of [[element, slot, set], [element, slot, null], [element, null, null]]) {
+    const pool = at(gi, t[0], t[1], t[2]); if (pool.length) return rng.choice(pool)[0];
+  }
+  // 2) The requested element matters most — find it at the nearest grade
+  //    (search down from target first, so drops stay realm-appropriate, then up).
+  if (element) {
+    for (let g = gi - 1; g >= 0; g--) { const p = at(g, element, null, null); if (p.length) return rng.choice(p)[0]; }
+    for (let g = gi + 1; g < nG; g++) { const p = at(g, element, null, null); if (p.length) return rng.choice(p)[0]; }
+  }
+  // 3) No themed match anywhere: grade ladder (honouring slot when given).
+  for (let g = gi; g >= 0; g--) {
+    let pool = slot ? at(g, null, slot, null) : [];
+    if (!pool.length) pool = at(g, null, null, null);
+    if (pool.length) return rng.choice(pool)[0];
+  }
+  return D.ARTIFACTS[0][0];
 }
 // A rough power score for a treasure's effects — used to break ties within a
 // grade and to decide whether a new find beats what's already in its slot.
@@ -1293,7 +1319,7 @@ export function doQuest(c, rng, quest) {
   if (reward === "herbs") { const h = rng.randint(3, 8) + c.realm; c.herbs += h; msgs.push(`  You bring back ${h} spirit herbs besides. (+herbs)`); }
   else if (reward === "pill") { const p = rng.randint(1, 3); c.pills += p; msgs.push(`  The elders share ${p} pill(s) from the furnace. (+pills)`); }
   else if (reward === "rep") { const rp = rng.randint(3, 7); c.reputation += rp; msgs.push(`  Your name travels; the sect gains face through you. (+${rp} fame)`); }
-  else if (reward === "treasure") { pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.3 ? "Earth" : null))); }
+  else if (reward === "treasure") { pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.3 ? "Earth" : null, { element: regionElement(c) }))); }
   if (bonus > 1.0) msgs.push("  Fortune smiled -- the elders are especially pleased.");
   if (c.age > c.maxAge && c.alive) { c.alive = false; c.causeOfDeath = "old age on a sect errand"; msgs.push(`☠ Your lifespan ends at ${c.age}, far from home.`); }
   return msgs;
@@ -1375,7 +1401,7 @@ export function wageSectWar(c, rng, key) {
     own.conquered = own.conquered || []; if (!own.conquered.includes(key)) own.conquered.push(key);
     c.karma += target[2] === "demonic" ? 2 : -2;
     msgs.push(`✦ Victory! The ${target[1]} is ${broken ? "scattered anew" : "broken; its survivors bow to your banner"}. (+${presGain} prestige, +${memGain} disciples, +${spoils} stones${broken ? "" : ", +6 fame"})`);
-    if (!broken && rng.random() < 0.3) pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.4 ? "Earth" : null)));
+    if (!broken && rng.random() < 0.3) pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.4 ? "Earth" : null, { element: target[2] === "demonic" ? "Dark" : regionElement(c) })));
     note(c, `Warred down the ${target[1]}.`);
   } else {
     const presLoss = rng.randint(15, 40), memLoss = rng.randint(2, 8);

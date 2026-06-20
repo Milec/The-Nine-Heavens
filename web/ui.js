@@ -2047,8 +2047,10 @@ function doSecretRealm() {
   if (!ageAllows("secret") || !useAction()) return;
   const c = state.c; closeOverlay();
   const depth = 3 + Math.floor(state.rng.random() * 3); // 3-5 stages incl. guardian
-  state.realmRun = { depth, idx: 0, hpFrac: 1 };
-  logMessages(["You step through a shimmering rift into a Secret Realm — the qi here is thick as honey, and the danger thicker still."]);
+  // Each realm has an elemental character; its treasures share that attunement.
+  const elem = state.rng.choice(E.TREASURE_ELEMENTS);
+  state.realmRun = { depth, idx: 0, hpFrac: 1, element: elem };
+  logMessages([`You step through a shimmering rift into a ${C.elementIcon(elem)} ${elem}-attuned Secret Realm — the qi here is thick as honey, and the danger thicker still.`]);
   realmStage();
 }
 function realmStage() {
@@ -2083,7 +2085,7 @@ function realmAfterBattle(outcome) {
 }
 function realmFortune(c) {
   const rng = state.rng, r = rng.random();
-  if (r < 0.3) return E.acquireArtifact(c, E.randomArtifact(c, rng));
+  if (r < 0.3) return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: (state.realmRun && state.realmRun.element) || null }));
   if (r < 0.55) { const h = rng.randint(5, 12) + c.realm; c.herbs += h; return [`a grove of spirit herbs — you harvest ${h}.`]; }
   if (r < 0.72) { c.pills += rng.randint(1, 3); return ["a dusty pill cache, still potent."]; }
   if (r < 0.86) { c.hp = c.maxHp; const R = state.realmRun; if (R) R.hpFrac = 1; return ["a tranquil spirit spring — you bathe and recover fully."]; }
@@ -2236,7 +2238,7 @@ function wanderFortune(c) {
   if (r < 0.3) { const g = rng.randint(5, 20) * (c.realm + 1); c.spiritStones += g; return [`You find a lost coin-pouch of ${g} spirit stones.`]; }
   if (r < 0.55) { const h = rng.randint(3, 8) + c.realm; c.herbs += h; return [`You harvest ${h} spirit herbs from a hidden vale.`]; }
   if (r < 0.7 && c.awakened) { c.qi += E.qiToNext(c) * 0.4; return ["By a roaring waterfall you grasp a sliver of the dao; your qi surges."]; }
-  if (r < 0.82) return E.acquireArtifact(c, E.randomArtifact(c, rng));
+  if (r < 0.82) return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: E.regionElement(c) }));
   return ["You wander quiet mountains and trade rumours at a roadside inn. An uneventful year."];
 }
 
