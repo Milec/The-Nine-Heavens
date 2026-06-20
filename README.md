@@ -61,8 +61,11 @@ lifesteals but stains your karma, the defense-piercing Great Void Rend…), spen
 from a **qi pool** you must manage. Your **spiritual-root element** drives a Wu
 Xing advantage/weakness cycle — and **attunes** you: arts of your own element(s)
 strike harder (the purer the root, the bigger the bonus) and you resist that
-element in turn. Your **bound treasure** and **tamed beast** join
-the fight, and stats decide crits, dodges and shields. Enemies wield their own
+element in turn. Your **full equipment loadout** — a treasure bound into each of
+**six slots** (weapon, magic treasure, robe, headpiece, boots, ring) — and your
+**tamed beast** join the fight, their bonuses stacking into power, defense,
+battle HP, dodge, crit, lifesteal and qi. Stats decide crits, dodges and
+shields. Enemies wield their own
 **signature moves and elements** (a Demonic Outrider drains your blood; a
 Flame-Mane Lion sets you ablaze). Pick fights via **Wander the World**, **Hunt
 Spirit Beasts** (tameable), the non-lethal **Arena**, **dueling** a rival, or by
@@ -115,6 +118,35 @@ Three more systems round out a cultivator's life:
   technique manuals and magic treasures, and **sell** your spare herbs and surplus
   treasures. Prices **float with the world era** — dear in a Spiritual Drought,
   cheap in an Age of Abundance — so spirit stones finally have somewhere to go.
+- **Equipment & inventory (装备)** — your treasure trove is no longer a single
+  bound artifact but a **full loadout across six slots** — **weapon (兵器)**,
+  **magic treasure (法宝)**, **robe (法袍)**, **headpiece (宝冠)**, **boots (灵靴)**
+  and **ring (戒指)**. Each slot has its own deep family of treasures (**70+ in
+  all**, every slot stocked at every grade) from crude *Mortal* gear to
+  world-shaking *Immortal* relics, each with **distinct effects**
+  — raw power, defense, battle HP, dodge, crit, passive lifesteal, faster
+  cultivation and a deeper qi pool — and their bonuses **stack across the whole
+  set**. Find them in ruins, win them at auction or loot them from fallen foes;
+  the strongest find for an empty slot **auto-equips**, and you can freely
+  re-bind, unbind or sell spares from the **Equipment & Beast** screen. Tap any
+  treasure for its card, where you can **refine it (祭炼)** — feed spirit stones
+  into its spirit-fire to temper it up to **+6**, each level raising *all* of its
+  effects, with a success chance that falls as the treasure resists and rises
+  with a steady soul, fortune and alchemical skill (a refined treasure also fetches
+  a richer price). Matched treasures also form **equipment sets (套装)** — bind, say,
+  the whole **Samsara Immortal Dao** (wheel-disk, true-spirit ring and dao diadem)
+  or **Nirvana Phoenix Regalia** and earn **escalating set bonuses** stacked on top
+  of each piece's own effects. Many treasures also carry an **elemental affinity
+  (五行/灵属性)**: equipping them **attunes** you to that element, so your matching-element
+  arts strike harder and you resist that element in turn — and because a themed set
+  shares one element (Five-Thunder → Lightning, Vermilion Blood Path → Dark), a full
+  loadout deepens a single attunement, even granting one to a rootless body-cultivator.
+  Drops are **themed (主题掉落)**, too: a slain foe yields a treasure of **its own
+  element**, each **region** favours its character (the Frost Peaks give Ice, the
+  Demon-Haunted Wastes give Dark, the orthodox heartlands give Metal…), and a
+  **Secret Realm** drops gear matching the realm's own attunement — so *where* and
+  *whom* you hunt shapes *what* you find. Your heir inherits your loadout, refinement
+  and all, and a reborn soul may carry one signature treasure across the wheel.
 - **Talismans (符箓)** — one-use paper charms inscribed with spirit-script: loose a
   **Flame-Burst, Thunderbolt or Flying-Sword** for a no-qi damage burst, raise a
   **Golden-Bell** shield, **mend** your wounds, **bind** a foe in place, or tear

@@ -349,6 +349,9 @@ function runFree(fn) {
   if (msgs && msgs.length) logMessages(msgs);
   renderProfile(); checkDeath();
 }
+// Run an action that mutates state but keeps the current overlay open
+// (e.g. equipping a treasure), logging any feedback behind the overlay.
+function runQuiet(fn) { const msgs = preserveAge(fn); if (msgs && msgs.length) logMessages(msgs); }
 
 /* ------------------------------- age up ---------------------------------- */
 function doAgeUp() {
@@ -819,7 +822,7 @@ function actHome() {
     const ab = D.abodeAt(c.abode || 0);
     const g = leafGrid(body);
     g.mk("Your Cave Abode", ab ? `${ab[1]} (${ab[2]})` : "establish a home base", openAbode, { full: true });
-    g.mk("Treasures & Beast", "your bound treasure, inventory & spirit beast", openAssets, { full: true });
+    g.mk("Equipment & Beast", "equipment slots, treasure trove & spirit beast", openAssets, { full: true });
     backBtn(body, openActivities);
   });
 }
@@ -892,15 +895,15 @@ function openMarket() {
     }
     for (const k of M.treasures) {
       if (M.sold[k]) continue;
-      const price = E.priceTreasure(c, k);
-      row("⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.ARTIFACT_BY_KEY[k][2]})`, `${price} stones · ${D.ARTIFACT_BY_KEY[k][5]}`, "", c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); });
+      const price = E.priceTreasure(c, k), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(k)];
+      row(si ? si[3] : "⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.artifactGrade(k)} ${si ? si[1] : ""})`, `${price} stones · ${E.artifactEffectText(k)} · ${D.ARTIFACT_BY_KEY[k][5]}`, "", c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); });
     }
     // Sell
-    const spareTreasures = c.artifacts.filter(k => k !== c.equippedArtifact);
+    const spareTreasures = c.artifacts.filter(k => !E.isEquipped(c, k));
     if (c.herbs >= 5 || spareTreasures.length) {
       body.appendChild(el("div", "section-h", "Sell"));
       if (c.herbs >= 5) row("🌿", "Sell Spirit Herbs ×5", `+${E.sellHerbs(c, 5)} stones`, "", true, () => E.sellSpareHerbs(c, 5));
-      for (const k of spareTreasures) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.ARTIFACT_BY_KEY[k][2]})`, "", true, () => E.sellTreasure(c, k));
+      for (const k of spareTreasures) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.artifactGrade(k)})`, "", true, () => E.sellTreasure(c, k));
     }
     backBtn(body, actCommerce);
   });
@@ -1177,7 +1180,7 @@ function openBeast() {
 }
 function openAssets() {
   const c = state.c;
-  openOverlay("Treasures & Beast", body => {
+  openOverlay("Equipment & Beast", body => {
     body.appendChild(el("div", "section-h", "Spirit Beast"));
     if (c.beast) {
       E.normalizeBeast(c.beast);
@@ -1187,17 +1190,125 @@ function openAssets() {
       row.onclick = () => openBeast();
       body.appendChild(row);
     } else body.appendChild(el("p", "note", "None. Best a wild beast while wandering to try taming one."));
-    body.appendChild(el("div", "section-h", "Magic Treasures (法宝)"));
+    E.ensureEquipment(c);
+    // ── Equipment slots ──────────────────────────────────────────────────
+    body.appendChild(el("div", "section-h", "Equipment (装备)"));
+    body.appendChild(el("p", "note", "Bind one treasure per slot. Their bonuses stack — tap an empty slot to fill it, or an equipped treasure below to unbind it."));
+    for (const [slot, name, cn, ic, blurb] of D.EQUIP_SLOTS) {
+      const key = c.equipment[slot];
+      const r = el("div", "listrow" + (key ? " bound" : ""));
+      if (key) { const lv = E.refineLevel(c, key);
+        r.innerHTML = `<div class="lr-ava">${ic}</div><div class="lr-main"><div class="lr-title">${escapeHtml(name)} · ${escapeHtml(cn)}</div><div class="lr-sub">★ ${escapeHtml(D.ARTIFACT_BY_KEY[key][1])} (${D.artifactGrade(key)}${lv ? ` +${lv}` : ""}) — ${escapeHtml(E.artifactEffectText(key, c))}</div></div>`;
+      } else r.innerHTML = `<div class="lr-ava" style="opacity:.5">${ic}</div><div class="lr-main"><div class="lr-title" style="opacity:.7">${escapeHtml(name)} · ${escapeHtml(cn)}</div><div class="lr-sub">empty — ${escapeHtml(blurb)}</div></div>`;
+      if (key) r.onclick = () => openTreasureCard(key);
+      else r.onclick = () => openSlotPicker(slot);
+      body.appendChild(r);
+    }
+    // Aggregate bonuses, so the player sees the full loadout at a glance.
+    const eff = E.equipmentEffects(c);
+    if (E.equippedKeys(c).length) {
+      const summary = ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]
+        .filter(k => eff[k]).map(k => `+${Math.round(eff[k] * 100)}% ${ {atk:"power",def:"defense",hp:"battle HP",dodge:"dodge",crit:"crit",life:"lifesteal",qi:"qi",qiMax:"max qi"}[k] }`).join(" · ");
+      body.appendChild(el("p", "note", "✦ Total (gear + sets): " + summary));
+    }
+    // Active equipment-set bonuses.
+    const setLines = E.setBonusLines(c);
+    if (setLines.length) for (const line of setLines) body.appendChild(el("p", "note", "套 " + line));
+    // Elemental attunement granted by equipped treasures.
+    const gearEls = E.equipmentElements(c);
+    if (gearEls.length) body.appendChild(el("p", "note", "灵 Attuned (gear): " + gearEls.map(e => `${C.elementIcon(e)} ${e}`).join(" · ") + " — matching arts strike harder; you resist these elements."));
+    // ── Treasure trove (full inventory) ──────────────────────────────────
+    body.appendChild(el("div", "section-h", "Treasure Trove (法宝库)"));
     if (!c.artifacts.length) body.appendChild(el("p", "note", "You own no treasures yet."));
     for (const key of c.artifacts) {
-      const row = el("div", "listrow" + (key === c.equippedArtifact ? " bound" : ""));
-      row.innerHTML = `<div class="lr-ava">⚔️</div><div class="lr-main"><div class="lr-title">${key === c.equippedArtifact ? "★ " : ""}${escapeHtml(E.describeArtifact(key))}</div></div>`;
-      row.onclick = () => { E.equipArtifact(c, key); renderProfile(); openAssets(); };
+      const equipped = E.isEquipped(c, key), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)], lv = E.refineLevel(c, key), elem = D.artifactElement(key);
+      const row = el("div", "listrow" + (equipped ? " bound" : ""));
+      row.innerHTML = `<div class="lr-ava">${si ? si[3] : "⚔️"}</div><div class="lr-main"><div class="lr-title">${equipped ? "★ " : ""}${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}${elem ? ` ${C.elementIcon(elem)}` : ""}${lv ? ` <span class="lr-sub" style="display:inline">+${lv}</span>` : ""}</div><div class="lr-sub">${D.artifactGrade(key)} ${si ? si[1] : ""} · ${escapeHtml(E.artifactEffectText(key, c))}</div></div>`;
+      row.onclick = () => openTreasureCard(key);
       body.appendChild(row);
     }
-    body.appendChild(el("div", "section-h", "Inventory"));
+    // ── Sundry trinkets ──────────────────────────────────────────────────
+    body.appendChild(el("div", "section-h", "Sundries"));
     body.appendChild(el("p", "note", c.inventory.length ? c.inventory.join(", ") : "(empty)"));
     backBtn(body, actHome);
+  });
+}
+
+// Choose which owned treasure to bind into a given equipment slot.
+function openSlotPicker(slot) {
+  const c = state.c, si = D.EQUIP_SLOT_BY_KEY[slot];
+  openOverlay(`Equip · ${si ? si[1] : "Slot"}`, body => {
+    body.appendChild(el("p", "note", si ? `${si[2]} — ${si[4]}` : ""));
+    const owned = c.artifacts.filter(k => D.artifactSlot(k) === slot && !E.isEquipped(c, k));
+    if (!owned.length) body.appendChild(el("p", "note", "You own no unequipped treasures for this slot. Win or buy more at ruins, bosses and the market."));
+    // Strongest first (refinement included), so the obvious upgrade is on top.
+    owned.sort((a, b) => E.effectiveScore(c, b) - E.effectiveScore(c, a));
+    for (const key of owned) {
+      const lv = E.refineLevel(c, key), row = el("div", "listrow");
+      row.innerHTML = `<div class="lr-ava">${si ? si[3] : "⚔️"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(D.ARTIFACT_BY_KEY[key][1])} (${D.artifactGrade(key)}${lv ? ` +${lv}` : ""})</div><div class="lr-sub">${escapeHtml(E.artifactEffectText(key, c))} · ${escapeHtml(D.ARTIFACT_BY_KEY[key][5])}</div></div>`;
+      row.onclick = () => { runQuiet(() => E.equipArtifact(c, key)); renderProfile(); openAssets(); };
+      body.appendChild(row);
+    }
+    backBtn(body, openAssets);
+  });
+}
+
+// A treasure's detail card: its lore and live effects, with bind/unbind,
+// refinement (祭炼) and sell actions.
+function openTreasureCard(key) {
+  const c = state.c, art = D.ARTIFACT_BY_KEY[key]; if (!art) return;
+  const si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];
+  openOverlay(art[1], body => {
+    const lv = E.refineLevel(c, key), equipped = E.isEquipped(c, key), owned = c.artifacts.includes(key);
+    const elem = D.artifactElement(key);
+    const rows = [
+      ["Slot", `${si ? si[3] + " " + si[1] : "Treasure"} · ${si ? si[2] : ""}`],
+      ["Grade", `${D.artifactGrade(key)}${lv ? ` · 祭炼 +${lv}` : ""}`],
+      ["Effects", E.artifactEffectText(key, c)],
+    ];
+    if (elem) rows.push(["Attunement", `${C.elementIcon(elem)} ${elem}`]);
+    rows.push(["Status", equipped ? "★ Equipped" : owned ? "In your trove" : "Not owned"]);
+    body.appendChild(infoRows(rows));
+    body.appendChild(el("p", "note", art[5]));
+    // Set membership, with progress toward its bonuses.
+    const setKey = D.SET_OF_ARTIFACT[key];
+    if (setKey) {
+      const set = D.SET_BY_KEY[setKey];
+      const equippedCount = set.members.filter(m => E.isEquipped(c, m)).length;
+      body.appendChild(el("div", "section-h", `Set · ${set.name} (${set.cn})`));
+      body.appendChild(el("p", "note", `${equippedCount}/${set.members.length} equipped — ${set.blurb}`));
+      const lines = Object.keys(set.bonuses).map(Number).sort((a, b) => a - b)
+        .map(n => `${equippedCount >= n ? "✓" : "○"} ${n}-piece: ${E.effectsText(set.bonuses[n])}`);
+      for (const l of lines) body.appendChild(el("p", "note", l));
+      const missing = set.members.filter(m => !E.isEquipped(c, m))
+        .map(m => `${D.ARTIFACT_BY_KEY[m][1]}${c.artifacts.includes(m) ? " (in trove)" : ""}`);
+      if (missing.length) body.appendChild(el("p", "note", "Still need: " + missing.join(", ")));
+    }
+    if (!owned) { backBtn(body, openAssets); return; }
+    // Bind / unbind
+    const bindBtn = el("button", "mbtn full" + (equipped ? "" : " primary"));
+    bindBtn.textContent = equipped ? "Unbind from slot" : `Equip in ${si ? si[1] : "slot"}`;
+    bindBtn.onclick = () => { runQuiet(() => E.equipArtifact(c, key)); renderProfile(); openTreasureCard(key); };
+    body.appendChild(bindBtn);
+    // Refine (祭炼)
+    if (lv >= E.REFINE_MAX) {
+      body.appendChild(el("p", "note", `祭炼 +${lv} — refined to its very limit; its spirit can bear no more.`));
+    } else {
+      const cost = E.refineCost(c, key), chance = Math.round(E.refineChance(c, key) * 100), afford = c.spiritStones >= cost;
+      const rb = el("button", "mbtn full" + (afford ? "" : " disabled"));
+      rb.innerHTML = `祭炼 · Refine to +${lv + 1}<small>${cost} stones · ${chance}% success · each level +${Math.round(E.REFINE_PER_LEVEL * 100)}% of base effects</small>`;
+      if (afford) rb.onclick = () => { runQuiet(() => E.refineTreasure(c, key, state.rng)); renderProfile(); openTreasureCard(key); };
+      body.appendChild(rb);
+      if (!afford) body.appendChild(el("p", "note", `You need ${cost} spirit stones to attempt this refinement.`));
+    }
+    // Sell (only when not equipped)
+    if (!equipped) {
+      const sb = el("button", "mbtn full");
+      sb.innerHTML = `Sell<small>+${E.sellTreasureValue(c, key)} stones</small>`;
+      sb.onclick = () => { runQuiet(() => E.sellTreasure(c, key)); renderProfile(); openAssets(); };
+      body.appendChild(sb);
+    }
+    backBtn(body, openAssets);
   });
 }
 
@@ -1456,7 +1567,7 @@ function openSheet() {
     const ab = D.abodeAt(c.abode || 0);
     const rows = [["Sect", c.ownSect ? `${c.ownSect.name} — Founder (${D.sectTier(c.ownSect.prestige)[1]})` : c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
       ["Abode", ab ? `${ab[1]} (${ab[2]})${c.ownSect ? " · sect seat" : ""}` : "None", "abode"],
-      ["Treasure", c.equippedArtifact ? E.describeArtifact(c.equippedArtifact) : "(none)"]];
+      ["Equipment", E.equipmentSummary(c)]];
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
     if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);
@@ -1744,6 +1855,8 @@ function resumeFrom(sv) {
   if (!c.epithets) c.epithets = [];
   if (c.sectMissions == null) c.sectMissions = 0;
   if (c.sectJoinedAge === undefined) c.sectJoinedAge = c.sectKey ? c.age : null;
+  if (!c.artifacts) c.artifacts = [];
+  E.ensureEquipment(c);   // migrate legacy single-slot treasure → equipment slots
   if (!c.movementArts) c.movementArts = [];
   if (!c.moveMastery) c.moveMastery = {};
   if (!c.customTechs) c.customTechs = [];
@@ -1934,8 +2047,10 @@ function doSecretRealm() {
   if (!ageAllows("secret") || !useAction()) return;
   const c = state.c; closeOverlay();
   const depth = 3 + Math.floor(state.rng.random() * 3); // 3-5 stages incl. guardian
-  state.realmRun = { depth, idx: 0, hpFrac: 1 };
-  logMessages(["You step through a shimmering rift into a Secret Realm — the qi here is thick as honey, and the danger thicker still."]);
+  // Each realm has an elemental character; its treasures share that attunement.
+  const elem = state.rng.choice(E.TREASURE_ELEMENTS);
+  state.realmRun = { depth, idx: 0, hpFrac: 1, element: elem };
+  logMessages([`You step through a shimmering rift into a ${C.elementIcon(elem)} ${elem}-attuned Secret Realm — the qi here is thick as honey, and the danger thicker still.`]);
   realmStage();
 }
 function realmStage() {
@@ -1970,7 +2085,7 @@ function realmAfterBattle(outcome) {
 }
 function realmFortune(c) {
   const rng = state.rng, r = rng.random();
-  if (r < 0.3) return E.acquireArtifact(c, E.randomArtifact(c, rng));
+  if (r < 0.3) return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: (state.realmRun && state.realmRun.element) || null }));
   if (r < 0.55) { const h = rng.randint(5, 12) + c.realm; c.herbs += h; return [`a grove of spirit herbs — you harvest ${h}.`]; }
   if (r < 0.72) { c.pills += rng.randint(1, 3); return ["a dusty pill cache, still potent."]; }
   if (r < 0.86) { c.hp = c.maxHp; const R = state.realmRun; if (R) R.hpFrac = 1; return ["a tranquil spirit spring — you bathe and recover fully."]; }
@@ -2123,7 +2238,7 @@ function wanderFortune(c) {
   if (r < 0.3) { const g = rng.randint(5, 20) * (c.realm + 1); c.spiritStones += g; return [`You find a lost coin-pouch of ${g} spirit stones.`]; }
   if (r < 0.55) { const h = rng.randint(3, 8) + c.realm; c.herbs += h; return [`You harvest ${h} spirit herbs from a hidden vale.`]; }
   if (r < 0.7 && c.awakened) { c.qi += E.qiToNext(c) * 0.4; return ["By a roaring waterfall you grasp a sliver of the dao; your qi surges."]; }
-  if (r < 0.82) return E.acquireArtifact(c, E.randomArtifact(c, rng));
+  if (r < 0.82) return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: E.regionElement(c) }));
   return ["You wander quiet mountains and trade rumours at a roadside inn. An uneventful year."];
 }
 

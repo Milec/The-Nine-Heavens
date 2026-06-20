@@ -59,9 +59,122 @@ export const sectOf = c => c.sectKey ? D.SECT_BY_KEY[c.sectKey] : null;
 export const sectName = c => sectOf(c) ? sectOf(c)[1] : "Rogue Cultivator (散修)";
 export const rankName = c => sectOf(c) ? D.SECT_RANKS[c.sectRank][0] : "";
 export const sectSpeedBonus = c => sectOf(c) ? sectOf(c)[7] + D.SECT_RANKS[c.sectRank][3] : 0;
+// Equipment: a cultivator binds one treasure per slot (c.equipment[slot]).
+// `c.artifacts` is the full inventory of owned treasures; equipment references
+// keys within it. equipmentEffects sums the bonuses of everything equipped.
+export function ensureEquipment(c) {
+  if (!c.equipment || typeof c.equipment !== "object") c.equipment = {};
+  if (!c.refinement || typeof c.refinement !== "object") c.refinement = {};
+  // Migrate legacy single-slot saves: bind the old signature treasure to its slot.
+  if (c.equippedArtifact && !Object.values(c.equipment).includes(c.equippedArtifact)) {
+    const slot = D.artifactSlot(c.equippedArtifact);
+    if (slot && !c.equipment[slot]) c.equipment[slot] = c.equippedArtifact;
+  }
+  // Drop dangling references (e.g. items removed from data) and ones not owned.
+  for (const slot of Object.keys(c.equipment)) {
+    const key = c.equipment[slot];
+    if (!key || !D.ARTIFACT_BY_KEY[key] || !(c.artifacts || []).includes(key)) delete c.equipment[slot];
+  }
+  syncEquippedArtifact(c);
+  return c.equipment;
+}
+// Keep the legacy `equippedArtifact` field pointing at the strongest weapon/treasure
+// so older code paths and saves stay coherent.
+function syncEquippedArtifact(c) {
+  const eq = c.equipment || {};
+  c.equippedArtifact = eq.weapon || eq.treasure || Object.values(eq)[0] || null;
+}
+export const equippedKeys = c => Object.values(c.equipment || {}).filter(Boolean);
+// Distinct elements granted by equipped treasures — these attune you in battle.
+export function equipmentElements(c) {
+  const out = [];
+  for (const key of equippedKeys(c)) {
+    const el = D.artifactElement(key);
+    if (el && !out.includes(el)) out.push(el);
+  }
+  return out;
+}
+
+// ── Refinement (祭炼) ──────────────────────────────────────────────────────
+// A cultivator may temper an owned treasure, raising every one of its effects.
+// Refinement is tracked per treasure key in c.refinement (you own at most one of
+// each). Each level adds REFINE_PER_LEVEL of the treasure's *base* effects.
+export const REFINE_MAX = 6;
+export const REFINE_PER_LEVEL = 0.12;
+export const refineLevel = (c, key) => (c.refinement && c.refinement[key]) || 0;
+// A treasure's effects after refinement — what actually feeds combat & display.
+export function effectiveEffects(c, key) {
+  const base = D.artifactEffects(key), mult = 1 + refineLevel(c, key) * REFINE_PER_LEVEL, out = {};
+  for (const k in base) out[k] = base[k] * mult;
+  return out;
+}
+// Which equipment sets are active and at what tier, given what's equipped.
+// Returns [{ set, have, tier }] where tier is the highest bonus threshold met.
+export function activeSets(c) {
+  const counts = {};
+  for (const key of equippedKeys(c)) {
+    const sk = D.SET_OF_ARTIFACT[key];
+    if (sk) counts[sk] = (counts[sk] || 0) + 1;
+  }
+  const out = [];
+  for (const sk in counts) {
+    const set = D.SET_BY_KEY[sk], have = counts[sk];
+    const tier = Math.max(0, ...Object.keys(set.bonuses).map(Number).filter(n => n <= have));
+    if (tier > 0) out.push({ set, have, tier });
+  }
+  return out;
+}
+// Summed set bonuses (the highest tier reached for each active set).
+export function setBonusEffects(c) {
+  const sum = { atk: 0, qi: 0, def: 0, hp: 0, dodge: 0, crit: 0, life: 0, qiMax: 0 };
+  for (const { set, tier } of activeSets(c)) {
+    const b = set.bonuses[tier] || {};
+    for (const k in sum) sum[k] += b[k] || 0;
+  }
+  return sum;
+}
+export function equipmentEffects(c) {
+  const sum = { atk: 0, qi: 0, def: 0, hp: 0, dodge: 0, crit: 0, life: 0, qiMax: 0 };
+  for (const key of equippedKeys(c)) {
+    const e = effectiveEffects(c, key);
+    for (const k in sum) sum[k] += e[k] || 0;
+  }
+  const sb = setBonusEffects(c);
+  for (const k in sum) sum[k] += sb[k] || 0;
+  return sum;
+}
+// Cost in spirit stones to attempt the next refinement (climbs steeply by level).
+const REFINE_BASE_COST = { Mortal: 30, Spirit: 120, Earth: 500, Heaven: 2400, Immortal: 12000 };
+export function refineCost(c, key) {
+  const lvl = refineLevel(c, key);
+  return Math.round((REFINE_BASE_COST[D.artifactGrade(key)] || 50) * (1 + lvl * 0.8));
+}
+// Success chance: high at first, falling as the treasure resists further tempering;
+// a steady soul, fortune and alchemical skill all help hold the fire.
+export function refineChance(c, key) {
+  const lvl = refineLevel(c, key);
+  const skill = c.soul / 500 + c.luck / 700 + (c.alchemySkill || 0) / 200;
+  return clamp(0.92 - lvl * 0.12 + skill, 0.2, 0.95);
+}
+export const canRefine = (c, key) => c.artifacts.includes(key) && refineLevel(c, key) < REFINE_MAX;
+export function refineTreasure(c, key, rng) {
+  if (!c.artifacts.includes(key)) return ["You do not possess that treasure."];
+  if (refineLevel(c, key) >= REFINE_MAX) return ["This treasure is refined to its limit — its spirit can bear no more."];
+  const cost = refineCost(c, key);
+  if (c.spiritStones < cost) return [`Refining the ${D.ARTIFACT_BY_KEY[key][1]} costs ${cost} stones — you cannot afford it.`];
+  c.spiritStones -= cost;
+  if (!c.refinement) c.refinement = {};
+  const name = D.ARTIFACT_BY_KEY[key][1];
+  if (rng.random() < refineChance(c, key)) {
+    c.refinement[key] = refineLevel(c, key) + 1;
+    note(c, `Refined the ${name} to +${c.refinement[key]} (祭炼).`);
+    return [`✦ You feed spirit stones into the ${name}'s spirit-fire. The treasure hums and brightens — refined to +${c.refinement[key]}!`];
+  }
+  return [`The ${name} bucks against the refining flame; the qi disperses and ${cost} stones are spent in vain. (Refinement holds at +${refineLevel(c, key)}.)`];
+}
 export const artifactOf = c => c.equippedArtifact ? D.ARTIFACT_BY_KEY[c.equippedArtifact] : null;
-const artifactAtkPct = c => artifactOf(c) ? artifactOf(c)[3] : 0;
-const artifactQiBonus = c => artifactOf(c) ? artifactOf(c)[4] : 0;
+const artifactAtkPct = c => equipmentEffects(c).atk;
+const artifactQiBonus = c => equipmentEffects(c).qi;
 export const daoPowerBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][2] : 0), 0);
 export const daoBreakthroughBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][3] : 0), 0);
 export const beastPower = c => (c.beast && c.beast.alive) ? c.beast.power : 0;
@@ -189,7 +302,7 @@ function newCharacter() {
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, sectMissions: 0, sectJoinedAge: null, titles: [], epithets: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
-    artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
+    artifacts: [], equipment: {}, refinement: {}, equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
     movementArts: [], moveMastery: {}, customTechs: [],
@@ -408,11 +521,16 @@ export function reincarnate(old, rng, name) {
   c.qi += qiToNext(c) * 0.5;
   recomputeMaxHp(c);
   note(c, `A soul reborn (rebirth #${c.reincarnationCount}), dimly recalling a past life that reached ${realmName(old)}.`);
-  if (old.equippedArtifact && old.realm >= 4 && rng.random() < 0.4) {
-    c.artifacts.push(old.equippedArtifact);
-    c.equippedArtifact = old.equippedArtifact;
-    const art = D.ARTIFACT_BY_KEY[old.equippedArtifact];
-    note(c, `Across rebirth you still grasp the ${art[1]} (${art[2]} grade).`);
+  // A reborn soul may still grasp one signature treasure from a past life.
+  ensureEquipment(old);
+  const carried = D.ARTIFACT_BY_KEY[old.equippedArtifact] ? old.equippedArtifact : null;
+  if (carried && old.realm >= 4 && rng.random() < 0.4) {
+    c.artifacts.push(carried);
+    c.equipment[D.artifactSlot(carried)] = carried;
+    if (old.refinement && old.refinement[carried]) c.refinement[carried] = old.refinement[carried];
+    syncEquippedArtifact(c);
+    const art = D.ARTIFACT_BY_KEY[carried];
+    note(c, `Across rebirth you still grasp the ${art[1]} (${D.artifactGrade(carried)} grade).`);
   }
   return c;
 }
@@ -663,7 +781,7 @@ function evRuin(c, rng) {
       const tech = unknown.length ? rng.choice(unknown) : "azure_cloud";
       if (!c.techniques.includes(tech)) { c.techniques.push(tech); msgs.push(`  In a jade slip you find: ${D.TECHNIQUES[tech][0]}! (${D.TECHNIQUES[tech][4]})`); }
     } else if (roll < 0.45) {
-      pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng)));
+      pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, null, { element: regionElement(c) })));
     } else if (roll < 0.75) {
       const gain = rng.randint(10, 40) * (c.realm + 1); c.spiritStones += gain; msgs.push(`  A cache of spirit stones! (+${gain})`);
     } else {
@@ -729,35 +847,119 @@ function gradeForRealm(c, rng) {
   if (roll > 1.15) base += 2; else if (roll > 0.9) base += 1;
   return D.ARTIFACT_GRADES[Math.min(base, D.ARTIFACT_GRADES.length - 1)];
 }
-export function randomArtifact(c, rng, grade) {
+export const regionElement = c => D.REGION_ELEMENT[c.region] || null;
+// The distinct elements that treasures actually carry — used to theme drops.
+export const TREASURE_ELEMENTS = [...new Set(Object.values(D.ARTIFACT_ELEMENT))];
+// Pick a treasure key. `opts` may theme the drop: { element, slot, set }.
+// Grade-appropriateness wins over theme — we relax the theme at the target grade
+// before ever dropping to a lower grade, so drops still scale with your realm.
+export function randomArtifact(c, rng, grade, opts = {}) {
   grade = grade || gradeForRealm(c, rng);
-  let pool = D.ARTIFACTS.filter(a => a[2] === grade);
-  let gi = D.ARTIFACT_GRADE_RANK[grade];
-  while (gi >= 0 && pool.length === 0) { pool = D.ARTIFACTS.filter(a => a[2] === D.ARTIFACT_GRADES[gi]); gi--; }
-  return rng.choice(pool)[0];
+  const { element = null, slot = null, set = null } = opts;
+  const gi = D.ARTIFACT_GRADE_RANK[grade], nG = D.ARTIFACT_GRADES.length;
+  const ok = (a, el, sl, st) =>
+    (!st || D.SET_OF_ARTIFACT[a[0]] === st) &&
+    (!sl || a[2] === sl) &&
+    (!el || D.artifactElement(a[0]) === el);
+  const at = (g, el, sl, st) => D.ARTIFACTS.filter(a => a[3] === D.ARTIFACT_GRADES[g] && ok(a, el, sl, st));
+  // 1) Full theme at the target grade, relaxing set then slot (keep element).
+  for (const t of [[element, slot, set], [element, slot, null], [element, null, null]]) {
+    const pool = at(gi, t[0], t[1], t[2]); if (pool.length) return rng.choice(pool)[0];
+  }
+  // 2) The requested element matters most — find it at the nearest grade
+  //    (search down from target first, so drops stay realm-appropriate, then up).
+  if (element) {
+    for (let g = gi - 1; g >= 0; g--) { const p = at(g, element, null, null); if (p.length) return rng.choice(p)[0]; }
+    for (let g = gi + 1; g < nG; g++) { const p = at(g, element, null, null); if (p.length) return rng.choice(p)[0]; }
+  }
+  // 3) No themed match anywhere: grade ladder (honouring slot when given).
+  for (let g = gi; g >= 0; g--) {
+    let pool = slot ? at(g, null, slot, null) : [];
+    if (!pool.length) pool = at(g, null, null, null);
+    if (pool.length) return rng.choice(pool)[0];
+  }
+  return D.ARTIFACTS[0][0];
 }
-function artifactBetter(a, b) {
-  const A = D.ARTIFACT_BY_KEY[a], B = D.ARTIFACT_BY_KEY[b];
-  if (D.ARTIFACT_GRADE_RANK[A[2]] !== D.ARTIFACT_GRADE_RANK[B[2]]) return D.ARTIFACT_GRADE_RANK[A[2]] > D.ARTIFACT_GRADE_RANK[B[2]];
-  return A[3] > B[3];
+// A rough power score for a treasure's effects — used to break ties within a
+// grade and to decide whether a new find beats what's already in its slot.
+function scoreEffects(e) {
+  return (e.atk || 0) * 1.0 + (e.def || 0) * 1.2 + (e.hp || 0) * 0.4 + (e.dodge || 0) * 1.5
+    + (e.crit || 0) * 1.5 + (e.life || 0) * 1.0 + (e.qi || 0) * 0.6 + (e.qiMax || 0) * 0.3;
+}
+export const artifactScore = key => scoreEffects(D.artifactEffects(key));
+// Score including a character's refinement on that treasure.
+export const effectiveScore = (c, key) => scoreEffects(effectiveEffects(c, key));
+function artifactBetter(c, a, b) {
+  const ga = D.ARTIFACT_GRADE_RANK[D.artifactGrade(a)], gb = D.ARTIFACT_GRADE_RANK[D.artifactGrade(b)];
+  if (ga !== gb) return ga > gb;
+  // The item already in the slot keeps any refinement it has earned.
+  return artifactScore(a) > effectiveScore(c, b);
 }
 export function acquireArtifact(c, key, autoEquip = true) {
   const art = D.ARTIFACT_BY_KEY[key]; if (!art) return [];
+  ensureEquipment(c);
   c.artifacts.push(key);
-  const msgs = [`  You obtain a treasure: ${art[1]} (${art[2]} grade)!`];
-  if (autoEquip && (!c.equippedArtifact || artifactBetter(key, c.equippedArtifact))) {
-    c.equippedArtifact = key; msgs.push(`  You bind the ${art[1]} as your signature treasure.`); note(c, `Bound the ${art[1]} (${art[2]} grade).`);
+  const slot = D.artifactSlot(key), slotInfo = D.EQUIP_SLOT_BY_KEY[slot];
+  const msgs = [`  You obtain a treasure: ${art[1]} (${D.artifactGrade(key)} ${slotInfo ? slotInfo[1].toLowerCase() : "treasure"})!`];
+  const current = c.equipment[slot];
+  if (autoEquip && (!current || artifactBetter(c, key, current))) {
+    c.equipment[slot] = key; syncEquippedArtifact(c);
+    msgs.push(`  You equip the ${art[1]} in your ${slotInfo ? slotInfo[1] : "treasure"} slot.`);
+    note(c, `Equipped the ${art[1]} (${D.artifactGrade(key)} grade).`);
   }
   return msgs;
 }
 export function equipArtifact(c, key) {
   if (!c.artifacts.includes(key)) return ["You do not possess that treasure."];
-  c.equippedArtifact = key; const art = D.ARTIFACT_BY_KEY[key];
-  return [`You bind the ${art[1]} (${art[2]} grade) as your treasure.`];
+  ensureEquipment(c);
+  const slot = D.artifactSlot(key), slotInfo = D.EQUIP_SLOT_BY_KEY[slot];
+  if (c.equipment[slot] === key) {     // tapping the equipped item unbinds it
+    delete c.equipment[slot]; syncEquippedArtifact(c);
+    return [`You unbind the ${D.ARTIFACT_BY_KEY[key][1]}.`];
+  }
+  c.equipment[slot] = key; syncEquippedArtifact(c);
+  return [`You equip the ${D.ARTIFACT_BY_KEY[key][1]} (${D.artifactGrade(key)}) in your ${slotInfo ? slotInfo[1] : "treasure"} slot.`];
+}
+export function unequipArtifact(c, slot) {
+  ensureEquipment(c);
+  if (!c.equipment[slot]) return [];
+  const key = c.equipment[slot]; delete c.equipment[slot]; syncEquippedArtifact(c);
+  return [`You unbind the ${D.ARTIFACT_BY_KEY[key][1]}.`];
+}
+export const isEquipped = (c, key) => equippedKeys(c).includes(key);
+// A short, human-readable list of a treasure's effects, e.g. "+30% power, +5% qi".
+const EFFECT_LABELS = {
+  atk: ["% power", 100], qi: ["% qi", 100], def: ["% defense", 100], hp: ["% battle HP", 100],
+  dodge: ["% dodge", 100], crit: ["% crit", 100], life: ["% lifesteal", 100], qiMax: ["% max qi", 100],
+};
+// Render an effects object as "+30% power, +5% qi".
+export function effectsText(e) {
+  const parts = [];
+  for (const k of ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]) {
+    if (e[k]) { const [label] = EFFECT_LABELS[k]; parts.push(`+${Math.round(e[k] * 100)}${label}`); }
+  }
+  return parts.join(", ") || "no bonuses";
+}
+// Effect text. Pass a character to fold in its refinement of the treasure;
+// omit it (e.g. market preview of an unowned item) for base effects.
+export function artifactEffectText(key, c = null) {
+  return effectsText(c ? effectiveEffects(c, key) : D.artifactEffects(key));
+}
+// Active-set lines for display, e.g. "Samsara Immortal Dao (2/3): +10% qi, +8% max qi".
+export function setBonusLines(c) {
+  return activeSets(c).map(({ set, have, tier }) =>
+    `${set.name} (${have}/${set.members.length}): ${effectsText(set.bonuses[tier])}`);
 }
 export function describeArtifact(key) {
-  const a = D.ARTIFACT_BY_KEY[key];
-  return `${a[1]} (${a[2]}) — +${Math.floor(a[3] * 100)}% power` + (a[4] ? `, +${Math.floor(a[4] * 100)}% cultivation` : "");
+  const slot = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];
+  return `${D.ARTIFACT_BY_KEY[key][1]} (${D.artifactGrade(key)} ${slot ? slot[1] : ""}) — ${artifactEffectText(key)}`;
+}
+// One-line loadout summary for the profile, e.g. "3/6 slots · Azure Flying Sword, …".
+export function equipmentSummary(c) {
+  ensureEquipment(c);
+  const keys = D.EQUIP_SLOT_KEYS.map(s => c.equipment[s]).filter(Boolean);
+  if (!keys.length) return "(none equipped)";
+  return `${keys.length}/${D.EQUIP_SLOT_KEYS.length} slots · ` + keys.map(k => D.ARTIFACT_BY_KEY[k][1]).join(", ");
 }
 
 /* ------------------------------ beasts ----------------------------------- */
@@ -871,10 +1073,11 @@ const TREASURE_BASE = { Mortal: 25, Spirit: 130, Earth: 600, Heaven: 3000, Immor
 export const priceHerbs = (c, n = 5) => Math.max(2, Math.round((c.realm + 1) * 1.6 * n * marketMult(c)));
 export const pricePill = (c, key) => Math.round((D.PILL_BY_KEY[key][2] * 8 + 15) * marketMult(c));
 export const priceTech = (c, tier) => Math.round([60, 130, 320, 900][tier] * marketMult(c));
-export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.ARTIFACT_BY_KEY[key][2]] || 50) * marketMult(c));
+export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.artifactGrade(key)] || 50) * marketMult(c));
 // Selling fetches a fraction of the buy price.
 export const sellHerbs = (c, n = 5) => Math.max(1, Math.round(priceHerbs(c, n) * 0.45));
-export const sellTreasureValue = (c, key) => Math.max(1, Math.round(priceTreasure(c, key) * 0.4));
+// Selling fetches a fraction of the buy price, sweetened by any refinement work.
+export const sellTreasureValue = (c, key) => Math.max(1, Math.round(priceTreasure(c, key) * 0.4 * (1 + refineLevel(c, key) * 0.3)));
 
 export function buyPill(c, key, rng) {
   const p = pricePill(c, key);
@@ -973,9 +1176,10 @@ export function buyTreasure(c, key) {
 }
 export function sellTreasure(c, key) {
   if (!c.artifacts.includes(key)) return ["You do not own that treasure."];
-  if (c.equippedArtifact === key) return ["Unbind it before selling — you won't part with your signature treasure."];
+  if (isEquipped(c, key)) return ["Unbind it before selling — you won't part with an equipped treasure."];
   const v = sellTreasureValue(c, key);
   c.artifacts.splice(c.artifacts.indexOf(key), 1);
+  if (c.refinement) delete c.refinement[key];
   c.spiritStones += v;
   return [`You sell the ${D.ARTIFACT_BY_KEY[key][1]} for ${v} stones.`];
 }
@@ -1115,7 +1319,7 @@ export function doQuest(c, rng, quest) {
   if (reward === "herbs") { const h = rng.randint(3, 8) + c.realm; c.herbs += h; msgs.push(`  You bring back ${h} spirit herbs besides. (+herbs)`); }
   else if (reward === "pill") { const p = rng.randint(1, 3); c.pills += p; msgs.push(`  The elders share ${p} pill(s) from the furnace. (+pills)`); }
   else if (reward === "rep") { const rp = rng.randint(3, 7); c.reputation += rp; msgs.push(`  Your name travels; the sect gains face through you. (+${rp} fame)`); }
-  else if (reward === "treasure") { pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.3 ? "Earth" : null))); }
+  else if (reward === "treasure") { pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.3 ? "Earth" : null, { element: regionElement(c) }))); }
   if (bonus > 1.0) msgs.push("  Fortune smiled -- the elders are especially pleased.");
   if (c.age > c.maxAge && c.alive) { c.alive = false; c.causeOfDeath = "old age on a sect errand"; msgs.push(`☠ Your lifespan ends at ${c.age}, far from home.`); }
   return msgs;
@@ -1197,7 +1401,7 @@ export function wageSectWar(c, rng, key) {
     own.conquered = own.conquered || []; if (!own.conquered.includes(key)) own.conquered.push(key);
     c.karma += target[2] === "demonic" ? 2 : -2;
     msgs.push(`✦ Victory! The ${target[1]} is ${broken ? "scattered anew" : "broken; its survivors bow to your banner"}. (+${presGain} prestige, +${memGain} disciples, +${spoils} stones${broken ? "" : ", +6 fame"})`);
-    if (!broken && rng.random() < 0.3) pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.4 ? "Earth" : null)));
+    if (!broken && rng.random() < 0.3) pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.4 ? "Earth" : null, { element: target[2] === "demonic" ? "Dark" : regionElement(c) })));
     note(c, `Warred down the ${target[1]}.`);
   } else {
     const presLoss = rng.randint(15, 40), memLoss = rng.randint(2, 8);

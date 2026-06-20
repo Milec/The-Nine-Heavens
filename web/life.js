@@ -253,7 +253,14 @@ export function succeedAsHeir(old, child, rng) {
   c.spiritStones += Math.floor((old.spiritStones || 0) * 0.6);
   c.herbs += Math.floor((old.herbs || 0) * 0.5);
   c.pills += old.pills || 0;
-  if (old.equippedArtifact) { c.artifacts.push(old.equippedArtifact); c.equippedArtifact = old.equippedArtifact; }
+  // The heir inherits the parent's equipped loadout, refinement and all.
+  E.ensureEquipment(old); E.ensureEquipment(c);
+  for (const key of E.equippedKeys(old)) {
+    if (!c.artifacts.includes(key)) c.artifacts.push(key);
+    c.equipment[D.artifactSlot(key)] = key;
+    if (old.refinement && old.refinement[key]) c.refinement[key] = old.refinement[key];
+  }
+  E.ensureEquipment(c);
   c.reputation += Math.floor((old.reputation || 0) * 0.3) + 5;
   c.comprehension = Math.min(160, c.comprehension + Math.min(20, old.realm * 2));   // inherited insight
   // The heir has cultivated since their own childhood — simulate that youth so
@@ -555,7 +562,7 @@ export function relationActions(c, npc) {
     if (teachableTechs(c).length) acts.push({ id: "teach", label: "Teach a technique" });
     acts.push({ id: "guide", label: "Impart cultivation insight" });
     acts.push({ id: "mission", label: "Send on a trial mission" });
-    if (c.artifacts && c.artifacts.some(k => k !== c.equippedArtifact)) acts.push({ id: "bestow", label: "Bestow a treasure" });
+    if (c.artifacts && c.artifacts.some(k => !E.isEquipped(c, k))) acts.push({ id: "bestow", label: "Bestow a treasure" });
     acts.push({ id: "gift", label: "Give a gift (5 stones)" });
     acts.push({ id: "spar", label: "Spar" });
     if ((c.abode || 0) > 0) acts.push(npc.resides ? { id: "sendaway", label: "Have them leave your abode" } : { id: "invite", label: "Invite to live at your abode" });
@@ -644,9 +651,10 @@ export function doRelationAction(c, npc, action, rng) {
       npc.power = Math.max(1, (npc.power || 1) * 0.85); adj(-2); happy(-3); return [`${npc.name} returns from the trial battered and humbled, having barely escaped with their life. You tend their wounds.`];
     }
     case "bestow": {
-      const spare = c.artifacts.find(k => k !== c.equippedArtifact);
+      const spare = c.artifacts.find(k => !E.isEquipped(c, k));
       if (!spare) return ["You have no spare treasure to bestow."];
       c.artifacts.splice(c.artifacts.indexOf(spare), 1);
+      if (c.refinement) delete c.refinement[spare];
       npc.power = (npc.power || 1) * 1.25 + 10; adj(rng.randint(8, 15)); happy(4); c.karma += 2;
       note(c, `Bestowed the ${D.ARTIFACT_BY_KEY[spare][1]} upon ${npc.name}.`);
       return [`You bestow the ${D.ARTIFACT_BY_KEY[spare][1]} upon ${npc.name}. They kowtow, overcome, and grow markedly stronger. (+Karma)`];

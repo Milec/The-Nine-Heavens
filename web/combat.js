@@ -195,22 +195,30 @@ export function makeTribulation(c, rng) {
 export function createBattle(c, enemyDef, rng, opts = {}) {
   const P = E.power(c);
   const ph = D.physEffect(c);                       // ongoing physique effects
-  const pMax = P * 1.9 * (1 + (ph.hp || 0));
+  const eq = E.equipmentEffects(c);                 // summed equipment bonuses
+  const pMax = P * 1.9 * (1 + (ph.hp || 0) + (eq.hp || 0));
   // Your spiritual root's element(s) (plus any from a special physique) attune you:
   // bonus damage with matching-element arts, and resistance to that element.
   const rootEls = (c.awakened && c.root && c.root.elements && c.root.elements.length) ? c.root.elements.slice() : [];
   if (ph.element && !rootEls.includes(ph.element)) rootEls.push(ph.element);
-  const attune = (c.awakened && c.root && c.root.elements && c.root.elements.length)
+  let attune = (c.awakened && c.root && c.root.elements && c.root.elements.length)
     ? clampN(0.10 + (c.root.multiplier || 1) * 0.07, 0.12, 0.45)
     : (ph.element ? 0.15 : 0);
+  // Equipped treasures attune you to their element too — matching arts hit
+  // harder and you resist that element. Gear grants a baseline attunement even
+  // to a rootless cultivator, so a themed loadout always means something.
+  const gearEls = E.equipmentElements(c);
+  for (const el of gearEls) if (!rootEls.includes(el)) rootEls.push(el);
+  if (gearEls.length && attune < 0.15) attune = 0.15;
   const player = {
     isPlayer: true, ref: c, name: c.name,
     maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),
-    maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)),
+    maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)),
     atk: P - E.beastPower(c),
-    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.7),
-    crit: clampN(c.luck / 400 + 0.05, 0, 0.6),
-    dodge: clampN(c.luck / 600 + c.soul / 900 + (c.equippedArtifact === "cloud_boots" ? 0.1 : 0) + (ph.dodge || 0), 0, 0.5),
+    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + (eq.def || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.8),
+    crit: clampN(c.luck / 400 + 0.05 + (eq.crit || 0), 0, 0.7),
+    dodge: clampN(c.luck / 600 + c.soul / 900 + (eq.dodge || 0) + (ph.dodge || 0), 0, 0.6),
+    equipLifesteal: eq.life || 0,
     healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,
     element: rootEls.length ? rootEls[0] : null,
     rootElements: rootEls, attune,
@@ -327,7 +335,8 @@ function resolveSkill(B, att, def, skill, lines) {
     dmg = Math.max(0, Math.round(dmg));
     def.hp -= dmg;
     lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${attuned ? " 🜂" : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${attuned ? " (attuned)" : ""}${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
-    if (skill.lifesteal && dmg > 0) { const hh = dmg * skill.lifesteal; att.hp = Math.min(att.maxHp, att.hp + hh); lines.push(`   ${att.name} drains ${Math.round(hh)} HP.`); }
+    const lifeFrac = (skill.lifesteal || 0) + (att.equipLifesteal || 0);
+    if (lifeFrac && dmg > 0) { const hh = dmg * lifeFrac; att.hp = Math.min(att.maxHp, att.hp + hh); lines.push(`   ${att.name} drains ${Math.round(hh)} HP.`); }
     // Counter / reflect: a defender in a reflecting stance turns force back.
     const cs = def.statuses.find(s => s.type === "counter");
     if (cs && dmg > 0) { const refl = Math.round(dmg * cs.value); att.hp -= refl; def.statuses = def.statuses.filter(s => s !== cs); lines.push(`   ✦ ${def.name} reflects ${refl} damage back!`); }
@@ -475,8 +484,8 @@ function finishBattle(B) {
     lines.push(`Victory! +${B.def.reward} spirit stones, +${En.boss ? 8 : 1} reputation.`);
     if (En.kind === "rogue" && (En.name.includes("Demonic") || En.name.includes("Corpse") || En.name.includes("Bandit") || rng.random() < 0.5)) { c.karma += 2; }
     if (En.boss) {
-      // A slain boss always yields a treasure, and a lasting tale.
-      lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng, rng.random() < 0.4 ? "Heaven" : null)));
+      // A slain boss always yields a treasure, themed to the foe's own element.
+      lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng, rng.random() < 0.4 ? "Heaven" : null, { element: En.element || null })));
       c.pills += rng.randint(1, 3); c.herbs += rng.randint(3, 8);
       const title = `Slayer of the ${En.name}`;
       if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, `Slew the ${En.name}.`]); }
@@ -484,7 +493,7 @@ function finishBattle(B) {
       lines.push(...E.maybeAwardEpithet(c, rng, { base: 0.35 }));
     } else if (rng.random() < 0.16 + c.luck / 900) {
       const r = rng.random();
-      if (r < 0.25) lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng)));
+      if (r < 0.25) lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: En.element || null })));
       else if (r < 0.55) { const n = rng.randint(2, 5); c.herbs += n; lines.push(`You gather ${n} spirit herbs.`); }
       else { c.pills += 1; lines.push("You loot a Qi-Gathering Pill."); }
     }
