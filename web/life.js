@@ -253,11 +253,12 @@ export function succeedAsHeir(old, child, rng) {
   c.spiritStones += Math.floor((old.spiritStones || 0) * 0.6);
   c.herbs += Math.floor((old.herbs || 0) * 0.5);
   c.pills += old.pills || 0;
-  // The heir inherits the parent's equipped loadout.
+  // The heir inherits the parent's equipped loadout, refinement and all.
   E.ensureEquipment(old); E.ensureEquipment(c);
   for (const key of E.equippedKeys(old)) {
     if (!c.artifacts.includes(key)) c.artifacts.push(key);
     c.equipment[D.artifactSlot(key)] = key;
+    if (old.refinement && old.refinement[key]) c.refinement[key] = old.refinement[key];
   }
   E.ensureEquipment(c);
   c.reputation += Math.floor((old.reputation || 0) * 0.3) + 5;
@@ -653,6 +654,7 @@ export function doRelationAction(c, npc, action, rng) {
       const spare = c.artifacts.find(k => !E.isEquipped(c, k));
       if (!spare) return ["You have no spare treasure to bestow."];
       c.artifacts.splice(c.artifacts.indexOf(spare), 1);
+      if (c.refinement) delete c.refinement[spare];
       npc.power = (npc.power || 1) * 1.25 + 10; adj(rng.randint(8, 15)); happy(4); c.karma += 2;
       note(c, `Bestowed the ${D.ARTIFACT_BY_KEY[spare][1]} upon ${npc.name}.`);
       return [`You bestow the ${D.ARTIFACT_BY_KEY[spare][1]} upon ${npc.name}. They kowtow, overcome, and grow markedly stronger. (+Karma)`];

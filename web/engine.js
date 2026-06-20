@@ -64,6 +64,7 @@ export const sectSpeedBonus = c => sectOf(c) ? sectOf(c)[7] + D.SECT_RANKS[c.sec
 // keys within it. equipmentEffects sums the bonuses of everything equipped.
 export function ensureEquipment(c) {
   if (!c.equipment || typeof c.equipment !== "object") c.equipment = {};
+  if (!c.refinement || typeof c.refinement !== "object") c.refinement = {};
   // Migrate legacy single-slot saves: bind the old signature treasure to its slot.
   if (c.equippedArtifact && !Object.values(c.equipment).includes(c.equippedArtifact)) {
     const slot = D.artifactSlot(c.equippedArtifact);
@@ -84,13 +85,56 @@ function syncEquippedArtifact(c) {
   c.equippedArtifact = eq.weapon || eq.treasure || Object.values(eq)[0] || null;
 }
 export const equippedKeys = c => Object.values(c.equipment || {}).filter(Boolean);
+
+// ── Refinement (祭炼) ──────────────────────────────────────────────────────
+// A cultivator may temper an owned treasure, raising every one of its effects.
+// Refinement is tracked per treasure key in c.refinement (you own at most one of
+// each). Each level adds REFINE_PER_LEVEL of the treasure's *base* effects.
+export const REFINE_MAX = 6;
+export const REFINE_PER_LEVEL = 0.12;
+export const refineLevel = (c, key) => (c.refinement && c.refinement[key]) || 0;
+// A treasure's effects after refinement — what actually feeds combat & display.
+export function effectiveEffects(c, key) {
+  const base = D.artifactEffects(key), mult = 1 + refineLevel(c, key) * REFINE_PER_LEVEL, out = {};
+  for (const k in base) out[k] = base[k] * mult;
+  return out;
+}
 export function equipmentEffects(c) {
   const sum = { atk: 0, qi: 0, def: 0, hp: 0, dodge: 0, crit: 0, life: 0, qiMax: 0 };
   for (const key of equippedKeys(c)) {
-    const e = D.artifactEffects(key);
+    const e = effectiveEffects(c, key);
     for (const k in sum) sum[k] += e[k] || 0;
   }
   return sum;
+}
+// Cost in spirit stones to attempt the next refinement (climbs steeply by level).
+const REFINE_BASE_COST = { Mortal: 30, Spirit: 120, Earth: 500, Heaven: 2400, Immortal: 12000 };
+export function refineCost(c, key) {
+  const lvl = refineLevel(c, key);
+  return Math.round((REFINE_BASE_COST[D.artifactGrade(key)] || 50) * (1 + lvl * 0.8));
+}
+// Success chance: high at first, falling as the treasure resists further tempering;
+// a steady soul, fortune and alchemical skill all help hold the fire.
+export function refineChance(c, key) {
+  const lvl = refineLevel(c, key);
+  const skill = c.soul / 500 + c.luck / 700 + (c.alchemySkill || 0) / 200;
+  return clamp(0.92 - lvl * 0.12 + skill, 0.2, 0.95);
+}
+export const canRefine = (c, key) => c.artifacts.includes(key) && refineLevel(c, key) < REFINE_MAX;
+export function refineTreasure(c, key, rng) {
+  if (!c.artifacts.includes(key)) return ["You do not possess that treasure."];
+  if (refineLevel(c, key) >= REFINE_MAX) return ["This treasure is refined to its limit — its spirit can bear no more."];
+  const cost = refineCost(c, key);
+  if (c.spiritStones < cost) return [`Refining the ${D.ARTIFACT_BY_KEY[key][1]} costs ${cost} stones — you cannot afford it.`];
+  c.spiritStones -= cost;
+  if (!c.refinement) c.refinement = {};
+  const name = D.ARTIFACT_BY_KEY[key][1];
+  if (rng.random() < refineChance(c, key)) {
+    c.refinement[key] = refineLevel(c, key) + 1;
+    note(c, `Refined the ${name} to +${c.refinement[key]} (祭炼).`);
+    return [`✦ You feed spirit stones into the ${name}'s spirit-fire. The treasure hums and brightens — refined to +${c.refinement[key]}!`];
+  }
+  return [`The ${name} bucks against the refining flame; the qi disperses and ${cost} stones are spent in vain. (Refinement holds at +${refineLevel(c, key)}.)`];
 }
 export const artifactOf = c => c.equippedArtifact ? D.ARTIFACT_BY_KEY[c.equippedArtifact] : null;
 const artifactAtkPct = c => equipmentEffects(c).atk;
@@ -222,7 +266,7 @@ function newCharacter() {
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, sectMissions: 0, sectJoinedAge: null, titles: [], epithets: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
-    artifacts: [], equipment: {}, equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
+    artifacts: [], equipment: {}, refinement: {}, equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
     movementArts: [], moveMastery: {}, customTechs: [],
@@ -447,6 +491,7 @@ export function reincarnate(old, rng, name) {
   if (carried && old.realm >= 4 && rng.random() < 0.4) {
     c.artifacts.push(carried);
     c.equipment[D.artifactSlot(carried)] = carried;
+    if (old.refinement && old.refinement[carried]) c.refinement[carried] = old.refinement[carried];
     syncEquippedArtifact(c);
     const art = D.ARTIFACT_BY_KEY[carried];
     note(c, `Across rebirth you still grasp the ${art[1]} (${D.artifactGrade(carried)} grade).`);
@@ -775,15 +820,18 @@ export function randomArtifact(c, rng, grade) {
 }
 // A rough power score for a treasure's effects — used to break ties within a
 // grade and to decide whether a new find beats what's already in its slot.
-export function artifactScore(key) {
-  const e = D.artifactEffects(key);
+function scoreEffects(e) {
   return (e.atk || 0) * 1.0 + (e.def || 0) * 1.2 + (e.hp || 0) * 0.4 + (e.dodge || 0) * 1.5
     + (e.crit || 0) * 1.5 + (e.life || 0) * 1.0 + (e.qi || 0) * 0.6 + (e.qiMax || 0) * 0.3;
 }
-function artifactBetter(a, b) {
+export const artifactScore = key => scoreEffects(D.artifactEffects(key));
+// Score including a character's refinement on that treasure.
+export const effectiveScore = (c, key) => scoreEffects(effectiveEffects(c, key));
+function artifactBetter(c, a, b) {
   const ga = D.ARTIFACT_GRADE_RANK[D.artifactGrade(a)], gb = D.ARTIFACT_GRADE_RANK[D.artifactGrade(b)];
   if (ga !== gb) return ga > gb;
-  return artifactScore(a) > artifactScore(b);
+  // The item already in the slot keeps any refinement it has earned.
+  return artifactScore(a) > effectiveScore(c, b);
 }
 export function acquireArtifact(c, key, autoEquip = true) {
   const art = D.ARTIFACT_BY_KEY[key]; if (!art) return [];
@@ -792,7 +840,7 @@ export function acquireArtifact(c, key, autoEquip = true) {
   const slot = D.artifactSlot(key), slotInfo = D.EQUIP_SLOT_BY_KEY[slot];
   const msgs = [`  You obtain a treasure: ${art[1]} (${D.artifactGrade(key)} ${slotInfo ? slotInfo[1].toLowerCase() : "treasure"})!`];
   const current = c.equipment[slot];
-  if (autoEquip && (!current || artifactBetter(key, current))) {
+  if (autoEquip && (!current || artifactBetter(c, key, current))) {
     c.equipment[slot] = key; syncEquippedArtifact(c);
     msgs.push(`  You equip the ${art[1]} in your ${slotInfo ? slotInfo[1] : "treasure"} slot.`);
     note(c, `Equipped the ${art[1]} (${D.artifactGrade(key)} grade).`);
@@ -822,8 +870,10 @@ const EFFECT_LABELS = {
   atk: ["% power", 100], qi: ["% qi", 100], def: ["% defense", 100], hp: ["% battle HP", 100],
   dodge: ["% dodge", 100], crit: ["% crit", 100], life: ["% lifesteal", 100], qiMax: ["% max qi", 100],
 };
-export function artifactEffectText(key) {
-  const e = D.artifactEffects(key), parts = [];
+// Effect text. Pass a character to fold in its refinement of the treasure;
+// omit it (e.g. market preview of an unowned item) for base effects.
+export function artifactEffectText(key, c = null) {
+  const e = c ? effectiveEffects(c, key) : D.artifactEffects(key), parts = [];
   for (const k of ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]) {
     if (e[k]) { const [label] = EFFECT_LABELS[k]; parts.push(`+${Math.round(e[k] * 100)}${label}`); }
   }
@@ -955,7 +1005,8 @@ export const priceTech = (c, tier) => Math.round([60, 130, 320, 900][tier] * mar
 export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.artifactGrade(key)] || 50) * marketMult(c));
 // Selling fetches a fraction of the buy price.
 export const sellHerbs = (c, n = 5) => Math.max(1, Math.round(priceHerbs(c, n) * 0.45));
-export const sellTreasureValue = (c, key) => Math.max(1, Math.round(priceTreasure(c, key) * 0.4));
+// Selling fetches a fraction of the buy price, sweetened by any refinement work.
+export const sellTreasureValue = (c, key) => Math.max(1, Math.round(priceTreasure(c, key) * 0.4 * (1 + refineLevel(c, key) * 0.3)));
 
 export function buyPill(c, key, rng) {
   const p = pricePill(c, key);
@@ -1057,6 +1108,7 @@ export function sellTreasure(c, key) {
   if (isEquipped(c, key)) return ["Unbind it before selling — you won't part with an equipped treasure."];
   const v = sellTreasureValue(c, key);
   c.artifacts.splice(c.artifacts.indexOf(key), 1);
+  if (c.refinement) delete c.refinement[key];
   c.spiritStones += v;
   return [`You sell the ${D.ARTIFACT_BY_KEY[key][1]} for ${v} stones.`];
 }

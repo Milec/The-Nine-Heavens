@@ -127,9 +127,13 @@ Three more systems round out a cultivator's life:
   cultivation and a deeper qi pool — and their bonuses **stack across the whole
   set**. Find them in ruins, win them at auction or loot them from fallen foes;
   the strongest find for an empty slot **auto-equips**, and you can freely
-  re-bind, unbind or sell spares from the **Equipment & Beast** screen. Your heir
-  inherits your loadout, and a reborn soul may carry one signature treasure across
-  the wheel.
+  re-bind, unbind or sell spares from the **Equipment & Beast** screen. Tap any
+  treasure for its card, where you can **refine it (祭炼)** — feed spirit stones
+  into its spirit-fire to temper it up to **+6**, each level raising *all* of its
+  effects, with a success chance that falls as the treasure resists and rises
+  with a steady soul, fortune and alchemical skill (a refined treasure also fetches
+  a richer price). Your heir inherits your loadout, refinement and all, and a reborn
+  soul may carry one signature treasure across the wheel.
 - **Talismans (符箓)** — one-use paper charms inscribed with spirit-script: loose a
   **Flame-Burst, Thunderbolt or Flying-Sword** for a no-qi damage burst, raise a
   **Golden-Bell** shield, **mend** your wounds, **bind** a foe in place, or tear
