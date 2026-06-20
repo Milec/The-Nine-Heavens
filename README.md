@@ -121,8 +121,9 @@ Three more systems round out a cultivator's life:
 - **Equipment & inventory (装备)** — your treasure trove is no longer a single
   bound artifact but a **full loadout across six slots** — **weapon (兵器)**,
   **magic treasure (法宝)**, **robe (法袍)**, **headpiece (宝冠)**, **boots (灵靴)**
-  and **ring (戒指)**. Every slot has its own family of treasures from crude
-  *Mortal* gear to world-shaking *Immortal* relics, each with **distinct effects**
+  and **ring (戒指)**. Each slot has its own deep family of treasures (**70+ in
+  all**, every slot stocked at every grade) from crude *Mortal* gear to
+  world-shaking *Immortal* relics, each with **distinct effects**
   — raw power, defense, battle HP, dodge, crit, passive lifesteal, faster
   cultivation and a deeper qi pool — and their bonuses **stack across the whole
   set**. Find them in ruins, win them at auction or loot them from fallen foes;
