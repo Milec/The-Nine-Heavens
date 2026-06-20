@@ -354,10 +354,35 @@ export const ARTIFACTS = [
   ["chaos_ring",      "Chaos Spirit-Treasure Ring","ring", "Immortal", { qi: 0.16, qiMax: 0.16, def: 0.08 },           "A ring holding a sliver of primordial chaos; it shores up body, qi and soul alike."],
 ];
 export const ARTIFACT_BY_KEY = Object.fromEntries(ARTIFACTS.map(a => [a[0], a]));
+
+// Elemental affinity (五行 / 灵属性): many treasures carry an element. Equipping
+// them attunes you to it — your matching-element arts strike harder and you
+// resist that element in turn (see combat). Kept as a side-map so the item rows
+// stay a clean fixed shape. Themed sets share an element, so a full set deepens
+// one attunement (Five-Thunder → Lightning, Vermilion Blood Path → Dark, …).
+export const ARTIFACT_ELEMENT = {
+  // weapons
+  green_spear: "Wood", azure_sword: "Metal", python_whip: "Wood", moonfrost_sabre: "Ice",
+  vermilion_blade: "Dark", thunder_halberd: "Lightning", seven_star_sword: "Metal",
+  heaven_cleaver: "Metal", dragonbone_spear: "Earth", taibai_sword: "Metal", mountain_axe: "Earth",
+  // treasures
+  flame_gourd: "Fire", frost_mirror: "Ice", bone_banner: "Dark", thunder_drum: "Lightning",
+  dragon_cauldron: "Fire", stars_banner: "Light", phoenix_plume: "Fire", chaos_bell: "Chaos",
+  samsara_disk: "Void", wood_vine: "Wood", soulbind_mirror: "Light", quaking_seal: "Earth", taiyi_vase: "Water",
+  // robes
+  tortoise_robe: "Water", vermilion_armor: "Dark", nirvana_robe: "Fire", dragonscale_mail: "Metal",
+  // headpieces
+  thunder_helm: "Lightning", phoenix_coronet: "Fire", starlit_crown: "Light",
+  // boots
+  flametread_boots: "Fire", windwalk_greaves: "Wind", ninecloud_boots: "Wind",
+  // rings
+  bloodjade_ring: "Dark", lifewood_ring: "Wood", astral_ring: "Light", chaos_ring: "Chaos",
+};
 // Effect accessors (index-independent so the data shape can evolve safely).
 export const artifactSlot    = key => { const a = ARTIFACT_BY_KEY[key]; return a ? a[2] : null; };
 export const artifactGrade   = key => { const a = ARTIFACT_BY_KEY[key]; return a ? a[3] : null; };
 export const artifactEffects = key => { const a = ARTIFACT_BY_KEY[key]; return (a && a[4]) || {}; };
+export const artifactElement = key => ARTIFACT_ELEMENT[key] || null;
 
 // Equipment sets (套装): bind matched treasures across slots for escalating
 // bonuses (keyed by how many pieces are equipped). Members must sit in distinct

@@ -1214,13 +1214,16 @@ function openAssets() {
     // Active equipment-set bonuses.
     const setLines = E.setBonusLines(c);
     if (setLines.length) for (const line of setLines) body.appendChild(el("p", "note", "套 " + line));
+    // Elemental attunement granted by equipped treasures.
+    const gearEls = E.equipmentElements(c);
+    if (gearEls.length) body.appendChild(el("p", "note", "灵 Attuned (gear): " + gearEls.map(e => `${C.elementIcon(e)} ${e}`).join(" · ") + " — matching arts strike harder; you resist these elements."));
     // ── Treasure trove (full inventory) ──────────────────────────────────
     body.appendChild(el("div", "section-h", "Treasure Trove (法宝库)"));
     if (!c.artifacts.length) body.appendChild(el("p", "note", "You own no treasures yet."));
     for (const key of c.artifacts) {
-      const equipped = E.isEquipped(c, key), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)], lv = E.refineLevel(c, key);
+      const equipped = E.isEquipped(c, key), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)], lv = E.refineLevel(c, key), elem = D.artifactElement(key);
       const row = el("div", "listrow" + (equipped ? " bound" : ""));
-      row.innerHTML = `<div class="lr-ava">${si ? si[3] : "⚔️"}</div><div class="lr-main"><div class="lr-title">${equipped ? "★ " : ""}${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}${lv ? ` <span class="lr-sub" style="display:inline">+${lv}</span>` : ""}</div><div class="lr-sub">${D.artifactGrade(key)} ${si ? si[1] : ""} · ${escapeHtml(E.artifactEffectText(key, c))}</div></div>`;
+      row.innerHTML = `<div class="lr-ava">${si ? si[3] : "⚔️"}</div><div class="lr-main"><div class="lr-title">${equipped ? "★ " : ""}${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}${elem ? ` ${C.elementIcon(elem)}` : ""}${lv ? ` <span class="lr-sub" style="display:inline">+${lv}</span>` : ""}</div><div class="lr-sub">${D.artifactGrade(key)} ${si ? si[1] : ""} · ${escapeHtml(E.artifactEffectText(key, c))}</div></div>`;
       row.onclick = () => openTreasureCard(key);
       body.appendChild(row);
     }
@@ -1257,12 +1260,15 @@ function openTreasureCard(key) {
   const si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];
   openOverlay(art[1], body => {
     const lv = E.refineLevel(c, key), equipped = E.isEquipped(c, key), owned = c.artifacts.includes(key);
-    body.appendChild(infoRows([
+    const elem = D.artifactElement(key);
+    const rows = [
       ["Slot", `${si ? si[3] + " " + si[1] : "Treasure"} · ${si ? si[2] : ""}`],
       ["Grade", `${D.artifactGrade(key)}${lv ? ` · 祭炼 +${lv}` : ""}`],
       ["Effects", E.artifactEffectText(key, c)],
-      ["Status", equipped ? "★ Equipped" : owned ? "In your trove" : "Not owned"],
-    ]));
+    ];
+    if (elem) rows.push(["Attunement", `${C.elementIcon(elem)} ${elem}`]);
+    rows.push(["Status", equipped ? "★ Equipped" : owned ? "In your trove" : "Not owned"]);
+    body.appendChild(infoRows(rows));
     body.appendChild(el("p", "note", art[5]));
     // Set membership, with progress toward its bonuses.
     const setKey = D.SET_OF_ARTIFACT[key];

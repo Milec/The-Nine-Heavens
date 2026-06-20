@@ -201,9 +201,15 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
   // bonus damage with matching-element arts, and resistance to that element.
   const rootEls = (c.awakened && c.root && c.root.elements && c.root.elements.length) ? c.root.elements.slice() : [];
   if (ph.element && !rootEls.includes(ph.element)) rootEls.push(ph.element);
-  const attune = (c.awakened && c.root && c.root.elements && c.root.elements.length)
+  let attune = (c.awakened && c.root && c.root.elements && c.root.elements.length)
     ? clampN(0.10 + (c.root.multiplier || 1) * 0.07, 0.12, 0.45)
     : (ph.element ? 0.15 : 0);
+  // Equipped treasures attune you to their element too — matching arts hit
+  // harder and you resist that element. Gear grants a baseline attunement even
+  // to a rootless cultivator, so a themed loadout always means something.
+  const gearEls = E.equipmentElements(c);
+  for (const el of gearEls) if (!rootEls.includes(el)) rootEls.push(el);
+  if (gearEls.length && attune < 0.15) attune = 0.15;
   const player = {
     isPlayer: true, ref: c, name: c.name,
     maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),

@@ -85,6 +85,15 @@ function syncEquippedArtifact(c) {
   c.equippedArtifact = eq.weapon || eq.treasure || Object.values(eq)[0] || null;
 }
 export const equippedKeys = c => Object.values(c.equipment || {}).filter(Boolean);
+// Distinct elements granted by equipped treasures — these attune you in battle.
+export function equipmentElements(c) {
+  const out = [];
+  for (const key of equippedKeys(c)) {
+    const el = D.artifactElement(key);
+    if (el && !out.includes(el)) out.push(el);
+  }
+  return out;
+}
 
 // ── Refinement (祭炼) ──────────────────────────────────────────────────────
 // A cultivator may temper an owned treasure, raising every one of its effects.
