@@ -349,6 +349,9 @@ function runFree(fn) {
   if (msgs && msgs.length) logMessages(msgs);
   renderProfile(); checkDeath();
 }
+// Run an action that mutates state but keeps the current overlay open
+// (e.g. equipping a treasure), logging any feedback behind the overlay.
+function runQuiet(fn) { const msgs = preserveAge(fn); if (msgs && msgs.length) logMessages(msgs); }
 
 /* ------------------------------- age up ---------------------------------- */
 function doAgeUp() {
@@ -819,7 +822,7 @@ function actHome() {
     const ab = D.abodeAt(c.abode || 0);
     const g = leafGrid(body);
     g.mk("Your Cave Abode", ab ? `${ab[1]} (${ab[2]})` : "establish a home base", openAbode, { full: true });
-    g.mk("Treasures & Beast", "your bound treasure, inventory & spirit beast", openAssets, { full: true });
+    g.mk("Equipment & Beast", "equipment slots, treasure trove & spirit beast", openAssets, { full: true });
     backBtn(body, openActivities);
   });
 }
@@ -892,15 +895,15 @@ function openMarket() {
     }
     for (const k of M.treasures) {
       if (M.sold[k]) continue;
-      const price = E.priceTreasure(c, k);
-      row("⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.ARTIFACT_BY_KEY[k][2]})`, `${price} stones · ${D.ARTIFACT_BY_KEY[k][5]}`, "", c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); });
+      const price = E.priceTreasure(c, k), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(k)];
+      row(si ? si[3] : "⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.artifactGrade(k)} ${si ? si[1] : ""})`, `${price} stones · ${E.artifactEffectText(k)} · ${D.ARTIFACT_BY_KEY[k][5]}`, "", c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); });
     }
     // Sell
-    const spareTreasures = c.artifacts.filter(k => k !== c.equippedArtifact);
+    const spareTreasures = c.artifacts.filter(k => !E.isEquipped(c, k));
     if (c.herbs >= 5 || spareTreasures.length) {
       body.appendChild(el("div", "section-h", "Sell"));
       if (c.herbs >= 5) row("🌿", "Sell Spirit Herbs ×5", `+${E.sellHerbs(c, 5)} stones`, "", true, () => E.sellSpareHerbs(c, 5));
-      for (const k of spareTreasures) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.ARTIFACT_BY_KEY[k][2]})`, "", true, () => E.sellTreasure(c, k));
+      for (const k of spareTreasures) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.artifactGrade(k)})`, "", true, () => E.sellTreasure(c, k));
     }
     backBtn(body, actCommerce);
   });
@@ -1177,7 +1180,7 @@ function openBeast() {
 }
 function openAssets() {
   const c = state.c;
-  openOverlay("Treasures & Beast", body => {
+  openOverlay("Equipment & Beast", body => {
     body.appendChild(el("div", "section-h", "Spirit Beast"));
     if (c.beast) {
       E.normalizeBeast(c.beast);
@@ -1187,17 +1190,59 @@ function openAssets() {
       row.onclick = () => openBeast();
       body.appendChild(row);
     } else body.appendChild(el("p", "note", "None. Best a wild beast while wandering to try taming one."));
-    body.appendChild(el("div", "section-h", "Magic Treasures (法宝)"));
+    E.ensureEquipment(c);
+    // ── Equipment slots ──────────────────────────────────────────────────
+    body.appendChild(el("div", "section-h", "Equipment (装备)"));
+    body.appendChild(el("p", "note", "Bind one treasure per slot. Their bonuses stack — tap an empty slot to fill it, or an equipped treasure below to unbind it."));
+    for (const [slot, name, cn, ic, blurb] of D.EQUIP_SLOTS) {
+      const key = c.equipment[slot];
+      const r = el("div", "listrow" + (key ? " bound" : ""));
+      if (key) r.innerHTML = `<div class="lr-ava">${ic}</div><div class="lr-main"><div class="lr-title">${escapeHtml(name)} · ${escapeHtml(cn)}</div><div class="lr-sub">★ ${escapeHtml(D.ARTIFACT_BY_KEY[key][1])} (${D.artifactGrade(key)}) — ${escapeHtml(E.artifactEffectText(key))}</div></div>`;
+      else r.innerHTML = `<div class="lr-ava" style="opacity:.5">${ic}</div><div class="lr-main"><div class="lr-title" style="opacity:.7">${escapeHtml(name)} · ${escapeHtml(cn)}</div><div class="lr-sub">empty — ${escapeHtml(blurb)}</div></div>`;
+      if (key) r.onclick = () => { runQuiet(() => E.unequipArtifact(c, slot)); renderProfile(); openAssets(); };
+      else r.onclick = () => openSlotPicker(slot);
+      body.appendChild(r);
+    }
+    // Aggregate bonuses, so the player sees the full loadout at a glance.
+    const eff = E.equipmentEffects(c);
+    if (E.equippedKeys(c).length) {
+      const summary = ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]
+        .filter(k => eff[k]).map(k => `+${Math.round(eff[k] * 100)}% ${ {atk:"power",def:"defense",hp:"battle HP",dodge:"dodge",crit:"crit",life:"lifesteal",qi:"qi",qiMax:"max qi"}[k] }`).join(" · ");
+      body.appendChild(el("p", "note", "✦ Total: " + summary));
+    }
+    // ── Treasure trove (full inventory) ──────────────────────────────────
+    body.appendChild(el("div", "section-h", "Treasure Trove (法宝库)"));
     if (!c.artifacts.length) body.appendChild(el("p", "note", "You own no treasures yet."));
     for (const key of c.artifacts) {
-      const row = el("div", "listrow" + (key === c.equippedArtifact ? " bound" : ""));
-      row.innerHTML = `<div class="lr-ava">⚔️</div><div class="lr-main"><div class="lr-title">${key === c.equippedArtifact ? "★ " : ""}${escapeHtml(E.describeArtifact(key))}</div></div>`;
-      row.onclick = () => { E.equipArtifact(c, key); renderProfile(); openAssets(); };
+      const equipped = E.isEquipped(c, key), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];
+      const row = el("div", "listrow" + (equipped ? " bound" : ""));
+      row.innerHTML = `<div class="lr-ava">${si ? si[3] : "⚔️"}</div><div class="lr-main"><div class="lr-title">${equipped ? "★ " : ""}${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}</div><div class="lr-sub">${D.artifactGrade(key)} ${si ? si[1] : ""} · ${escapeHtml(E.artifactEffectText(key))}</div></div>`;
+      row.onclick = () => { runQuiet(() => E.equipArtifact(c, key)); renderProfile(); openAssets(); };
       body.appendChild(row);
     }
-    body.appendChild(el("div", "section-h", "Inventory"));
+    // ── Sundry trinkets ──────────────────────────────────────────────────
+    body.appendChild(el("div", "section-h", "Sundries"));
     body.appendChild(el("p", "note", c.inventory.length ? c.inventory.join(", ") : "(empty)"));
     backBtn(body, actHome);
+  });
+}
+
+// Choose which owned treasure to bind into a given equipment slot.
+function openSlotPicker(slot) {
+  const c = state.c, si = D.EQUIP_SLOT_BY_KEY[slot];
+  openOverlay(`Equip · ${si ? si[1] : "Slot"}`, body => {
+    body.appendChild(el("p", "note", si ? `${si[2]} — ${si[4]}` : ""));
+    const owned = c.artifacts.filter(k => D.artifactSlot(k) === slot && !E.isEquipped(c, k));
+    if (!owned.length) body.appendChild(el("p", "note", "You own no unequipped treasures for this slot. Win or buy more at ruins, bosses and the market."));
+    // Strongest first, so the obvious upgrade is at the top.
+    owned.sort((a, b) => E.artifactScore(b) - E.artifactScore(a));
+    for (const key of owned) {
+      const row = el("div", "listrow");
+      row.innerHTML = `<div class="lr-ava">${si ? si[3] : "⚔️"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(D.ARTIFACT_BY_KEY[key][1])} (${D.artifactGrade(key)})</div><div class="lr-sub">${escapeHtml(E.artifactEffectText(key))} · ${escapeHtml(D.ARTIFACT_BY_KEY[key][5])}</div></div>`;
+      row.onclick = () => { runQuiet(() => E.equipArtifact(c, key)); renderProfile(); openAssets(); };
+      body.appendChild(row);
+    }
+    backBtn(body, openAssets);
   });
 }
 
@@ -1456,7 +1501,7 @@ function openSheet() {
     const ab = D.abodeAt(c.abode || 0);
     const rows = [["Sect", c.ownSect ? `${c.ownSect.name} — Founder (${D.sectTier(c.ownSect.prestige)[1]})` : c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
       ["Abode", ab ? `${ab[1]} (${ab[2]})${c.ownSect ? " · sect seat" : ""}` : "None", "abode"],
-      ["Treasure", c.equippedArtifact ? E.describeArtifact(c.equippedArtifact) : "(none)"]];
+      ["Equipment", E.equipmentSummary(c)]];
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
     if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);
@@ -1744,6 +1789,8 @@ function resumeFrom(sv) {
   if (!c.epithets) c.epithets = [];
   if (c.sectMissions == null) c.sectMissions = 0;
   if (c.sectJoinedAge === undefined) c.sectJoinedAge = c.sectKey ? c.age : null;
+  if (!c.artifacts) c.artifacts = [];
+  E.ensureEquipment(c);   // migrate legacy single-slot treasure → equipment slots
   if (!c.movementArts) c.movementArts = [];
   if (!c.moveMastery) c.moveMastery = {};
   if (!c.customTechs) c.customTechs = [];

@@ -59,9 +59,42 @@ export const sectOf = c => c.sectKey ? D.SECT_BY_KEY[c.sectKey] : null;
 export const sectName = c => sectOf(c) ? sectOf(c)[1] : "Rogue Cultivator (散修)";
 export const rankName = c => sectOf(c) ? D.SECT_RANKS[c.sectRank][0] : "";
 export const sectSpeedBonus = c => sectOf(c) ? sectOf(c)[7] + D.SECT_RANKS[c.sectRank][3] : 0;
+// Equipment: a cultivator binds one treasure per slot (c.equipment[slot]).
+// `c.artifacts` is the full inventory of owned treasures; equipment references
+// keys within it. equipmentEffects sums the bonuses of everything equipped.
+export function ensureEquipment(c) {
+  if (!c.equipment || typeof c.equipment !== "object") c.equipment = {};
+  // Migrate legacy single-slot saves: bind the old signature treasure to its slot.
+  if (c.equippedArtifact && !Object.values(c.equipment).includes(c.equippedArtifact)) {
+    const slot = D.artifactSlot(c.equippedArtifact);
+    if (slot && !c.equipment[slot]) c.equipment[slot] = c.equippedArtifact;
+  }
+  // Drop dangling references (e.g. items removed from data) and ones not owned.
+  for (const slot of Object.keys(c.equipment)) {
+    const key = c.equipment[slot];
+    if (!key || !D.ARTIFACT_BY_KEY[key] || !(c.artifacts || []).includes(key)) delete c.equipment[slot];
+  }
+  syncEquippedArtifact(c);
+  return c.equipment;
+}
+// Keep the legacy `equippedArtifact` field pointing at the strongest weapon/treasure
+// so older code paths and saves stay coherent.
+function syncEquippedArtifact(c) {
+  const eq = c.equipment || {};
+  c.equippedArtifact = eq.weapon || eq.treasure || Object.values(eq)[0] || null;
+}
+export const equippedKeys = c => Object.values(c.equipment || {}).filter(Boolean);
+export function equipmentEffects(c) {
+  const sum = { atk: 0, qi: 0, def: 0, hp: 0, dodge: 0, crit: 0, life: 0, qiMax: 0 };
+  for (const key of equippedKeys(c)) {
+    const e = D.artifactEffects(key);
+    for (const k in sum) sum[k] += e[k] || 0;
+  }
+  return sum;
+}
 export const artifactOf = c => c.equippedArtifact ? D.ARTIFACT_BY_KEY[c.equippedArtifact] : null;
-const artifactAtkPct = c => artifactOf(c) ? artifactOf(c)[3] : 0;
-const artifactQiBonus = c => artifactOf(c) ? artifactOf(c)[4] : 0;
+const artifactAtkPct = c => equipmentEffects(c).atk;
+const artifactQiBonus = c => equipmentEffects(c).qi;
 export const daoPowerBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][2] : 0), 0);
 export const daoBreakthroughBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][3] : 0), 0);
 export const beastPower = c => (c.beast && c.beast.alive) ? c.beast.power : 0;
@@ -189,7 +222,7 @@ function newCharacter() {
     spiritStones: 0, reputation: 0, techniques: ["basic_breathing"], inventory: [], pills: 0,
     sectKey: null, sectRank: 0, contribution: 0, sectMissions: 0, sectJoinedAge: null, titles: [], epithets: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
-    artifacts: [], equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
+    artifacts: [], equipment: {}, equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
     daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
     movementArts: [], moveMastery: {}, customTechs: [],
@@ -408,11 +441,15 @@ export function reincarnate(old, rng, name) {
   c.qi += qiToNext(c) * 0.5;
   recomputeMaxHp(c);
   note(c, `A soul reborn (rebirth #${c.reincarnationCount}), dimly recalling a past life that reached ${realmName(old)}.`);
-  if (old.equippedArtifact && old.realm >= 4 && rng.random() < 0.4) {
-    c.artifacts.push(old.equippedArtifact);
-    c.equippedArtifact = old.equippedArtifact;
-    const art = D.ARTIFACT_BY_KEY[old.equippedArtifact];
-    note(c, `Across rebirth you still grasp the ${art[1]} (${art[2]} grade).`);
+  // A reborn soul may still grasp one signature treasure from a past life.
+  ensureEquipment(old);
+  const carried = D.ARTIFACT_BY_KEY[old.equippedArtifact] ? old.equippedArtifact : null;
+  if (carried && old.realm >= 4 && rng.random() < 0.4) {
+    c.artifacts.push(carried);
+    c.equipment[D.artifactSlot(carried)] = carried;
+    syncEquippedArtifact(c);
+    const art = D.ARTIFACT_BY_KEY[carried];
+    note(c, `Across rebirth you still grasp the ${art[1]} (${D.artifactGrade(carried)} grade).`);
   }
   return c;
 }
@@ -731,33 +768,77 @@ function gradeForRealm(c, rng) {
 }
 export function randomArtifact(c, rng, grade) {
   grade = grade || gradeForRealm(c, rng);
-  let pool = D.ARTIFACTS.filter(a => a[2] === grade);
+  let pool = D.ARTIFACTS.filter(a => a[3] === grade);
   let gi = D.ARTIFACT_GRADE_RANK[grade];
-  while (gi >= 0 && pool.length === 0) { pool = D.ARTIFACTS.filter(a => a[2] === D.ARTIFACT_GRADES[gi]); gi--; }
+  while (gi >= 0 && pool.length === 0) { pool = D.ARTIFACTS.filter(a => a[3] === D.ARTIFACT_GRADES[gi]); gi--; }
   return rng.choice(pool)[0];
 }
+// A rough power score for a treasure's effects — used to break ties within a
+// grade and to decide whether a new find beats what's already in its slot.
+export function artifactScore(key) {
+  const e = D.artifactEffects(key);
+  return (e.atk || 0) * 1.0 + (e.def || 0) * 1.2 + (e.hp || 0) * 0.4 + (e.dodge || 0) * 1.5
+    + (e.crit || 0) * 1.5 + (e.life || 0) * 1.0 + (e.qi || 0) * 0.6 + (e.qiMax || 0) * 0.3;
+}
 function artifactBetter(a, b) {
-  const A = D.ARTIFACT_BY_KEY[a], B = D.ARTIFACT_BY_KEY[b];
-  if (D.ARTIFACT_GRADE_RANK[A[2]] !== D.ARTIFACT_GRADE_RANK[B[2]]) return D.ARTIFACT_GRADE_RANK[A[2]] > D.ARTIFACT_GRADE_RANK[B[2]];
-  return A[3] > B[3];
+  const ga = D.ARTIFACT_GRADE_RANK[D.artifactGrade(a)], gb = D.ARTIFACT_GRADE_RANK[D.artifactGrade(b)];
+  if (ga !== gb) return ga > gb;
+  return artifactScore(a) > artifactScore(b);
 }
 export function acquireArtifact(c, key, autoEquip = true) {
   const art = D.ARTIFACT_BY_KEY[key]; if (!art) return [];
+  ensureEquipment(c);
   c.artifacts.push(key);
-  const msgs = [`  You obtain a treasure: ${art[1]} (${art[2]} grade)!`];
-  if (autoEquip && (!c.equippedArtifact || artifactBetter(key, c.equippedArtifact))) {
-    c.equippedArtifact = key; msgs.push(`  You bind the ${art[1]} as your signature treasure.`); note(c, `Bound the ${art[1]} (${art[2]} grade).`);
+  const slot = D.artifactSlot(key), slotInfo = D.EQUIP_SLOT_BY_KEY[slot];
+  const msgs = [`  You obtain a treasure: ${art[1]} (${D.artifactGrade(key)} ${slotInfo ? slotInfo[1].toLowerCase() : "treasure"})!`];
+  const current = c.equipment[slot];
+  if (autoEquip && (!current || artifactBetter(key, current))) {
+    c.equipment[slot] = key; syncEquippedArtifact(c);
+    msgs.push(`  You equip the ${art[1]} in your ${slotInfo ? slotInfo[1] : "treasure"} slot.`);
+    note(c, `Equipped the ${art[1]} (${D.artifactGrade(key)} grade).`);
   }
   return msgs;
 }
 export function equipArtifact(c, key) {
   if (!c.artifacts.includes(key)) return ["You do not possess that treasure."];
-  c.equippedArtifact = key; const art = D.ARTIFACT_BY_KEY[key];
-  return [`You bind the ${art[1]} (${art[2]} grade) as your treasure.`];
+  ensureEquipment(c);
+  const slot = D.artifactSlot(key), slotInfo = D.EQUIP_SLOT_BY_KEY[slot];
+  if (c.equipment[slot] === key) {     // tapping the equipped item unbinds it
+    delete c.equipment[slot]; syncEquippedArtifact(c);
+    return [`You unbind the ${D.ARTIFACT_BY_KEY[key][1]}.`];
+  }
+  c.equipment[slot] = key; syncEquippedArtifact(c);
+  return [`You equip the ${D.ARTIFACT_BY_KEY[key][1]} (${D.artifactGrade(key)}) in your ${slotInfo ? slotInfo[1] : "treasure"} slot.`];
+}
+export function unequipArtifact(c, slot) {
+  ensureEquipment(c);
+  if (!c.equipment[slot]) return [];
+  const key = c.equipment[slot]; delete c.equipment[slot]; syncEquippedArtifact(c);
+  return [`You unbind the ${D.ARTIFACT_BY_KEY[key][1]}.`];
+}
+export const isEquipped = (c, key) => equippedKeys(c).includes(key);
+// A short, human-readable list of a treasure's effects, e.g. "+30% power, +5% qi".
+const EFFECT_LABELS = {
+  atk: ["% power", 100], qi: ["% qi", 100], def: ["% defense", 100], hp: ["% battle HP", 100],
+  dodge: ["% dodge", 100], crit: ["% crit", 100], life: ["% lifesteal", 100], qiMax: ["% max qi", 100],
+};
+export function artifactEffectText(key) {
+  const e = D.artifactEffects(key), parts = [];
+  for (const k of ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]) {
+    if (e[k]) { const [label] = EFFECT_LABELS[k]; parts.push(`+${Math.round(e[k] * 100)}${label}`); }
+  }
+  return parts.join(", ") || "no bonuses";
 }
 export function describeArtifact(key) {
-  const a = D.ARTIFACT_BY_KEY[key];
-  return `${a[1]} (${a[2]}) — +${Math.floor(a[3] * 100)}% power` + (a[4] ? `, +${Math.floor(a[4] * 100)}% cultivation` : "");
+  const slot = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];
+  return `${D.ARTIFACT_BY_KEY[key][1]} (${D.artifactGrade(key)} ${slot ? slot[1] : ""}) — ${artifactEffectText(key)}`;
+}
+// One-line loadout summary for the profile, e.g. "3/6 slots · Azure Flying Sword, …".
+export function equipmentSummary(c) {
+  ensureEquipment(c);
+  const keys = D.EQUIP_SLOT_KEYS.map(s => c.equipment[s]).filter(Boolean);
+  if (!keys.length) return "(none equipped)";
+  return `${keys.length}/${D.EQUIP_SLOT_KEYS.length} slots · ` + keys.map(k => D.ARTIFACT_BY_KEY[k][1]).join(", ");
 }
 
 /* ------------------------------ beasts ----------------------------------- */
@@ -871,7 +952,7 @@ const TREASURE_BASE = { Mortal: 25, Spirit: 130, Earth: 600, Heaven: 3000, Immor
 export const priceHerbs = (c, n = 5) => Math.max(2, Math.round((c.realm + 1) * 1.6 * n * marketMult(c)));
 export const pricePill = (c, key) => Math.round((D.PILL_BY_KEY[key][2] * 8 + 15) * marketMult(c));
 export const priceTech = (c, tier) => Math.round([60, 130, 320, 900][tier] * marketMult(c));
-export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.ARTIFACT_BY_KEY[key][2]] || 50) * marketMult(c));
+export const priceTreasure = (c, key) => Math.round((TREASURE_BASE[D.artifactGrade(key)] || 50) * marketMult(c));
 // Selling fetches a fraction of the buy price.
 export const sellHerbs = (c, n = 5) => Math.max(1, Math.round(priceHerbs(c, n) * 0.45));
 export const sellTreasureValue = (c, key) => Math.max(1, Math.round(priceTreasure(c, key) * 0.4));
@@ -973,7 +1054,7 @@ export function buyTreasure(c, key) {
 }
 export function sellTreasure(c, key) {
   if (!c.artifacts.includes(key)) return ["You do not own that treasure."];
-  if (c.equippedArtifact === key) return ["Unbind it before selling — you won't part with your signature treasure."];
+  if (isEquipped(c, key)) return ["Unbind it before selling — you won't part with an equipped treasure."];
   const v = sellTreasureValue(c, key);
   c.artifacts.splice(c.artifacts.indexOf(key), 1);
   c.spiritStones += v;

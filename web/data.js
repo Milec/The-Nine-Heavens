@@ -254,24 +254,79 @@ export const TOURNAMENT_TITLES = [[1,"Champion"],[2,"Runner-up"],[4,"Top Four"],
 export const ARTIFACT_GRADES = ["Mortal","Spirit","Earth","Heaven","Immortal"];
 export const ARTIFACT_GRADE_RANK = Object.fromEntries(ARTIFACT_GRADES.map((g,i)=>[g,i]));
 
-// [key, name, grade, atkPct, qiBonus, blurb]
+// Equipment slots — a cultivator binds one treasure per slot.
+// [key, name, cn, icon, blurb]
+export const EQUIP_SLOTS = [
+  ["weapon",    "Weapon",         "兵器", "⚔️", "Flying swords, blades and spears — your raw killing power."],
+  ["treasure",  "Magic Treasure", "法宝", "🔮", "Offensive dharma treasures that channel spells and qi."],
+  ["robe",      "Robe",           "法袍", "🥋", "Defensive robes and armour that turn aside blows and harden the body."],
+  ["headpiece", "Headpiece",      "宝冠", "👑", "Crowns and diadems that sharpen the spirit and quicken cultivation."],
+  ["boots",     "Boots",          "灵靴", "🥾", "Footwork treasures — evade blows and outpace any foe."],
+  ["ring",      "Ring & Pendant", "戒指", "💍", "Rings and pendants holding varied arts: qi, lifesteal, fortune."],
+];
+export const EQUIP_SLOT_KEYS = EQUIP_SLOTS.map(s => s[0]);
+export const EQUIP_SLOT_BY_KEY = Object.fromEntries(EQUIP_SLOTS.map(s => [s[0], s]));
+
+// [key, name, slot, grade, effects, blurb]
+// effects keys (all optional, fractions unless noted):
+//   atk  — % combat power           qi   — % cultivation/qi speed
+//   def  — flat combat mitigation    hp   — % max battle HP
+//   dodge— flat dodge chance         crit — flat crit chance
+//   life — passive lifesteal on hits qiMax— % max qi pool
 export const ARTIFACTS = [
-  ["iron_sword", "Chipped Iron Sword", "Mortal", 0.06, 0.00, "A mortal-forged blade, barely a cut above a farmer's tool."],
-  ["talisman", "Yellow Paper Talisman", "Mortal", 0.05, 0.02, "A bundle of crude warding charms."],
-  ["azure_sword", "Azure Flying Sword", "Spirit", 0.16, 0.04, "A true flying sword that hums and circles at its master's will."],
-  ["cloud_boots", "Cloud-Striding Boots", "Spirit", 0.12, 0.03, "Tread the wind itself; foes struggle to pin you down."],
-  ["flame_gourd", "Crimson Flame Gourd", "Earth", 0.30, 0.05, "Belches a torrent of spirit-fire that melts iron and beast alike."],
-  ["element_pagoda", "Five Elements Pagoda", "Earth", 0.28, 0.10, "A layered treasure-pagoda that grinds enemies between the five elements."],
-  ["frost_mirror", "Frost-Moon Mirror", "Spirit", 0.14, 0.06, "A cold silver disc that drinks moonlight and turns a foe's spells back as ice."],
-  ["bone_banner", "Ten-Thousand Ghost Banner", "Earth", 0.30, 0.08, "A demonic banner that looses a howling tide of vengeful spirits."],
-  ["thunder_drum", "Nine-Heaven Thunder Drum", "Earth", 0.34, 0.06, "One beat looses the wrath of heaven; thunder rolls across the field."],
-  ["dragon_cauldron", "Nine Dragon Cauldron", "Heaven", 0.55, 0.16, "Nine dragons coil its rim; it can smelt mountains and refine pills."],
-  ["stars_banner", "River-of-Stars Banner", "Heaven", 0.50, 0.20, "Unfurls a galaxy of killing starlight across the battlefield."],
-  ["phoenix_plume", "Vermilion Phoenix Plume", "Heaven", 0.52, 0.18, "A single undying feather wreathed in nirvanic flame that burns and reblooms."],
-  ["chaos_bell", "Primordial Chaos Bell", "Immortal", 0.95, 0.32, "A bell from the dawn of the world; one toll unmakes ten thousand spells."],
-  ["samsara_disk", "Wheel-of-Samsara Disk", "Immortal", 0.88, 0.34, "An immortal artifact that turns the wheel of rebirth, grinding all things back to dust."],
+  // ── Weapons (兵器) ──────────────────────────────────────────────────────
+  ["iron_sword",      "Chipped Iron Sword",        "weapon", "Mortal",   { atk: 0.06, crit: 0.02 },                     "A mortal-forged blade, barely a cut above a farmer's tool."],
+  ["green_spear",     "Greenwood Spirit Spear",    "weapon", "Spirit",   { atk: 0.15, crit: 0.03 },                     "A spear grown from a thousand-year spirit-bamboo; light, swift and keen."],
+  ["azure_sword",     "Azure Flying Sword",        "weapon", "Spirit",   { atk: 0.16, qi: 0.02, crit: 0.04 },           "A true flying sword that hums and circles at its master's will."],
+  ["moonfrost_sabre", "Moon-Frost Sabre",          "weapon", "Earth",    { atk: 0.30, crit: 0.06 },                     "A curved sabre wreathed in cold light that bites deeper with every draw."],
+  ["seven_star_sword","Seven-Star Northern Sword", "weapon", "Heaven",   { atk: 0.52, crit: 0.10 },                     "Forged under the seven stars of the north; its edge splits starlight."],
+  ["heaven_cleaver",  "Heaven-Cleaving Greatsword","weapon", "Heaven",   { atk: 0.58, crit: 0.05, hp: 0.05 },           "A colossal blade said to have once parted a mountain in a single stroke."],
+  ["taibai_sword",    "Tai-Bai Immortal Sword",    "weapon", "Immortal", { atk: 0.94, crit: 0.14 },                     "An immortal's sword-spirit; one cut severs cause from effect."],
+  // ── Magic Treasures (法宝) ──────────────────────────────────────────────
+  ["talisman",        "Yellow Paper Talisman",     "treasure", "Mortal",   { atk: 0.05, def: 0.02 },                    "A bundle of crude warding charms."],
+  ["frost_mirror",    "Frost-Moon Mirror",         "treasure", "Spirit",   { atk: 0.14, qi: 0.05, def: 0.04 },          "A cold silver disc that drinks moonlight and turns a foe's spells back as ice."],
+  ["flame_gourd",     "Crimson Flame Gourd",       "treasure", "Earth",    { atk: 0.30, qi: 0.05 },                     "Belches a torrent of spirit-fire that melts iron and beast alike."],
+  ["element_pagoda",  "Five Elements Pagoda",      "treasure", "Earth",    { atk: 0.28, qi: 0.10 },                     "A layered treasure-pagoda that grinds enemies between the five elements."],
+  ["bone_banner",     "Ten-Thousand Ghost Banner", "treasure", "Earth",    { atk: 0.30, life: 0.06 },                   "A demonic banner that looses a howling tide of vengeful spirits."],
+  ["thunder_drum",    "Nine-Heaven Thunder Drum",  "treasure", "Earth",    { atk: 0.34, crit: 0.05 },                   "One beat looses the wrath of heaven; thunder rolls across the field."],
+  ["dragon_cauldron", "Nine Dragon Cauldron",      "treasure", "Heaven",   { atk: 0.55, qi: 0.16 },                     "Nine dragons coil its rim; it can smelt mountains and refine pills."],
+  ["stars_banner",    "River-of-Stars Banner",     "treasure", "Heaven",   { atk: 0.50, qi: 0.20 },                     "Unfurls a galaxy of killing starlight across the battlefield."],
+  ["phoenix_plume",   "Vermilion Phoenix Plume",   "treasure", "Heaven",   { atk: 0.52, hp: 0.10, life: 0.05 },         "A single undying feather wreathed in nirvanic flame that burns and reblooms."],
+  ["chaos_bell",      "Primordial Chaos Bell",     "treasure", "Immortal", { atk: 0.95, def: 0.10, qiMax: 0.20 },       "A bell from the dawn of the world; one toll unmakes ten thousand spells."],
+  ["samsara_disk",    "Wheel-of-Samsara Disk",     "treasure", "Immortal", { atk: 0.88, qi: 0.20, life: 0.10 },         "An immortal artifact that turns the wheel of rebirth, grinding all things back to dust."],
+  // ── Robes & Armour (法袍) ───────────────────────────────────────────────
+  ["cloth_robe",      "Coarse Cloth Robe",         "robe", "Mortal",   { def: 0.03, hp: 0.03 },                        "Plain spun cloth — better than baring your skin to a blade."],
+  ["spirit_silk_robe","Spirit-Silk Robe",          "robe", "Spirit",   { def: 0.06, hp: 0.06 },                        "Woven from spirit-silkworm thread; light, cool, and quietly tough."],
+  ["goldscale_robe",  "Golden-Scale War Robe",     "robe", "Earth",    { def: 0.12, hp: 0.12, atk: 0.04 },             "Overlapping spirit-gold scales that shrug off both blade and spell."],
+  ["tortoise_robe",   "Black-Tortoise Profound Robe","robe","Earth",   { def: 0.16, hp: 0.15 },                        "Bears the sigil of the Black Tortoise; its wearer endures like a mountain."],
+  ["star_robe",       "Star-Patterned Celestial Robe","robe","Heaven", { def: 0.20, hp: 0.20, qi: 0.05 },              "Constellations drift across its silk, sheltering you beneath the heavens."],
+  ["nirvana_robe",    "Nirvana Phoenix Feather-Robe","robe","Heaven",  { def: 0.22, hp: 0.22, life: 0.05 },            "Plumed with phoenix down; wounds close as fast as they open."],
+  ["chaos_lotus_robe","Chaos Azure-Lotus Robe",    "robe", "Immortal", { def: 0.30, hp: 0.30, qiMax: 0.15 },           "An immortal lotus folded into a robe; calamity slides off its petals."],
+  // ── Headpieces (宝冠) ───────────────────────────────────────────────────
+  ["jade_pin",        "Jade Hairpin",              "headpiece", "Mortal",   { qi: 0.02, qiMax: 0.04 },                  "A cool jade pin that steadies a restless mind."],
+  ["soulsense_circlet","Soul-Sense Circlet",       "headpiece", "Spirit",   { qi: 0.05, qiMax: 0.10, crit: 0.02 },      "A silver circlet that widens the spirit's eye."],
+  ["cloud_crown",     "Purple-Gold Cloud Crown",   "headpiece", "Earth",    { qi: 0.10, qiMax: 0.15, def: 0.04 },       "A heavy crown of purple-gold that gathers ambient qi while you sit in meditation."],
+  ["phoenix_coronet", "Nine-Phoenix Coronet",      "headpiece", "Heaven",   { qi: 0.16, qiMax: 0.20, crit: 0.05 },      "Nine phoenixes take wing about its brow, kindling insight."],
+  ["dao_diadem",      "Heavenly Dao Diadem",       "headpiece", "Immortal", { qi: 0.28, qiMax: 0.30, crit: 0.08 },      "A diadem inscribed with the Great Dao itself; comprehension flows like water."],
+  // ── Boots (灵靴) ────────────────────────────────────────────────────────
+  ["straw_sandals",   "Straw Sandals",             "boots", "Mortal",   { dodge: 0.02 },                                "Humble woven sandals — light enough for a quick step aside."],
+  ["cloud_boots",     "Cloud-Striding Boots",      "boots", "Spirit",   { dodge: 0.10, qi: 0.03 },                      "Tread the wind itself; foes struggle to pin you down."],
+  ["windwalk_greaves","Wind-Walking Greaves",      "boots", "Earth",    { dodge: 0.15, crit: 0.04 },                    "Each stride blurs into wind; you strike from where you are not."],
+  ["shadowstep_boots","Shadow-Step Boots",         "boots", "Heaven",   { dodge: 0.20, atk: 0.06 },                     "Step through your own shadow to flank and vanish at will."],
+  ["void_boots",      "Void-Treading Sky Boots",   "boots", "Immortal", { dodge: 0.28, crit: 0.08, atk: 0.08 },         "Walk on nothing at all; the void itself yields the road."],
+  // ── Rings & Pendants (戒指) ─────────────────────────────────────────────
+  ["copper_ring",     "Plain Copper Ring",         "ring", "Mortal",   { qi: 0.02 },                                   "A nameless ring with a faint qi-gathering array etched inside."],
+  ["storage_ring",    "Spirit Storage Ring",       "ring", "Spirit",   { qi: 0.05, qiMax: 0.08 },                      "A storage ring whose hidden world hums with gathered spirit qi."],
+  ["bloodjade_ring",  "Blood-Jade Ring",           "ring", "Earth",    { life: 0.10, atk: 0.06 },                      "Carved from blood-jade; it drinks a foe's vitality back into yours."],
+  ["fortune_pendant", "Fortune Dragon Pendant",    "ring", "Earth",    { crit: 0.06, qi: 0.06 },                       "A coiled-dragon pendant that nudges fate toward the telling blow."],
+  ["heaven_ring",     "Heaven-Refining Ring",      "ring", "Heaven",   { qi: 0.14, qiMax: 0.18, atk: 0.06 },           "A ring-furnace that refines raw heaven-and-earth qi as you wear it."],
+  ["samsara_ring",    "Samsara True-Spirit Ring",  "ring", "Immortal", { qi: 0.20, life: 0.12, crit: 0.06 },           "An immortal ring binding a true-spirit that mends and sharpens its master."],
 ];
 export const ARTIFACT_BY_KEY = Object.fromEntries(ARTIFACTS.map(a => [a[0], a]));
+// Effect accessors (index-independent so the data shape can evolve safely).
+export const artifactSlot    = key => { const a = ARTIFACT_BY_KEY[key]; return a ? a[2] : null; };
+export const artifactGrade   = key => { const a = ARTIFACT_BY_KEY[key]; return a ? a[3] : null; };
+export const artifactEffects = key => { const a = ARTIFACT_BY_KEY[key]; return (a && a[4]) || {}; };
 
 export const SPIRIT_BEASTS = [
   "Spirit Fox","Cloud Leopard","Crimson Fire Python","Thunder Hawk","Jade-Maned Lion",

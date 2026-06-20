@@ -61,8 +61,11 @@ lifesteals but stains your karma, the defense-piercing Great Void Rend…), spen
 from a **qi pool** you must manage. Your **spiritual-root element** drives a Wu
 Xing advantage/weakness cycle — and **attunes** you: arts of your own element(s)
 strike harder (the purer the root, the bigger the bonus) and you resist that
-element in turn. Your **bound treasure** and **tamed beast** join
-the fight, and stats decide crits, dodges and shields. Enemies wield their own
+element in turn. Your **full equipment loadout** — a treasure bound into each of
+**six slots** (weapon, magic treasure, robe, headpiece, boots, ring) — and your
+**tamed beast** join the fight, their bonuses stacking into power, defense,
+battle HP, dodge, crit, lifesteal and qi. Stats decide crits, dodges and
+shields. Enemies wield their own
 **signature moves and elements** (a Demonic Outrider drains your blood; a
 Flame-Mane Lion sets you ablaze). Pick fights via **Wander the World**, **Hunt
 Spirit Beasts** (tameable), the non-lethal **Arena**, **dueling** a rival, or by
@@ -115,6 +118,18 @@ Three more systems round out a cultivator's life:
   technique manuals and magic treasures, and **sell** your spare herbs and surplus
   treasures. Prices **float with the world era** — dear in a Spiritual Drought,
   cheap in an Age of Abundance — so spirit stones finally have somewhere to go.
+- **Equipment & inventory (装备)** — your treasure trove is no longer a single
+  bound artifact but a **full loadout across six slots** — **weapon (兵器)**,
+  **magic treasure (法宝)**, **robe (法袍)**, **headpiece (宝冠)**, **boots (灵靴)**
+  and **ring (戒指)**. Every slot has its own family of treasures from crude
+  *Mortal* gear to world-shaking *Immortal* relics, each with **distinct effects**
+  — raw power, defense, battle HP, dodge, crit, passive lifesteal, faster
+  cultivation and a deeper qi pool — and their bonuses **stack across the whole
+  set**. Find them in ruins, win them at auction or loot them from fallen foes;
+  the strongest find for an empty slot **auto-equips**, and you can freely
+  re-bind, unbind or sell spares from the **Equipment & Beast** screen. Your heir
+  inherits your loadout, and a reborn soul may carry one signature treasure across
+  the wheel.
 - **Talismans (符箓)** — one-use paper charms inscribed with spirit-script: loose a
   **Flame-Burst, Thunderbolt or Flying-Sword** for a no-qi damage burst, raise a
   **Golden-Bell** shield, **mend** your wounds, **bind** a foe in place, or tear

@@ -195,7 +195,8 @@ export function makeTribulation(c, rng) {
 export function createBattle(c, enemyDef, rng, opts = {}) {
   const P = E.power(c);
   const ph = D.physEffect(c);                       // ongoing physique effects
-  const pMax = P * 1.9 * (1 + (ph.hp || 0));
+  const eq = E.equipmentEffects(c);                 // summed equipment bonuses
+  const pMax = P * 1.9 * (1 + (ph.hp || 0) + (eq.hp || 0));
   // Your spiritual root's element(s) (plus any from a special physique) attune you:
   // bonus damage with matching-element arts, and resistance to that element.
   const rootEls = (c.awakened && c.root && c.root.elements && c.root.elements.length) ? c.root.elements.slice() : [];
@@ -206,11 +207,12 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
   const player = {
     isPlayer: true, ref: c, name: c.name,
     maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),
-    maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0)),
+    maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)),
     atk: P - E.beastPower(c),
-    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.7),
-    crit: clampN(c.luck / 400 + 0.05, 0, 0.6),
-    dodge: clampN(c.luck / 600 + c.soul / 900 + (c.equippedArtifact === "cloud_boots" ? 0.1 : 0) + (ph.dodge || 0), 0, 0.5),
+    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + (eq.def || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.8),
+    crit: clampN(c.luck / 400 + 0.05 + (eq.crit || 0), 0, 0.7),
+    dodge: clampN(c.luck / 600 + c.soul / 900 + (eq.dodge || 0) + (ph.dodge || 0), 0, 0.6),
+    equipLifesteal: eq.life || 0,
     healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,
     element: rootEls.length ? rootEls[0] : null,
     rootElements: rootEls, attune,
@@ -327,7 +329,8 @@ function resolveSkill(B, att, def, skill, lines) {
     dmg = Math.max(0, Math.round(dmg));
     def.hp -= dmg;
     lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${attuned ? " 🜂" : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${attuned ? " (attuned)" : ""}${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
-    if (skill.lifesteal && dmg > 0) { const hh = dmg * skill.lifesteal; att.hp = Math.min(att.maxHp, att.hp + hh); lines.push(`   ${att.name} drains ${Math.round(hh)} HP.`); }
+    const lifeFrac = (skill.lifesteal || 0) + (att.equipLifesteal || 0);
+    if (lifeFrac && dmg > 0) { const hh = dmg * lifeFrac; att.hp = Math.min(att.maxHp, att.hp + hh); lines.push(`   ${att.name} drains ${Math.round(hh)} HP.`); }
     // Counter / reflect: a defender in a reflecting stance turns force back.
     const cs = def.statuses.find(s => s.type === "counter");
     if (cs && dmg > 0) { const refl = Math.round(dmg * cs.value); att.hp -= refl; def.statuses = def.statuses.filter(s => s !== cs); lines.push(`   ✦ ${def.name} reflects ${refl} damage back!`); }
