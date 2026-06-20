@@ -1209,8 +1209,11 @@ function openAssets() {
     if (E.equippedKeys(c).length) {
       const summary = ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]
         .filter(k => eff[k]).map(k => `+${Math.round(eff[k] * 100)}% ${ {atk:"power",def:"defense",hp:"battle HP",dodge:"dodge",crit:"crit",life:"lifesteal",qi:"qi",qiMax:"max qi"}[k] }`).join(" · ");
-      body.appendChild(el("p", "note", "✦ Total: " + summary));
+      body.appendChild(el("p", "note", "✦ Total (gear + sets): " + summary));
     }
+    // Active equipment-set bonuses.
+    const setLines = E.setBonusLines(c);
+    if (setLines.length) for (const line of setLines) body.appendChild(el("p", "note", "套 " + line));
     // ── Treasure trove (full inventory) ──────────────────────────────────
     body.appendChild(el("div", "section-h", "Treasure Trove (法宝库)"));
     if (!c.artifacts.length) body.appendChild(el("p", "note", "You own no treasures yet."));
@@ -1261,6 +1264,20 @@ function openTreasureCard(key) {
       ["Status", equipped ? "★ Equipped" : owned ? "In your trove" : "Not owned"],
     ]));
     body.appendChild(el("p", "note", art[5]));
+    // Set membership, with progress toward its bonuses.
+    const setKey = D.SET_OF_ARTIFACT[key];
+    if (setKey) {
+      const set = D.SET_BY_KEY[setKey];
+      const equippedCount = set.members.filter(m => E.isEquipped(c, m)).length;
+      body.appendChild(el("div", "section-h", `Set · ${set.name} (${set.cn})`));
+      body.appendChild(el("p", "note", `${equippedCount}/${set.members.length} equipped — ${set.blurb}`));
+      const lines = Object.keys(set.bonuses).map(Number).sort((a, b) => a - b)
+        .map(n => `${equippedCount >= n ? "✓" : "○"} ${n}-piece: ${E.effectsText(set.bonuses[n])}`);
+      for (const l of lines) body.appendChild(el("p", "note", l));
+      const missing = set.members.filter(m => !E.isEquipped(c, m))
+        .map(m => `${D.ARTIFACT_BY_KEY[m][1]}${c.artifacts.includes(m) ? " (in trove)" : ""}`);
+      if (missing.length) body.appendChild(el("p", "note", "Still need: " + missing.join(", ")));
+    }
     if (!owned) { backBtn(body, openAssets); return; }
     // Bind / unbind
     const bindBtn = el("button", "mbtn full" + (equipped ? "" : " primary"));

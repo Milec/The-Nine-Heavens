@@ -132,8 +132,11 @@ Three more systems round out a cultivator's life:
   into its spirit-fire to temper it up to **+6**, each level raising *all* of its
   effects, with a success chance that falls as the treasure resists and rises
   with a steady soul, fortune and alchemical skill (a refined treasure also fetches
-  a richer price). Your heir inherits your loadout, refinement and all, and a reborn
-  soul may carry one signature treasure across the wheel.
+  a richer price). Matched treasures also form **equipment sets (套装)** — bind, say,
+  the whole **Samsara Immortal Dao** (wheel-disk, true-spirit ring and dao diadem)
+  or **Nirvana Phoenix Regalia** and earn **escalating set bonuses** stacked on top
+  of each piece's own effects. Your heir inherits your loadout, refinement and all,
+  and a reborn soul may carry one signature treasure across the wheel.
 - **Talismans (符箓)** — one-use paper charms inscribed with spirit-script: loose a
   **Flame-Burst, Thunderbolt or Flying-Sword** for a no-qi damage burst, raise a
   **Golden-Bell** shield, **mend** your wounds, **bind** a foe in place, or tear

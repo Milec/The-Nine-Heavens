@@ -99,12 +99,39 @@ export function effectiveEffects(c, key) {
   for (const k in base) out[k] = base[k] * mult;
   return out;
 }
+// Which equipment sets are active and at what tier, given what's equipped.
+// Returns [{ set, have, tier }] where tier is the highest bonus threshold met.
+export function activeSets(c) {
+  const counts = {};
+  for (const key of equippedKeys(c)) {
+    const sk = D.SET_OF_ARTIFACT[key];
+    if (sk) counts[sk] = (counts[sk] || 0) + 1;
+  }
+  const out = [];
+  for (const sk in counts) {
+    const set = D.SET_BY_KEY[sk], have = counts[sk];
+    const tier = Math.max(0, ...Object.keys(set.bonuses).map(Number).filter(n => n <= have));
+    if (tier > 0) out.push({ set, have, tier });
+  }
+  return out;
+}
+// Summed set bonuses (the highest tier reached for each active set).
+export function setBonusEffects(c) {
+  const sum = { atk: 0, qi: 0, def: 0, hp: 0, dodge: 0, crit: 0, life: 0, qiMax: 0 };
+  for (const { set, tier } of activeSets(c)) {
+    const b = set.bonuses[tier] || {};
+    for (const k in sum) sum[k] += b[k] || 0;
+  }
+  return sum;
+}
 export function equipmentEffects(c) {
   const sum = { atk: 0, qi: 0, def: 0, hp: 0, dodge: 0, crit: 0, life: 0, qiMax: 0 };
   for (const key of equippedKeys(c)) {
     const e = effectiveEffects(c, key);
     for (const k in sum) sum[k] += e[k] || 0;
   }
+  const sb = setBonusEffects(c);
+  for (const k in sum) sum[k] += sb[k] || 0;
   return sum;
 }
 // Cost in spirit stones to attempt the next refinement (climbs steeply by level).
@@ -870,14 +897,23 @@ const EFFECT_LABELS = {
   atk: ["% power", 100], qi: ["% qi", 100], def: ["% defense", 100], hp: ["% battle HP", 100],
   dodge: ["% dodge", 100], crit: ["% crit", 100], life: ["% lifesteal", 100], qiMax: ["% max qi", 100],
 };
-// Effect text. Pass a character to fold in its refinement of the treasure;
-// omit it (e.g. market preview of an unowned item) for base effects.
-export function artifactEffectText(key, c = null) {
-  const e = c ? effectiveEffects(c, key) : D.artifactEffects(key), parts = [];
+// Render an effects object as "+30% power, +5% qi".
+export function effectsText(e) {
+  const parts = [];
   for (const k of ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]) {
     if (e[k]) { const [label] = EFFECT_LABELS[k]; parts.push(`+${Math.round(e[k] * 100)}${label}`); }
   }
   return parts.join(", ") || "no bonuses";
+}
+// Effect text. Pass a character to fold in its refinement of the treasure;
+// omit it (e.g. market preview of an unowned item) for base effects.
+export function artifactEffectText(key, c = null) {
+  return effectsText(c ? effectiveEffects(c, key) : D.artifactEffects(key));
+}
+// Active-set lines for display, e.g. "Samsara Immortal Dao (2/3): +10% qi, +8% max qi".
+export function setBonusLines(c) {
+  return activeSets(c).map(({ set, have, tier }) =>
+    `${set.name} (${have}/${set.members.length}): ${effectsText(set.bonuses[tier])}`);
 }
 export function describeArtifact(key) {
   const slot = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];

@@ -328,6 +328,26 @@ export const artifactSlot    = key => { const a = ARTIFACT_BY_KEY[key]; return a
 export const artifactGrade   = key => { const a = ARTIFACT_BY_KEY[key]; return a ? a[3] : null; };
 export const artifactEffects = key => { const a = ARTIFACT_BY_KEY[key]; return (a && a[4]) || {}; };
 
+// Equipment sets (套装): bind matched treasures across slots for escalating
+// bonuses (keyed by how many pieces are equipped). Members must sit in distinct
+// slots so a full set can be worn at once.
+// { key, name, cn, blurb, members:[artifactKey…], bonuses:{ count: effects } }
+export const EQUIP_SETS = [
+  { key: "azure_cloud", name: "Azure Cloud Wanderer", cn: "青云游侠", blurb: "The travelling sword-cultivator's kit: a keen flying sword, wind-treading boots and a humming storage ring.",
+    members: ["azure_sword", "cloud_boots", "storage_ring"],
+    bonuses: { 2: { dodge: 0.05 }, 3: { atk: 0.08, crit: 0.05 } } },
+  { key: "nirvana_phoenix", name: "Nirvana Phoenix Regalia", cn: "涅槃神凰", blurb: "Plume, feather-robe and coronet of the undying phoenix — wounds close as fast as they open.",
+    members: ["phoenix_plume", "nirvana_robe", "phoenix_coronet"],
+    bonuses: { 2: { hp: 0.08 }, 3: { hp: 0.12, life: 0.10 } } },
+  { key: "samsara_dao", name: "Samsara Immortal Dao", cn: "轮回仙道", blurb: "The wheel-disk, true-spirit ring and dao diadem turning as one — the great cycle bends to your will.",
+    members: ["samsara_disk", "samsara_ring", "dao_diadem"],
+    bonuses: { 2: { qi: 0.10, qiMax: 0.08 }, 3: { atk: 0.15, life: 0.10 } } },
+];
+// member artifact key -> set key
+export const SET_OF_ARTIFACT = Object.fromEntries(
+  EQUIP_SETS.flatMap(s => s.members.map(k => [k, s.key])));
+export const SET_BY_KEY = Object.fromEntries(EQUIP_SETS.map(s => [s.key, s]));
+
 export const SPIRIT_BEASTS = [
   "Spirit Fox","Cloud Leopard","Crimson Fire Python","Thunder Hawk","Jade-Maned Lion",
   "Frost Wolf","Black Tortoise","Six-Eared Macaque","Azure Dragonling","Golden-Winged Roc",
