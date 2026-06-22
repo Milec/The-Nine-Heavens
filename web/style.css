@@ -7,6 +7,8 @@
 @font-face { font-family: "Cinzel"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/cinzel-600.woff2") format("woff2"); }
 @font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 500; font-display: swap; src: url("assets/fonts/cormorant-500.woff2") format("woff2"); }
 @font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/cormorant-600.woff2") format("woff2"); }
+/* hand-brushed hanzi, subset to just the masthead glyphs 九重天飞升命 (~3KB) */
+@font-face { font-family: "Ma Shan Zheng"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/mashanzheng-brush.woff2") format("woff2"); unicode-range: U+4e5d, U+5347, U+547d, U+5929, U+91cd, U+98de; }
 
 :root {
   /* surfaces — deep ink, faint jade-black undertone (deepest → raised) */
@@ -38,6 +40,9 @@
   --font-display: "Cormorant Garamond", "Songti SC", "Noto Serif SC", Georgia, serif;
   --font-engrave: "Cinzel", "Songti SC", "Noto Serif SC", Georgia, serif;
   --font-cjk: "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
+  --font-brush: "Ma Shan Zheng", "Songti SC", "Noto Serif SC", serif;
+  /* 回纹 — the Chinese key-fret (meander) ornament, tiled as a gilt band */
+  --fret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='14'%3E%3Cg fill='none' stroke='%23b8934a' stroke-width='1.25'%3E%3Cpath d='M0 12.3H15'/%3E%3Cpath d='M2 12.3V3H11.5V12.3'/%3E%3Cpath d='M5 12.3V6H8.3'/%3E%3C/g%3E%3C/svg%3E");
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
 }
@@ -397,15 +402,16 @@ body {
 /* ============================ start / death =========================== */
 .center-card { text-align: center; }
 /* brushwork masthead with a vermillion name-seal (印章) — the title page chop */
-.masthead { position: relative; display: inline-block; margin: 10px auto 2px; padding: 0 30px; }
-.title-zh { font-size: 2rem; color: var(--gold); letter-spacing: .28em; font-weight: 800; }
-.masthead .title-zh::after { content: ""; display: block; width: 62%; height: 2px; margin: 7px auto 0; background: linear-gradient(90deg, transparent, var(--gold2), transparent); border-radius: 2px; }
+.masthead { position: relative; display: inline-block; margin: 14px auto 4px; padding: 0 34px; }
+.title-zh { font-family: var(--font-brush); font-size: 2.7rem; color: var(--gold); letter-spacing: .14em; font-weight: 400; line-height: 1.05; }
+.masthead .title-zh::after { content: ""; display: block; height: 14px; width: 84%; margin: 8px auto 0; background: var(--fret) repeat-x left center; opacity: .9; -webkit-mask: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); mask: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); }
 .seal-stamp {
-  position: absolute; top: -8px; right: -6px; width: 40px; height: 40px; border-radius: 8px;
-  background: linear-gradient(155deg, #c43c31, #97271f); color: #fdeede;
-  display: flex; align-items: center; justify-content: center; font-size: 1.42rem; font-weight: 700;
-  font-family: "Noto Serif SC", "Songti SC", serif; transform: rotate(-5deg);
-  box-shadow: 0 4px 12px rgba(0,0,0,.45), inset 0 0 0 1.5px rgba(255,236,222,.4); border: 1px solid rgba(0,0,0,.25);
+  position: absolute; top: -6px; right: -10px; width: 44px; height: 44px;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  background: linear-gradient(155deg, #c8403420, #97271f), radial-gradient(120% 120% at 30% 20%, #c8584a, #8e231c);
+  color: #fdeede; display: flex; align-items: center; justify-content: center; font-size: 1.7rem; line-height: 1;
+  font-family: var(--font-brush); transform: rotate(-5deg);
+  box-shadow: inset 0 0 0 1.5px rgba(255,236,222,.5), inset 0 0 0 3px rgba(0,0,0,.18);
 }
 .title-en { color: var(--muted); font-size: .84rem; margin-bottom: 18px; letter-spacing: .02em; }
 .txtfield { width: 100%; padding: 13px 15px; border-radius: var(--r-sm); font-size: 1rem; background: var(--panel); border: 1px solid var(--line2); color: var(--ink); margin: 8px 0 14px; }
@@ -555,8 +561,8 @@ body {
   clip-path: polygon(0 var(--chamfer), var(--chamfer) 0, calc(100% - var(--chamfer)) 0, 100% var(--chamfer), 100% 100%, 0 100%);
   box-shadow: inset 0 0 0 1px var(--line2);
 }
-#overlay-head { border-bottom: 1px solid var(--accent-dim); position: relative; }
-#overlay-head::after { content: ""; position: absolute; left: 16px; right: 16px; bottom: -1px; height: 1px; background: linear-gradient(90deg, var(--accent2), transparent 65%); }
+#overlay-head { border-bottom: none; position: relative; }
+#overlay-head::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 14px; background: var(--fret) repeat-x left center; opacity: .5; -webkit-mask: linear-gradient(90deg, #000 60%, transparent); mask: linear-gradient(90deg, #000 60%, transparent); }
 
 /* --- a faint pressed-paper grain over the whole artifact -------------- */
 body::after {
