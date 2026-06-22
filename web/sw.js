@@ -1,5 +1,5 @@
 /* The Nine Heavens -- service worker for offline, installable play. */
-const CACHE = "nineheavens-v64";
+const CACHE = "nineheavens-v65";
 const ASSETS = [
   "./",
   "./index.html",
@@ -17,6 +17,10 @@ const ASSETS = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon-180.png",
+  "./assets/scenes/birth.jpg",
+  "./assets/scenes/tribulation.jpg",
+  "./assets/scenes/ascend.jpg",
+  "./assets/scenes/death.jpg",
 ];
 
 self.addEventListener("install", e => {

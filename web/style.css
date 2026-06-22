@@ -186,6 +186,11 @@ body {
   color: var(--accent); font-size: .7rem; letter-spacing: .22em; text-transform: uppercase; margin: 8px 0 4px;
 }
 .year-tag::before { content: ""; width: 18px; height: 1px; background: var(--accent2); }
+/* full-bleed milestone scene in the feed; framed card variant for overlays */
+.scene { position: relative; margin: 6px -16px 12px; border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); overflow: hidden; box-shadow: inset 0 0 60px rgba(0,0,0,.45); }
+.scene img { display: block; width: 100%; height: auto; }
+.scene-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 14px 9px; text-align: center; font-size: .72rem; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--accent); background: linear-gradient(transparent, rgba(6,9,16,.92)); }
+.scene.scene-card { margin: 2px 0 14px; border-radius: var(--r); border: 1px solid var(--line2); box-shadow: var(--shadow-sm), inset 0 0 50px rgba(0,0,0,.4); }
 .banner { position: relative; text-align: center; color: var(--accent); font-weight: 700; letter-spacing: .05em; padding: 10px 6px; font-size: .98rem; }
 .banner::before, .banner::after { content: ""; position: absolute; top: 50%; width: 16%; height: 1px; background: linear-gradient(90deg, transparent, var(--accent2)); }
 .banner::before { left: 5%; } .banner::after { right: 5%; transform: scaleX(-1); }
