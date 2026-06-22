@@ -15,6 +15,51 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- reusable ink-bleed filter: turbulence + displacement wobbles an edge so
+       gilt frames read as hand-inked woodblock rules rather than crisp vectors -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="inkedge" x="-6%" y="-20%" width="112%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.011 0.022" numOctaves="2" seed="11" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
+
+  <!-- Live ink-wash atmosphere: a single deliberate scene behind the whole app.
+       Drawn in SVG so it is crisp at any density, weighs nothing, works offline,
+       and retints itself with the soul's karma via CSS custom properties. -->
+  <div id="sky" aria-hidden="true">
+    <div class="sky-moon"></div>
+    <div class="sky-cloud sc1"></div>
+    <div class="sky-cloud sc2"></div>
+    <div class="sky-cloud sc3"></div>
+    <svg class="sky-peaks" viewBox="0 0 1440 1024" preserveAspectRatio="xMidYMax slice">
+      <defs>
+        <linearGradient id="mistFar" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="var(--peak-far)" stop-opacity="0"/>
+          <stop offset=".55" stop-color="var(--peak-far)" stop-opacity=".5"/>
+          <stop offset="1" stop-color="var(--peak-far)" stop-opacity=".85"/>
+        </linearGradient>
+        <linearGradient id="mistMid" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="var(--peak-mid)" stop-opacity="0"/>
+          <stop offset=".5" stop-color="var(--peak-mid)" stop-opacity=".75"/>
+          <stop offset="1" stop-color="var(--peak-mid)" stop-opacity="1"/>
+        </linearGradient>
+        <linearGradient id="mistNear" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="var(--peak-near)" stop-opacity=".25"/>
+          <stop offset=".4" stop-color="var(--peak-near)" stop-opacity=".9"/>
+          <stop offset="1" stop-color="var(--peak-near)" stop-opacity="1"/>
+        </linearGradient>
+      </defs>
+      <!-- far range -->
+      <path fill="url(#mistFar)" d="M0 612 L150 548 L286 600 L430 506 L560 572 L700 470 L840 556 L980 484 L1130 566 L1280 512 L1440 580 L1440 1024 L0 1024 Z"/>
+      <!-- mid range -->
+      <path fill="url(#mistMid)" d="M0 720 L120 690 L250 742 L390 648 L520 712 L660 620 L800 700 L940 638 L1090 716 L1230 654 L1370 724 L1440 700 L1440 1024 L0 1024 Z"/>
+      <!-- near range -->
+      <path fill="url(#mistNear)" d="M0 866 L160 812 L300 868 L470 788 L640 860 L820 800 L1000 868 L1180 812 L1340 866 L1440 836 L1440 1024 L0 1024 Z"/>
+    </svg>
+    <div class="sky-mist"></div>
+  </div>
+
   <div id="app">
     <header id="profile">
       <div class="pf-top">

@@ -1,6 +1,16 @@
 /* The Nine Heavens — mobile-first xianxia life-sim.
  * A deliberate dark-ink / jade / gold design system: flat ink surfaces,
  * hairline rules, restrained accents — sharp where it counts, never bubbly. */
+
+/* Bundled display faces (latin subset, OFL) — an engraved Cinzel for labels and
+ * a literary Cormorant for titles, so the chrome reads carved, not default. */
+@font-face { font-family: "Cinzel"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/cinzel-600.woff2") format("woff2"); }
+@font-face { font-family: "Cinzel Decorative"; font-style: normal; font-weight: 700; font-display: swap; src: url("assets/fonts/cinzel-decorative-700.woff2") format("woff2"); }
+@font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 500; font-display: swap; src: url("assets/fonts/cormorant-500.woff2") format("woff2"); }
+@font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/cormorant-600.woff2") format("woff2"); }
+/* hand-brushed hanzi, subset to just the masthead glyphs 九重天飞升命 (~3KB) */
+@font-face { font-family: "Ma Shan Zheng"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/mashanzheng-brush.woff2") format("woff2"); unicode-range: U+4e5d, U+5347, U+547d, U+5929, U+91cd, U+98de; }
+
 :root {
   /* surfaces — deep ink, faint jade-black undertone (deepest → raised) */
   --bg0: #080b12; --bg: #0b0f18; --bg2: #121622;
@@ -16,21 +26,37 @@
    * for the righteous, amethyst and cinnabar for those who walk the demonic dao. */
   --accent: var(--gold); --accent2: var(--gold2); --accent-dim: var(--gold-dim);
   --aura: rgba(230,197,133,.06);
+  /* ink-wash mountain ranges behind the app — far/mid/near, retinted per karma */
+  --peak-far: #1a2336; --peak-mid: #141b2c; --peak-near: #0e1422;
+  --moon: rgba(235,224,196,.20); --moon-halo: rgba(230,197,133,.10);
   /* effects — quieter shadows, almost no neon glow */
   --shadow: 0 10px 30px rgba(0,0,0,.55);
   --shadow-sm: 0 2px 8px rgba(0,0,0,.45);
   --glow-gold: 0 0 0 1px rgba(230,197,133,.18);
-  --r: 9px; --r-sm: 7px; --r-lg: 16px;
+  /* sharp jade-tablet geometry — corners are chamfered, never rounded */
+  --r: 2px; --r-sm: 2px; --r-lg: 3px;
+  --chamfer: 9px; --chamfer-sm: 5px;
+  /* type — engraved labels, literary titles, serif body, Songti for hanzi */
+  --font-body: "Iowan Old Style", "Palatino Linotype", Palatino, "Songti SC", "Noto Serif SC", Georgia, serif;
+  --font-display: "Cormorant Garamond", "Songti SC", "Noto Serif SC", Georgia, serif;
+  --font-engrave: "Cinzel", "Songti SC", "Noto Serif SC", Georgia, serif;
+  --font-drama: "Cinzel Decorative", "Cinzel", Georgia, serif;
+  --seal-red: radial-gradient(125% 125% at 30% 18%, #c8584a, #8e231c);
+  --seal-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fdeede' stroke-width='1.5'%3E%3Crect x='4.5' y='4.5' width='15' height='15'/%3E%3Cpath d='M8 8h8v8H8z'/%3E%3Cpath d='M12 8v8M8 12h8'/%3E%3C/svg%3E");
+  --font-cjk: "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
+  --font-brush: "Ma Shan Zheng", "Songti SC", "Noto Serif SC", serif;
+  /* 回纹 — the Chinese key-fret (meander) ornament, tiled as a gilt band */
+  --fret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='14'%3E%3Cg fill='none' stroke='%23b8934a' stroke-width='1.25'%3E%3Cpath d='M0 12.3H15'/%3E%3Cpath d='M2 12.3V3H11.5V12.3'/%3E%3Cpath d='M5 12.3V6H8.3'/%3E%3C/g%3E%3C/svg%3E");
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
 }
 /* Karma tiers — set on <body> from JS. Each retunes the accent + aura so the
  * banner, name, headings, buttons and tiers all glow with the soul's nature. */
-body.k-saint    { --accent: #f4dca0; --accent2: #d9b35e; --accent-dim: #9a7c3a; --aura: rgba(244,220,160,.16); }
-body.k-virtuous { --accent: #cfe1a8; --accent2: #a9c178; --accent-dim: #6f8a4a; --aura: rgba(120,200,150,.12); }
+body.k-saint    { --accent: #f4dca0; --accent2: #d9b35e; --accent-dim: #9a7c3a; --aura: rgba(244,220,160,.16); --peak-far: #232a3c; --peak-mid: #1a2030; --moon: rgba(244,220,160,.26); --moon-halo: rgba(244,220,160,.16); }
+body.k-virtuous { --accent: #cfe1a8; --accent2: #a9c178; --accent-dim: #6f8a4a; --aura: rgba(120,200,150,.12); --peak-far: #1b2a30; --peak-mid: #142028; --moon-halo: rgba(160,210,150,.12); }
 body.k-neutral  { --accent: var(--gold); --accent2: var(--gold2); --accent-dim: var(--gold-dim); --aura: rgba(230,197,133,.06); }
-body.k-tainted  { --accent: #cba6ec; --accent2: #9070c6; --accent-dim: #5f4a86; --aura: rgba(150,110,205,.14); }
-body.k-demonic  { --accent: #ed8079; --accent2: #c14040; --accent-dim: #8a2f2f; --aura: rgba(205,70,62,.17); }
+body.k-tainted  { --accent: #cba6ec; --accent2: #9070c6; --accent-dim: #5f4a86; --aura: rgba(150,110,205,.14); --peak-far: #211b34; --peak-mid: #181428; --moon-halo: rgba(160,120,210,.14); }
+body.k-demonic  { --accent: #ed8079; --accent2: #c14040; --accent-dim: #8a2f2f; --aura: rgba(205,70,62,.17); --peak-far: #2a1a22; --peak-mid: #1f131a; --peak-near: #160d14; --moon: rgba(237,140,130,.22); --moon-halo: rgba(205,70,62,.18); }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 /* one icon family — inherit colour from the holder, align to text, scale via CSS */
 .ic { display: inline-block; vertical-align: -0.18em; flex: none; }
@@ -46,17 +72,46 @@ body {
     radial-gradient(100% 60% at 100% 100%, #15192c 0%, rgba(11,14,26,0) 60%),
     var(--bg0);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", Roboto, sans-serif;
+  font-family: var(--font-body);
   font-size: 16px; line-height: 1.5; overscroll-behavior: none; -webkit-text-size-adjust: 100%;
 }
-#app { display: flex; flex-direction: column; height: 100dvh; max-width: 720px; margin: 0 auto; position: relative; }
+#app { display: flex; flex-direction: column; height: 100dvh; max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
+
+/* ============================ ink-wash atmosphere ===================== */
+/* A fixed scene that lives behind everything: a hung moon, slow clouds, three
+ * receding mountain ranges dissolving into mist. Pointer-transparent; retints
+ * with karma through the --peak-*/--moon vars. */
+#sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; transition: opacity .8s ease; }
+.sky-peaks { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 80%; opacity: 1; }
+.sky-moon {
+  position: absolute; top: 11%; right: 16%; width: 116px; height: 116px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 38%, var(--moon), transparent 68%);
+  box-shadow: 0 0 90px 30px var(--moon-halo);
+  transition: background .8s ease, box-shadow .8s ease;
+}
+/* soft drifting clouds — layered radial puffs, blurred, crawling sideways */
+.sky-cloud {
+  position: absolute; height: 70px; width: 260px; opacity: .5; filter: blur(7px);
+  background:
+    radial-gradient(50% 80% at 30% 60%, rgba(180,196,230,.16), transparent 70%),
+    radial-gradient(46% 90% at 58% 50%, rgba(180,196,230,.2), transparent 72%),
+    radial-gradient(40% 70% at 80% 64%, rgba(180,196,230,.13), transparent 72%);
+}
+.sky-cloud.sc1 { top: 22%; left: -30%; transform: scale(1.2); animation: drift 95s linear infinite; }
+.sky-cloud.sc2 { top: 35%; left: -40%; opacity: .34; animation: drift 140s linear infinite; animation-delay: -40s; }
+.sky-cloud.sc3 { top: 14%; left: -50%; opacity: .28; transform: scale(.85); animation: drift 180s linear infinite; animation-delay: -90s; }
+@keyframes drift { from { transform: translateX(0) scale(1.1); } to { transform: translateX(220vw) scale(1.1); } }
+/* a low ground-mist veil that lifts the near peaks off the tab bar */
+.sky-mist { position: absolute; left: 0; right: 0; bottom: 0; height: 20%; background: linear-gradient(180deg, transparent, var(--bg0) 96%); }
+@media (prefers-reduced-motion: reduce) { .sky-cloud { animation: none !important; } }
 
 /* ============================ profile header ========================== */
 #profile {
   padding: calc(var(--safe-t) + 12px) 14px 11px;
   background:
     radial-gradient(120% 150% at 50% -45%, var(--aura), transparent 70%),
-    var(--bg);
+    linear-gradient(180deg, rgba(11,15,24,.94), rgba(11,15,24,.82));
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
   transition: background .7s ease;
 }
@@ -154,6 +209,11 @@ body {
   color: var(--accent); font-size: .7rem; letter-spacing: .22em; text-transform: uppercase; margin: 8px 0 4px;
 }
 .year-tag::before { content: ""; width: 18px; height: 1px; background: var(--accent2); }
+/* full-bleed milestone scene in the feed; framed card variant for overlays */
+.scene { position: relative; margin: 6px -16px 12px; border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); overflow: hidden; box-shadow: inset 0 0 60px rgba(0,0,0,.45); }
+.scene img { display: block; width: 100%; height: auto; }
+.scene-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 14px 9px; text-align: center; font-size: .72rem; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--accent); background: linear-gradient(transparent, rgba(6,9,16,.92)); }
+.scene.scene-card { margin: 2px 0 14px; border-radius: var(--r); border: 1px solid var(--line2); box-shadow: var(--shadow-sm), inset 0 0 50px rgba(0,0,0,.4); }
 .banner { position: relative; text-align: center; color: var(--accent); font-weight: 700; letter-spacing: .05em; padding: 10px 6px; font-size: .98rem; }
 .banner::before, .banner::after { content: ""; position: absolute; top: 50%; width: 16%; height: 1px; background: linear-gradient(90deg, transparent, var(--accent2)); }
 .banner::before { left: 5%; } .banner::after { right: 5%; transform: scaleX(-1); }
@@ -162,7 +222,8 @@ body {
 #tabbar {
   display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; align-items: end;
   padding: 6px 8px calc(8px + var(--safe-b));
-  background: var(--bg);
+  background: linear-gradient(180deg, rgba(11,15,24,.72), rgba(11,15,24,.95));
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   border-top: 1px solid var(--line);
 }
 .tab {
@@ -212,6 +273,8 @@ body {
   transition: transform .08s ease, background .15s ease, border-color .15s ease;
 }
 .mbtn:active { background: var(--panel2); transform: scale(.98); }
+.mbtn .mb-line { display: flex; align-items: center; gap: 8px; }
+.mbtn .mb-line .ic { flex: none; color: var(--accent); }
 .mbtn small { color: var(--muted); font-weight: 500; font-size: .73rem; letter-spacing: .01em; }
 .mbtn.full { grid-column: 1 / -1; }
 .mbtn.primary { background: linear-gradient(var(--aura), var(--aura)), var(--panel2); border-color: var(--accent2); color: var(--accent); padding-left: 19px; }
@@ -235,7 +298,14 @@ body {
   transition: background .15s ease, transform .08s ease, border-color .15s ease;
 }
 .listrow:active { background: var(--panel2); transform: scale(.99); }
-.listrow .lr-ava { width: 38px; height: 38px; flex: none; border-radius: var(--r-sm); background: var(--panel2); border: 1px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.listrow .lr-ava { width: 38px; height: 38px; flex: none; border-radius: var(--r-sm); background: var(--panel2); border: 1px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--ink2); }
+.listrow .lr-ava .ic { width: 23px; height: 23px; }
+/* sentiment tints — colour an avatar/emblem and its frame to carry meaning */
+.tint-gold   { color: var(--accent) !important; border-color: var(--accent2) !important; background: var(--aura) !important; }
+.tint-jade   { color: var(--jade) !important; border-color: #2c5d49 !important; background: rgba(111,214,179,.06) !important; }
+.tint-pink   { color: var(--pink) !important; border-color: #6a3a52 !important; background: rgba(224,155,179,.06) !important; }
+.tint-red    { color: var(--red) !important; border-color: #6a3434 !important; background: rgba(224,116,108,.06) !important; }
+.tint-purple { color: var(--purple) !important; border-color: #4f3f7a !important; background: rgba(183,155,232,.07) !important; }
 .listrow .lr-main { flex: 1; min-width: 0; }
 .listrow .lr-title { font-weight: 700; }
 .listrow .lr-sub { color: var(--muted); font-size: .8rem; margin-top: 2px; }
@@ -289,9 +359,10 @@ body {
 .listrow .lr-ava.biome-3, .listrow .lr-ava.biome-4 { background: #131a29; }
 
 .section-h {
-  display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: .68rem; text-transform: uppercase;
+  display: flex; align-items: center; gap: 9px; color: var(--accent); font-size: .68rem; text-transform: uppercase;
   letter-spacing: .16em; font-weight: 700; margin: 18px 0 9px;
 }
+.section-h::before { content: "◈"; color: var(--accent2); font-size: .7rem; }
 .section-h::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--accent-dim), transparent); }
 .section-h:first-child { margin-top: 4px; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: .9rem; }
@@ -318,15 +389,34 @@ body {
 
 /* ============================ event card ============================== */
 .event-card {
-  background: linear-gradient(var(--aura), var(--aura)), var(--panel); border: 1px solid var(--accent2);
-  border-left: 3px solid var(--accent); border-radius: var(--r); padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow-sm);
+  position: relative; background: linear-gradient(var(--aura), var(--aura)), var(--panel); border: 1px solid var(--accent2);
+  border-radius: var(--r); padding: 22px 18px 18px; margin-bottom: 14px; box-shadow: var(--shadow-sm); overflow: hidden;
 }
-.event-card .ev-emoji { font-size: 2.3rem; text-align: center; }
-.event-card .ev-text { margin-top: 10px; font-size: 1.02rem; line-height: 1.55; text-align: center; }
+/* a thin gilt seam top and bottom — a framed omen, not a chat bubble */
+.event-card::before, .event-card::after { content: ""; position: absolute; left: 22px; right: 22px; height: 1px; background: linear-gradient(90deg, transparent, var(--accent2), transparent); }
+.event-card::before { top: 0; } .event-card::after { bottom: 0; }
+.event-card .ev-emblem {
+  width: 56px; height: 56px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: var(--accent); background: radial-gradient(circle at 50% 38%, var(--aura), transparent 70%), var(--panel2);
+  border: 1px solid var(--accent2); box-shadow: 0 0 0 4px rgba(0,0,0,.18);
+}
+.event-card .ev-emblem .ic { width: 30px; height: 30px; }
+.event-card .ev-text { margin-top: 13px; font-size: 1.04rem; line-height: 1.6; text-align: center; color: var(--ink); }
 
 /* ============================ start / death =========================== */
 .center-card { text-align: center; }
-.title-zh { font-size: 2rem; color: var(--gold); letter-spacing: .28em; margin: 8px 0 2px; font-weight: 800; }
+/* brushwork masthead with a vermillion name-seal (印章) — the title page chop */
+.masthead { position: relative; display: inline-block; margin: 14px auto 4px; padding: 0 34px; }
+.title-zh { font-family: var(--font-brush); font-size: 2.7rem; color: var(--gold); letter-spacing: .14em; font-weight: 400; line-height: 1.05; }
+.masthead .title-zh::after { content: ""; display: block; height: 14px; width: 84%; margin: 8px auto 0; background: var(--fret) repeat-x left center; opacity: .9; -webkit-mask: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); mask: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); }
+.seal-stamp {
+  position: absolute; top: -6px; right: -10px; width: 44px; height: 44px;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  background: linear-gradient(155deg, #c8403420, #97271f), radial-gradient(120% 120% at 30% 20%, #c8584a, #8e231c);
+  color: #fdeede; display: flex; align-items: center; justify-content: center; font-size: 1.7rem; line-height: 1;
+  font-family: var(--font-brush); transform: rotate(-5deg);
+  box-shadow: inset 0 0 0 1.5px rgba(255,236,222,.5), inset 0 0 0 3px rgba(0,0,0,.18);
+}
 .title-en { color: var(--muted); font-size: .84rem; margin-bottom: 18px; letter-spacing: .02em; }
 .txtfield { width: 100%; padding: 13px 15px; border-radius: var(--r-sm); font-size: 1rem; background: var(--panel); border: 1px solid var(--line2); color: var(--ink); margin: 8px 0 14px; }
 .txtfield::placeholder { color: var(--muted); }
@@ -402,4 +492,114 @@ body {
 
 /* scrollbars */
 #log::-webkit-scrollbar, #overlay-body::-webkit-scrollbar, .cbt-feed::-webkit-scrollbar { width: 7px; }
-#log::-webkit-scrollbar-thumb, #overlay-body::-webkit-scrollbar-thumb, .cbt-feed::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 4px; }
+#log::-webkit-scrollbar-thumb, #overlay-body::-webkit-scrollbar-thumb, .cbt-feed::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 0; }
+
+/* ==================================================================== *
+ *  WOODBLOCK & JADE-TABLET IDENTITY
+ *  Chamfered silhouettes + engraved inner rules + carved type, so the
+ *  chrome reads as an inked artifact rather than a default app shell.
+ * ==================================================================== */
+
+/* --- carved typography ------------------------------------------------ */
+#pf-name, #overlay-head h2, .lr-title, .cr-pv-top, .cu-name, .mbtn, .center-card .note b,
+.event-card .ev-text { font-family: var(--font-display); }
+.mbtn { font-weight: 600; letter-spacing: .01em; }
+.mbtn small, .lr-sub, .cs-desc, .note, .chron-line, .kv, #tip { font-family: var(--font-body); }
+#pf-name { font-size: 1.22rem; font-weight: 600; letter-spacing: .02em; }
+#overlay-head h2 { font-family: var(--font-display); font-size: 1.32rem; font-weight: 600; letter-spacing: .03em; }
+.lr-title, .cu-name, .cr-pv-top { font-weight: 600; letter-spacing: .015em; }
+.title-zh, .seal-stamp { font-family: var(--font-cjk); }
+.title-en { font-family: var(--font-display); font-style: italic; font-size: .96rem; letter-spacing: .02em; }
+.event-card .ev-text { font-size: 1.16rem; line-height: 1.5; }
+/* engraved small-caps for every label/divider/tab */
+.section-h, .year-tag, .banner, .vbar .vb-label, .tab, .tab-age, .cbt-vs, .scene-cap,
+.cr-label, .seg button, .cbt-skill .cs-name, .at-name { font-family: var(--font-engrave); }
+.section-h, .year-tag, .scene-cap, .cr-label { letter-spacing: .12em; }
+.tab, .tab-age { letter-spacing: .04em; font-weight: 600; }
+.banner { font-family: var(--font-engrave); letter-spacing: .14em; }
+
+/* --- chamfered tablets: large cut (top-left + bottom-right) ------------ */
+.mbtn, .listrow, .rl-row, .cbt-skill, .cbt-unit, .event-card, .cr-preview, #tip {
+  border-radius: 0; border-color: transparent !important;
+  clip-path: polygon(var(--chamfer) 0, 100% 0, 100% calc(100% - var(--chamfer)), calc(100% - var(--chamfer)) 100%, 0 100%, 0 var(--chamfer));
+  box-shadow: inset 0 0 0 1px var(--line2), inset 0 0 11px rgba(4,6,12,.5), inset 0 1px 0 1px rgba(255,255,255,.03);
+}
+.listrow.bound { box-shadow: inset 0 0 0 1px var(--accent2), inset 0 0 22px var(--aura); }
+.mbtn.primary { box-shadow: inset 0 0 0 1px var(--accent2), inset 0 0 26px var(--aura); }
+.mbtn.danger  { box-shadow: inset 0 0 0 1px #6a3434, inset 0 0 11px rgba(4,6,12,.5); }
+.event-card   { box-shadow: inset 0 0 0 1px var(--accent2), inset 0 0 26px rgba(4,6,12,.55); }
+.cr-preview   { box-shadow: inset 0 0 0 1px var(--gold2), inset 0 0 22px rgba(4,6,12,.5); }
+.mbtn:disabled { clip-path: polygon(var(--chamfer) 0, 100% 0, 100% calc(100% - var(--chamfer)), calc(100% - var(--chamfer)) 100%, 0 100%, 0 var(--chamfer)); }
+
+/* --- chamfered chips, fields & tiles: small cut ----------------------- */
+.chip, .txtfield, .cr-select, .seg button, .pf-avatar, .attr-tile, .listrow .lr-ava,
+.mbtn.nav .mb-ico, #overlay-close, .pf-more, .lr-ava {
+  border-radius: 0 !important; border-color: transparent !important;
+  clip-path: polygon(var(--chamfer-sm) 0, 100% 0, 100% calc(100% - var(--chamfer-sm)), calc(100% - var(--chamfer-sm)) 100%, 0 100%, 0 var(--chamfer-sm));
+  box-shadow: inset 0 0 0 1px var(--line2);
+}
+.pf-avatar { box-shadow: inset 0 0 0 1px var(--accent2); }
+.attr-tile.tier-top { box-shadow: inset 0 0 0 1px var(--accent2); }
+.attr-tile.tier-hi  { box-shadow: inset 0 0 0 1px #275645; }
+.chip.warn { box-shadow: inset 0 0 0 1px var(--accent2); }
+.chip.good { box-shadow: inset 0 0 0 1px #275645; }
+.chip.bad  { box-shadow: inset 0 0 0 1px #6a3434; }
+.lr-ava.tint-gold   { box-shadow: inset 0 0 0 1px var(--accent2); }
+.lr-ava.tint-jade   { box-shadow: inset 0 0 0 1px #2c5d49; }
+.lr-ava.tint-pink   { box-shadow: inset 0 0 0 1px #6a3a52; }
+.lr-ava.tint-red    { box-shadow: inset 0 0 0 1px #6a3434; }
+.lr-ava.tint-purple { box-shadow: inset 0 0 0 1px #4f3f7a; }
+
+/* --- the age-up tablet: a notched cinnabar/jade seal ------------------ */
+.tab-age {
+  clip-path: polygon(var(--chamfer-sm) 0, 100% 0, 100% calc(100% - var(--chamfer-sm)), calc(100% - var(--chamfer-sm)) 100%, 0 100%, 0 var(--chamfer-sm));
+  box-shadow: inset 0 0 0 1px var(--accent2);
+}
+.tab-age.ready { box-shadow: inset 0 0 0 1px var(--accent), inset 0 0 16px var(--aura); }
+.tab-age.spent { animation: deedpulse 2s ease-in-out infinite; }
+@keyframes deedpulse { 0%,100% { box-shadow: inset 0 0 0 1px rgba(230,197,133,.4); } 50% { box-shadow: inset 0 0 0 1px rgba(230,197,133,.95), inset 0 0 18px var(--aura); } }
+
+/* --- the bottom sheet: a tablet with cut top corners + title rule ----- */
+#overlay-card {
+  border-radius: 0; border: none;
+  clip-path: polygon(0 var(--chamfer), var(--chamfer) 0, calc(100% - var(--chamfer)) 0, 100% var(--chamfer), 100% 100%, 0 100%);
+  box-shadow: inset 0 0 0 1px var(--line2);
+}
+#overlay-head { border-bottom: none; position: relative; }
+#overlay-head::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 14px; background: var(--fret) repeat-x left center; opacity: .5; -webkit-mask: linear-gradient(90deg, #000 60%, transparent); mask: linear-gradient(90deg, #000 60%, transparent); }
+
+/* --- a faint pressed-paper grain over the whole artifact -------------- */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 100; pointer-events: none; opacity: .05; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+@media (prefers-reduced-motion: reduce) { .tab-age.spent { animation: none; } }
+
+/* --- dramatic engraved English wordmark on the title page ------------- */
+.wordmark {
+  font-family: var(--font-drama); font-weight: 700; font-size: 1.18rem; letter-spacing: .12em;
+  color: var(--gold); text-transform: uppercase; line-height: 1.1; margin-bottom: 2px;
+  text-shadow: 0 1px 0 rgba(0,0,0,.5);
+}
+
+/* --- vermillion corner seal (印) stamped on hero cards ---------------- */
+.chop {
+  position: absolute; bottom: 11px; right: 11px; width: 30px; height: 30px; z-index: 2; pointer-events: none;
+  transform: rotate(-4deg); opacity: .9;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+  background: var(--seal-glyph) center/17px no-repeat, var(--seal-red);
+  box-shadow: inset 0 0 0 1.4px rgba(255,236,222,.55), 0 2px 7px rgba(0,0,0,.4);
+}
+.scene .chop { top: 12px; right: 12px; bottom: auto; }
+
+/* --- milestone scenes as woodblock prints: gilt double-rule + 回纹 band
+       + ink-bled edges + a corner chop ----------------------------------- */
+.scene-frame {
+  position: absolute; inset: 0; pointer-events: none;
+  background: var(--fret) repeat-x left top, var(--fret) repeat-x left bottom;
+  background-size: auto 12px, auto 12px;
+  box-shadow: inset 0 0 0 1px var(--gold2), inset 0 0 0 4px rgba(6,9,16,.55), inset 0 0 0 5px rgba(184,147,74,.4), inset 0 0 40px rgba(6,9,16,.6);
+  filter: url(#inkedge);
+}
+.scene-cap { z-index: 3; }
