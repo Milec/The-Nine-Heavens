@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Headless-browser tooling (reinstalled by .claude/hooks/session-start.sh)
+tools/node_modules/
+tools/package-lock.json
