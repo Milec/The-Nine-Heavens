@@ -1734,7 +1734,9 @@ function startScreen() {
   let chosenSex = null;
   openOverlay("The Nine Heavens", body => {
     const card = el("div", "center-card");
-    card.appendChild(el("div", "title-zh", "九 重 天"));
+    const mast = el("div", "masthead");
+    mast.innerHTML = `<div class="title-zh">九 重 天</div><div class="seal-stamp" aria-hidden="true">命</div>`;
+    card.appendChild(mast);
     card.appendChild(el("div", "title-en", "A xianxia life — from birth to immortality, one year at a time"));
     const input = el("input", "txtfield"); input.type = "text"; input.placeholder = "Name your cultivator (or leave to fate)"; input.maxLength = 24;
     card.appendChild(input);

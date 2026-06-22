@@ -336,9 +336,10 @@ body {
 .listrow .lr-ava.biome-3, .listrow .lr-ava.biome-4 { background: #131a29; }
 
 .section-h {
-  display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: .68rem; text-transform: uppercase;
+  display: flex; align-items: center; gap: 9px; color: var(--accent); font-size: .68rem; text-transform: uppercase;
   letter-spacing: .16em; font-weight: 700; margin: 18px 0 9px;
 }
+.section-h::before { content: "◈"; color: var(--accent2); font-size: .7rem; }
 .section-h::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--accent-dim), transparent); }
 .section-h:first-child { margin-top: 4px; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: .9rem; }
@@ -381,7 +382,17 @@ body {
 
 /* ============================ start / death =========================== */
 .center-card { text-align: center; }
-.title-zh { font-size: 2rem; color: var(--gold); letter-spacing: .28em; margin: 8px 0 2px; font-weight: 800; }
+/* brushwork masthead with a vermillion name-seal (印章) — the title page chop */
+.masthead { position: relative; display: inline-block; margin: 10px auto 2px; padding: 0 30px; }
+.title-zh { font-size: 2rem; color: var(--gold); letter-spacing: .28em; font-weight: 800; }
+.masthead .title-zh::after { content: ""; display: block; width: 62%; height: 2px; margin: 7px auto 0; background: linear-gradient(90deg, transparent, var(--gold2), transparent); border-radius: 2px; }
+.seal-stamp {
+  position: absolute; top: -8px; right: -6px; width: 40px; height: 40px; border-radius: 8px;
+  background: linear-gradient(155deg, #c43c31, #97271f); color: #fdeede;
+  display: flex; align-items: center; justify-content: center; font-size: 1.42rem; font-weight: 700;
+  font-family: "Noto Serif SC", "Songti SC", serif; transform: rotate(-5deg);
+  box-shadow: 0 4px 12px rgba(0,0,0,.45), inset 0 0 0 1.5px rgba(255,236,222,.4); border: 1px solid rgba(0,0,0,.25);
+}
 .title-en { color: var(--muted); font-size: .84rem; margin-bottom: 18px; letter-spacing: .02em; }
 .txtfield { width: 100%; padding: 13px 15px; border-radius: var(--r-sm); font-size: 1rem; background: var(--panel); border: 1px solid var(--line2); color: var(--ink); margin: 8px 0 14px; }
 .txtfield::placeholder { color: var(--muted); }
