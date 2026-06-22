@@ -1,0 +1,13 @@
+{
+  "name": "nine-heavens-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless-browser tooling for verifying the web UI",
+  "scripts": {
+    "shot": "node shot.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.56.1"
+  }
+}
