@@ -382,8 +382,9 @@ function processQueue(q) {
 }
 function showEventModal(ev, q) {
   openOverlay("An Event", body => {
+    const g = eventGlyph(ev);
     const card = el("div", "event-card");
-    card.appendChild(el("div", "ev-emoji", eventEmoji(ev)));
+    card.appendChild(el("div", "ev-emblem " + g.tint, icon(g.name, { size: 30 })));
     card.appendChild(el("div", "ev-text", escapeHtml(ev.text)));
     body.appendChild(card);
     for (const ch of ev.choices) {
@@ -393,15 +394,15 @@ function showEventModal(ev, q) {
     }
   }, false);
 }
-function eventEmoji(ev) {
+function eventGlyph(ev) {
   const t = (ev.text || "").toLowerCase();
-  if (t.includes("duel") || t.includes("ambush") || t.includes("beast") || t.includes("war")) return "⚔️";
-  if (t.includes("love") || t.includes("companion") || t.includes("child is") || t.includes("moon")) return "💞";
-  if (t.includes("devil") || t.includes("blood-art") || t.includes("heart-demon")) return "😈";
-  if (t.includes("ruin") || t.includes("treasure") || t.includes("auction")) return "🗝️";
-  if (t.includes("ill") || t.includes("died") || t.includes("fever")) return "🕯️";
-  if (t.includes("master") || t.includes("immortal") || t.includes("dao")) return "☯️";
-  return "📜";
+  if (/(duel|ambush|beast|war|battle|sword|fight)/.test(t)) return { name: "blade", tint: "tint-red" };
+  if (/(love|companion|child is|moon|wed|marr|heart-)/.test(t)) return { name: "heart", tint: "tint-pink" };
+  if (/(devil|blood-art|heart-demon|demon)/.test(t)) return { name: "mask", tint: "tint-purple" };
+  if (/(ruin|treasure|auction|relic|chest)/.test(t)) return { name: "key", tint: "tint-gold" };
+  if (/(ill|died|death|fever|plague|poison)/.test(t)) return { name: "flame", tint: "tint-red" };
+  if (/(master|immortal|dao|enlighten|insight)/.test(t)) return { name: "dao", tint: "tint-gold" };
+  return { name: "scroll", tint: "" };
 }
 
 /* ------------------------------- tabs ------------------------------------ */
@@ -472,7 +473,7 @@ function openRankboard() {
     ranked.forEach((x, i) => {
       const row = el("div", "listrow" + (x.you ? " bound" : ""));
       const sub = x.you ? "— you —" : `${x.title} · ${D.REALMS[x.realm][0]} · power ${Math.floor(x.power)}`;
-      row.innerHTML = `<div class="lr-ava">${i === 0 ? "👑" : x.you ? "🧘" : "⚔️"}</div><div class="lr-main"><div class="lr-title">#${i + 1} ${escapeHtml(x.name)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
+      row.innerHTML = `<div class="lr-ava ${i === 0 ? "tint-gold" : x.you ? "tint-jade" : ""}">${icon(i === 0 ? "crown" : x.you ? "lotus" : "blade", { size: 22 })}</div><div class="lr-main"><div class="lr-title">#${i + 1} ${escapeHtml(x.name)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
       // You may challenge anyone ranked above you, within reach (the next 4 places up).
       if (!x.you && i < rank - 1 && i >= rank - 5) row.onclick = () => challengeGenius(x.ref);
       body.appendChild(row);
@@ -554,19 +555,34 @@ function personRow(n) {
   const extra = n.occupation ? " · " + n.occupation : (n.parent ? " · child of " + escapeHtml(n.parent) : "");
   const homeLoc = (n.home != null && state.c.world) ? W.locById(state.c, n.home) : null;
   const where = homeLoc ? ` · of ${escapeHtml(homeLoc.name)}` : "";
-  row.innerHTML = `<div class="lr-ava">${personEmoji(n)}</div><div class="lr-main">
+  row.innerHTML = `<div class="lr-ava ${personTint(n)}">${personGlyph(n)}</div><div class="lr-main">
     <div class="lr-title">${escapeHtml(n.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(relLabel(n))}</span></div>
     <div class="lr-sub">${E.npcStatus(n)}${extra}${where}</div>
     <div class="affbar"><div style="width:${w}%;background:${col}"></div></div></div>`;
   row.onclick = () => openPerson(n);
   return row;
 }
-function personEmoji(n) {
-  if (n.kin === "Father") return "👨"; if (n.kin === "Mother") return "👩";
-  if (n.kin === "Brother") return "👦"; if (n.kin === "Sister") return "👧";
-  if (n.kin === "Son") return "👦"; if (n.kin === "Daughter") return "👧";
-  if (n.role === "companion") return n.married ? "💍" : "💞";
-  return ({ master: "🧓", rival: "😼", friend: "🙂", enemy: "😠", nemesis: "👿", disciple: "🙇" })[n.role] || "🧑";
+// A relationship's portrait reads from one hand-drawn family — chosen by kin,
+// life-stage and sex — while its colour carries the sentiment.
+function personGlyph(n) {
+  const fem = n.sex === "female" || ["Mother", "Sister", "Daughter"].includes(n.kin);
+  let name;
+  if (n.kin === "Son" || n.kin === "Daughter") name = "avChild";
+  else if (n.kin === "Brother" || n.kin === "Sister") name = fem ? "maiden" : "avYouth";
+  else if (n.role === "companion") name = n.married ? "couple" : "heart";
+  else if (n.role === "master") name = "avSage";
+  else if (n.role === "disciple") name = fem ? "maiden" : "avYouth";
+  else name = fem ? "avAdultF" : "avAdultM";
+  return icon(name, { size: 22 });
+}
+function personTint(n) {
+  if (n.role === "companion") return "tint-pink";
+  if (n.role === "master" || n.role === "rival") return "tint-gold";
+  if (n.role === "disciple" || n.role === "friend") return "tint-jade";
+  if (n.role === "nemesis") return "tint-purple";
+  if (n.role === "enemy") return "tint-red";
+  const aff = n.affinity || 0;
+  return aff < 0 ? "tint-red" : aff >= 75 ? "tint-jade" : "";
 }
 function openPerson(n) {
   const c = state.c;
@@ -756,12 +772,13 @@ function openActivities() {
     const c = state.c;
     const grid = el("div", "menu-grid");
     const ab = D.abodeAt(c.abode || 0);
-    navCard(grid, "🥋", "Training", "temper body · study · rest · earn", actTrain);
-    navCard(grid, "⚔️", "Adventure", "travel · wander · hunt · delve", actAdventure);
-    navCard(grid, "⚗️", "Crafting", "refine pills · inscribe talismans", actCraft);
-    navCard(grid, "💰", "Commerce", "the market 坊市 · buy & sell", actCommerce);
-    navCard(grid, "🏯", "Home & Assets", ab ? `${ab[1]} · treasures · beast` : "found an abode · treasures · beast", actHome);
-    navCard(grid, "🌏", "The Wider World", "the Heaven Board · your legacy", actWorld);
+    const ni = n => icon(n, { size: 22 });
+    navCard(grid, ni("fist"), "Training", "temper body · study · rest · earn", actTrain);
+    navCard(grid, ni("compass"), "Adventure", "travel · wander · hunt · delve", actAdventure);
+    navCard(grid, ni("cauldron"), "Crafting", "refine pills · inscribe talismans", actCraft);
+    navCard(grid, ni("coin"), "Commerce", "the market 坊市 · buy & sell", actCommerce);
+    navCard(grid, ni("pagoda"), "Home & Assets", ab ? `${ab[1]} · treasures · beast` : "found an abode · treasures · beast", actHome);
+    navCard(grid, ni("globe"), "The Wider World", "the Heaven Board · your legacy", actWorld);
     body.appendChild(grid);
   });
 }
@@ -1145,7 +1162,7 @@ function openAchievements(backFn) {
     body.appendChild(el("p", "note", `Heavenly Favor: ${f} — every soul you raise is born with +${Math.min(15, f)} Comprehension and +${Math.min(10, Math.floor(f / 2))} Fortune. Feats persist across all reincarnations and new lives.`));
     for (const a of meta.list()) {
       const row = el("div", "listrow" + (a.got ? " bound" : " disabled"));
-      row.innerHTML = `<div class="lr-ava">${a.got ? "🏆" : "🔒"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(a.name)}</div><div class="lr-sub">${escapeHtml(a.desc)}</div></div>`;
+      row.innerHTML = `<div class="lr-ava ${a.got ? "tint-gold" : ""}">${icon(a.got ? "trophy" : "lock", { size: 22 })}</div><div class="lr-main"><div class="lr-title">${escapeHtml(a.name)}</div><div class="lr-sub">${escapeHtml(a.desc)}</div></div>`;
       body.appendChild(row);
     }
     if (backFn) backBtn(body, backFn);
@@ -1711,22 +1728,22 @@ function startScreen() {
     const input = el("input", "txtfield"); input.type = "text"; input.placeholder = "Name your cultivator (or leave to fate)"; input.maxLength = 24;
     card.appendChild(input);
     const seg = el("div", "seg");
-    [["🎲 Random", null], ["♀ Girl", "female"], ["♂ Boy", "male"]].forEach(([lab, val], i) => {
+    [[`${icon("dice", { size: 16 })} Random`, null], ["♀ Girl", "female"], ["♂ Boy", "male"]].forEach(([lab, val], i) => {
       const b = el("button", i === 0 ? "on" : "", lab);
       b.onclick = () => { chosenSex = val; seg.querySelectorAll("button").forEach(x => x.classList.remove("on")); b.classList.add("on"); };
       seg.appendChild(b);
     });
     card.appendChild(seg);
     const begin = el("button", "mbtn full primary");
-    begin.innerHTML = "🎲 Roll a Soul &amp; Begin<small>your fate is decided by the heavens</small>";
+    begin.innerHTML = `<span class="mb-line">${icon("dice", { size: 18 })}Roll a Soul &amp; Begin</span><small>your fate is decided by the heavens</small>`;
     begin.onclick = () => beginLife(L.bornCharacter(new E.RNG(), input.value.trim() || null, chosenSex));
     const custom = el("button", "mbtn full");
-    custom.innerHTML = "✎ Create Your Soul<small>choose root, physique, looks, standing &amp; more</small>";
+    custom.innerHTML = `<span class="mb-line">${icon("brush", { size: 18 })}Create Your Soul</span><small>choose root, physique, looks, standing &amp; more</small>`;
     custom.onclick = () => openCreator(input.value.trim(), chosenSex);
     const sv = loadSave();
     if (sv && sv.c) {
       const cont = el("button", "mbtn full");
-      cont.innerHTML = `▶ Continue Your Saga<small>${escapeHtml(sv.c.name)} · age ${sv.c.age}</small>`;
+      cont.innerHTML = `<span class="mb-line">${icon("chevron", { size: 18 })}Continue Your Saga</span><small>${escapeHtml(sv.c.name)} · age ${sv.c.age}</small>`;
       cont.onclick = () => resumeFrom(sv);
       body.appendChild(cont);
     }
@@ -1734,7 +1751,7 @@ function startScreen() {
     body.appendChild(begin);
     body.appendChild(custom);
     const ach = el("button", "mbtn full");
-    ach.innerHTML = `🏆 Achievements &amp; Legacy<small>Heavenly Favor: ${meta.favor()}</small>`;
+    ach.innerHTML = `<span class="mb-line">${icon("trophy", { size: 18 })}Achievements &amp; Legacy</span><small>Heavenly Favor: ${meta.favor()}</small>`;
     ach.onclick = () => openAchievements(startScreen);
     body.appendChild(ach);
   }, false);

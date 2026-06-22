@@ -16,6 +16,9 @@
    * for the righteous, amethyst and cinnabar for those who walk the demonic dao. */
   --accent: var(--gold); --accent2: var(--gold2); --accent-dim: var(--gold-dim);
   --aura: rgba(230,197,133,.06);
+  /* ink-wash mountain ranges behind the app — far/mid/near, retinted per karma */
+  --peak-far: #1a2336; --peak-mid: #141b2c; --peak-near: #0e1422;
+  --moon: rgba(235,224,196,.20); --moon-halo: rgba(230,197,133,.10);
   /* effects — quieter shadows, almost no neon glow */
   --shadow: 0 10px 30px rgba(0,0,0,.55);
   --shadow-sm: 0 2px 8px rgba(0,0,0,.45);
@@ -26,11 +29,11 @@
 }
 /* Karma tiers — set on <body> from JS. Each retunes the accent + aura so the
  * banner, name, headings, buttons and tiers all glow with the soul's nature. */
-body.k-saint    { --accent: #f4dca0; --accent2: #d9b35e; --accent-dim: #9a7c3a; --aura: rgba(244,220,160,.16); }
-body.k-virtuous { --accent: #cfe1a8; --accent2: #a9c178; --accent-dim: #6f8a4a; --aura: rgba(120,200,150,.12); }
+body.k-saint    { --accent: #f4dca0; --accent2: #d9b35e; --accent-dim: #9a7c3a; --aura: rgba(244,220,160,.16); --peak-far: #232a3c; --peak-mid: #1a2030; --moon: rgba(244,220,160,.26); --moon-halo: rgba(244,220,160,.16); }
+body.k-virtuous { --accent: #cfe1a8; --accent2: #a9c178; --accent-dim: #6f8a4a; --aura: rgba(120,200,150,.12); --peak-far: #1b2a30; --peak-mid: #142028; --moon-halo: rgba(160,210,150,.12); }
 body.k-neutral  { --accent: var(--gold); --accent2: var(--gold2); --accent-dim: var(--gold-dim); --aura: rgba(230,197,133,.06); }
-body.k-tainted  { --accent: #cba6ec; --accent2: #9070c6; --accent-dim: #5f4a86; --aura: rgba(150,110,205,.14); }
-body.k-demonic  { --accent: #ed8079; --accent2: #c14040; --accent-dim: #8a2f2f; --aura: rgba(205,70,62,.17); }
+body.k-tainted  { --accent: #cba6ec; --accent2: #9070c6; --accent-dim: #5f4a86; --aura: rgba(150,110,205,.14); --peak-far: #211b34; --peak-mid: #181428; --moon-halo: rgba(160,120,210,.14); }
+body.k-demonic  { --accent: #ed8079; --accent2: #c14040; --accent-dim: #8a2f2f; --aura: rgba(205,70,62,.17); --peak-far: #2a1a22; --peak-mid: #1f131a; --peak-near: #160d14; --moon: rgba(237,140,130,.22); --moon-halo: rgba(205,70,62,.18); }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 /* one icon family — inherit colour from the holder, align to text, scale via CSS */
 .ic { display: inline-block; vertical-align: -0.18em; flex: none; }
@@ -49,14 +52,43 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", Roboto, sans-serif;
   font-size: 16px; line-height: 1.5; overscroll-behavior: none; -webkit-text-size-adjust: 100%;
 }
-#app { display: flex; flex-direction: column; height: 100dvh; max-width: 720px; margin: 0 auto; position: relative; }
+#app { display: flex; flex-direction: column; height: 100dvh; max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
+
+/* ============================ ink-wash atmosphere ===================== */
+/* A fixed scene that lives behind everything: a hung moon, slow clouds, three
+ * receding mountain ranges dissolving into mist. Pointer-transparent; retints
+ * with karma through the --peak-*/--moon vars. */
+#sky { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; transition: opacity .8s ease; }
+.sky-peaks { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 80%; opacity: 1; }
+.sky-moon {
+  position: absolute; top: 11%; right: 16%; width: 116px; height: 116px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 38%, var(--moon), transparent 68%);
+  box-shadow: 0 0 90px 30px var(--moon-halo);
+  transition: background .8s ease, box-shadow .8s ease;
+}
+/* soft drifting clouds — layered radial puffs, blurred, crawling sideways */
+.sky-cloud {
+  position: absolute; height: 70px; width: 260px; opacity: .5; filter: blur(7px);
+  background:
+    radial-gradient(50% 80% at 30% 60%, rgba(180,196,230,.16), transparent 70%),
+    radial-gradient(46% 90% at 58% 50%, rgba(180,196,230,.2), transparent 72%),
+    radial-gradient(40% 70% at 80% 64%, rgba(180,196,230,.13), transparent 72%);
+}
+.sky-cloud.sc1 { top: 22%; left: -30%; transform: scale(1.2); animation: drift 95s linear infinite; }
+.sky-cloud.sc2 { top: 35%; left: -40%; opacity: .34; animation: drift 140s linear infinite; animation-delay: -40s; }
+.sky-cloud.sc3 { top: 14%; left: -50%; opacity: .28; transform: scale(.85); animation: drift 180s linear infinite; animation-delay: -90s; }
+@keyframes drift { from { transform: translateX(0) scale(1.1); } to { transform: translateX(220vw) scale(1.1); } }
+/* a low ground-mist veil that lifts the near peaks off the tab bar */
+.sky-mist { position: absolute; left: 0; right: 0; bottom: 0; height: 20%; background: linear-gradient(180deg, transparent, var(--bg0) 96%); }
+@media (prefers-reduced-motion: reduce) { .sky-cloud { animation: none !important; } }
 
 /* ============================ profile header ========================== */
 #profile {
   padding: calc(var(--safe-t) + 12px) 14px 11px;
   background:
     radial-gradient(120% 150% at 50% -45%, var(--aura), transparent 70%),
-    var(--bg);
+    linear-gradient(180deg, rgba(11,15,24,.94), rgba(11,15,24,.82));
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
   transition: background .7s ease;
 }
@@ -162,7 +194,8 @@ body {
 #tabbar {
   display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; align-items: end;
   padding: 6px 8px calc(8px + var(--safe-b));
-  background: var(--bg);
+  background: linear-gradient(180deg, rgba(11,15,24,.72), rgba(11,15,24,.95));
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   border-top: 1px solid var(--line);
 }
 .tab {
@@ -212,6 +245,8 @@ body {
   transition: transform .08s ease, background .15s ease, border-color .15s ease;
 }
 .mbtn:active { background: var(--panel2); transform: scale(.98); }
+.mbtn .mb-line { display: flex; align-items: center; gap: 8px; }
+.mbtn .mb-line .ic { flex: none; color: var(--accent); }
 .mbtn small { color: var(--muted); font-weight: 500; font-size: .73rem; letter-spacing: .01em; }
 .mbtn.full { grid-column: 1 / -1; }
 .mbtn.primary { background: linear-gradient(var(--aura), var(--aura)), var(--panel2); border-color: var(--accent2); color: var(--accent); padding-left: 19px; }
@@ -235,7 +270,14 @@ body {
   transition: background .15s ease, transform .08s ease, border-color .15s ease;
 }
 .listrow:active { background: var(--panel2); transform: scale(.99); }
-.listrow .lr-ava { width: 38px; height: 38px; flex: none; border-radius: var(--r-sm); background: var(--panel2); border: 1px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.listrow .lr-ava { width: 38px; height: 38px; flex: none; border-radius: var(--r-sm); background: var(--panel2); border: 1px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--ink2); }
+.listrow .lr-ava .ic { width: 23px; height: 23px; }
+/* sentiment tints — colour an avatar/emblem and its frame to carry meaning */
+.tint-gold   { color: var(--accent) !important; border-color: var(--accent2) !important; background: var(--aura) !important; }
+.tint-jade   { color: var(--jade) !important; border-color: #2c5d49 !important; background: rgba(111,214,179,.06) !important; }
+.tint-pink   { color: var(--pink) !important; border-color: #6a3a52 !important; background: rgba(224,155,179,.06) !important; }
+.tint-red    { color: var(--red) !important; border-color: #6a3434 !important; background: rgba(224,116,108,.06) !important; }
+.tint-purple { color: var(--purple) !important; border-color: #4f3f7a !important; background: rgba(183,155,232,.07) !important; }
 .listrow .lr-main { flex: 1; min-width: 0; }
 .listrow .lr-title { font-weight: 700; }
 .listrow .lr-sub { color: var(--muted); font-size: .8rem; margin-top: 2px; }
@@ -318,11 +360,19 @@ body {
 
 /* ============================ event card ============================== */
 .event-card {
-  background: linear-gradient(var(--aura), var(--aura)), var(--panel); border: 1px solid var(--accent2);
-  border-left: 3px solid var(--accent); border-radius: var(--r); padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow-sm);
+  position: relative; background: linear-gradient(var(--aura), var(--aura)), var(--panel); border: 1px solid var(--accent2);
+  border-radius: var(--r); padding: 22px 18px 18px; margin-bottom: 14px; box-shadow: var(--shadow-sm); overflow: hidden;
 }
-.event-card .ev-emoji { font-size: 2.3rem; text-align: center; }
-.event-card .ev-text { margin-top: 10px; font-size: 1.02rem; line-height: 1.55; text-align: center; }
+/* a thin gilt seam top and bottom — a framed omen, not a chat bubble */
+.event-card::before, .event-card::after { content: ""; position: absolute; left: 22px; right: 22px; height: 1px; background: linear-gradient(90deg, transparent, var(--accent2), transparent); }
+.event-card::before { top: 0; } .event-card::after { bottom: 0; }
+.event-card .ev-emblem {
+  width: 56px; height: 56px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: var(--accent); background: radial-gradient(circle at 50% 38%, var(--aura), transparent 70%), var(--panel2);
+  border: 1px solid var(--accent2); box-shadow: 0 0 0 4px rgba(0,0,0,.18);
+}
+.event-card .ev-emblem .ic { width: 30px; height: 30px; }
+.event-card .ev-text { margin-top: 13px; font-size: 1.04rem; line-height: 1.6; text-align: center; color: var(--ink); }
 
 /* ============================ start / death =========================== */
 .center-card { text-align: center; }
