@@ -135,7 +135,9 @@ function logYear(age) { const log = $("log"), t = el("div", "turn"); t.appendChi
 // ascension, death — shown full-bleed in the feed and on the milestone card.
 function sceneEl(name, caption) {
   const fig = el("div", "scene");
-  fig.innerHTML = `<img src="assets/scenes/${name}.jpg" alt="" decoding="async">` + (caption ? `<div class="scene-cap">${escapeHtml(caption)}</div>` : "");
+  fig.innerHTML = `<img src="assets/scenes/${name}.jpg" alt="" decoding="async">`
+    + `<span class="scene-frame" aria-hidden="true"></span><span class="chop" aria-hidden="true"></span>`
+    + (caption ? `<div class="scene-cap">${escapeHtml(caption)}</div>` : "");
   return fig;
 }
 function logScene(name, caption) { const log = $("log"), t = el("div", "turn"); t.appendChild(sceneEl(name, caption)); log.appendChild(t); log.scrollTop = log.scrollHeight; }
@@ -395,6 +397,7 @@ function showEventModal(ev, q) {
     const card = el("div", "event-card");
     card.appendChild(el("div", "ev-emblem " + g.tint, icon(g.name, { size: 30 })));
     card.appendChild(el("div", "ev-text", escapeHtml(ev.text)));
+    card.appendChild(el("span", "chop"));
     body.appendChild(card);
     for (const ch of ev.choices) {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(ch.label);
@@ -1732,10 +1735,10 @@ function beginLife(c) {
 function startScreen() {
   state.deadHandled = false;
   let chosenSex = null;
-  openOverlay("The Nine Heavens", body => {
+  openOverlay("Enter the Mortal World", body => {
     const card = el("div", "center-card");
     const mast = el("div", "masthead");
-    mast.innerHTML = `<div class="title-zh">九 重 天</div><div class="seal-stamp" aria-hidden="true">命</div>`;
+    mast.innerHTML = `<div class="wordmark">The Nine Heavens</div><div class="title-zh">九 重 天</div><div class="seal-stamp" aria-hidden="true">命</div>`;
     card.appendChild(mast);
     card.appendChild(el("div", "title-en", "A xianxia life — from birth to immortality, one year at a time"));
     const input = el("input", "txtfield"); input.type = "text"; input.placeholder = "Name your cultivator (or leave to fate)"; input.maxLength = 24;
@@ -1855,6 +1858,7 @@ function birthVerdict(c) {
 function creatorPreviewCard(c) {
   if (!c) return el("div");
   const wrap = el("div", "cr-preview");
+  wrap.appendChild(el("span", "chop"));
   wrap.appendChild(el("div", "cr-pv-top", `${D.avatarFor(c, 22)} <b>${escapeHtml(c.name)}</b> · ${c.sex === "female" ? "♀" : "♂"}`));
   const tg = (field, attr) => `${c[field]} (${D.attrTier(attr, c[field]).name})`;
   const rows = [

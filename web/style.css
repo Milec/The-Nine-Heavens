@@ -5,6 +5,7 @@
 /* Bundled display faces (latin subset, OFL) — an engraved Cinzel for labels and
  * a literary Cormorant for titles, so the chrome reads carved, not default. */
 @font-face { font-family: "Cinzel"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/cinzel-600.woff2") format("woff2"); }
+@font-face { font-family: "Cinzel Decorative"; font-style: normal; font-weight: 700; font-display: swap; src: url("assets/fonts/cinzel-decorative-700.woff2") format("woff2"); }
 @font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 500; font-display: swap; src: url("assets/fonts/cormorant-500.woff2") format("woff2"); }
 @font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/cormorant-600.woff2") format("woff2"); }
 /* hand-brushed hanzi, subset to just the masthead glyphs 九重天飞升命 (~3KB) */
@@ -39,6 +40,9 @@
   --font-body: "Iowan Old Style", "Palatino Linotype", Palatino, "Songti SC", "Noto Serif SC", Georgia, serif;
   --font-display: "Cormorant Garamond", "Songti SC", "Noto Serif SC", Georgia, serif;
   --font-engrave: "Cinzel", "Songti SC", "Noto Serif SC", Georgia, serif;
+  --font-drama: "Cinzel Decorative", "Cinzel", Georgia, serif;
+  --seal-red: radial-gradient(125% 125% at 30% 18%, #c8584a, #8e231c);
+  --seal-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fdeede' stroke-width='1.5'%3E%3Crect x='4.5' y='4.5' width='15' height='15'/%3E%3Cpath d='M8 8h8v8H8z'/%3E%3Cpath d='M12 8v8M8 12h8'/%3E%3C/svg%3E");
   --font-cjk: "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
   --font-brush: "Ma Shan Zheng", "Songti SC", "Noto Serif SC", serif;
   /* 回纹 — the Chinese key-fret (meander) ornament, tiled as a gilt band */
@@ -518,13 +522,13 @@ body {
 .mbtn, .listrow, .rl-row, .cbt-skill, .cbt-unit, .event-card, .cr-preview, #tip {
   border-radius: 0; border-color: transparent !important;
   clip-path: polygon(var(--chamfer) 0, 100% 0, 100% calc(100% - var(--chamfer)), calc(100% - var(--chamfer)) 100%, 0 100%, 0 var(--chamfer));
-  box-shadow: inset 0 0 0 1px var(--line2), inset 0 1px 0 1px rgba(255,255,255,.03);
+  box-shadow: inset 0 0 0 1px var(--line2), inset 0 0 11px rgba(4,6,12,.5), inset 0 1px 0 1px rgba(255,255,255,.03);
 }
 .listrow.bound { box-shadow: inset 0 0 0 1px var(--accent2), inset 0 0 22px var(--aura); }
 .mbtn.primary { box-shadow: inset 0 0 0 1px var(--accent2), inset 0 0 26px var(--aura); }
-.mbtn.danger  { box-shadow: inset 0 0 0 1px #6a3434; }
-.event-card   { box-shadow: inset 0 0 0 1px var(--accent2); }
-.cr-preview   { box-shadow: inset 0 0 0 1px var(--gold2); }
+.mbtn.danger  { box-shadow: inset 0 0 0 1px #6a3434, inset 0 0 11px rgba(4,6,12,.5); }
+.event-card   { box-shadow: inset 0 0 0 1px var(--accent2), inset 0 0 26px rgba(4,6,12,.55); }
+.cr-preview   { box-shadow: inset 0 0 0 1px var(--gold2), inset 0 0 22px rgba(4,6,12,.5); }
 .mbtn:disabled { clip-path: polygon(var(--chamfer) 0, 100% 0, 100% calc(100% - var(--chamfer)), calc(100% - var(--chamfer)) 100%, 0 100%, 0 var(--chamfer)); }
 
 /* --- chamfered chips, fields & tiles: small cut ----------------------- */
@@ -571,3 +575,31 @@ body::after {
   background-size: 180px 180px;
 }
 @media (prefers-reduced-motion: reduce) { .tab-age.spent { animation: none; } }
+
+/* --- dramatic engraved English wordmark on the title page ------------- */
+.wordmark {
+  font-family: var(--font-drama); font-weight: 700; font-size: 1.18rem; letter-spacing: .12em;
+  color: var(--gold); text-transform: uppercase; line-height: 1.1; margin-bottom: 2px;
+  text-shadow: 0 1px 0 rgba(0,0,0,.5);
+}
+
+/* --- vermillion corner seal (印) stamped on hero cards ---------------- */
+.chop {
+  position: absolute; bottom: 11px; right: 11px; width: 30px; height: 30px; z-index: 2; pointer-events: none;
+  transform: rotate(-4deg); opacity: .9;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+  background: var(--seal-glyph) center/17px no-repeat, var(--seal-red);
+  box-shadow: inset 0 0 0 1.4px rgba(255,236,222,.55), 0 2px 7px rgba(0,0,0,.4);
+}
+.scene .chop { top: 12px; right: 12px; bottom: auto; }
+
+/* --- milestone scenes as woodblock prints: gilt double-rule + 回纹 band
+       + ink-bled edges + a corner chop ----------------------------------- */
+.scene-frame {
+  position: absolute; inset: 0; pointer-events: none;
+  background: var(--fret) repeat-x left top, var(--fret) repeat-x left bottom;
+  background-size: auto 12px, auto 12px;
+  box-shadow: inset 0 0 0 1px var(--gold2), inset 0 0 0 4px rgba(6,9,16,.55), inset 0 0 0 5px rgba(184,147,74,.4), inset 0 0 40px rgba(6,9,16,.6);
+  filter: url(#inkedge);
+}
+.scene-cap { z-index: 3; }

@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+import { createServer } from 'http'; import { readFile } from 'fs/promises';
+import { extname, join, normalize, dirname } from 'path'; import { fileURLToPath } from 'url';
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const T={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png','.woff2':'font/woff2','.jpg':'image/jpeg'};
+const s=createServer(async(q,r)=>{try{let p=decodeURIComponent(q.url.split('?')[0]);if(p==='/')p='/index.html';if(p.endsWith('/'))p+='index.html';const f=join(ROOT,normalize(p));r.writeHead(200,{'Content-Type':T[extname(f)]||'application/octet-stream'});r.end(await readFile(f));}catch{r.writeHead(404);r.end('x');}});
+await new Promise(r=>s.listen(0,r));const port=s.address().port;
+const b=await chromium.launch();const pg=await b.newPage({viewport:{width:414,height:896},deviceScaleFactor:3});
+await pg.goto(`http://localhost:${port}/web/`,{waitUntil:'networkidle'});
+await pg.getByText('Roll a Soul',{exact:false}).first().click();await pg.waitForTimeout(1400);
+await pg.locator('.scene').first().screenshot({path:'/tmp/zoom-scene.png'});
+console.log('done');await b.close();s.close();
