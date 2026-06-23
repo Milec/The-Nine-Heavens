@@ -302,13 +302,10 @@ const DEED_ICON = {
 const defaultDeeds = () => ({ cult: DEEDS_PER_CAT, act: DEEDS_PER_CAT, social: DEEDS_PER_CAT });
 const deedsLeft = cat => (state.deeds && state.deeds[cat] != null) ? state.deeds[cat] : DEEDS_PER_CAT;
 
-/* Reasonable minimum ages for certain endeavours (a 6-year-old shouldn't be
- * raiding Secret Realms or travelling the world alone). */
-const AGE_MIN = {
-  train: 4, study: 5, spar: 6, oddjobs: 10, alchemy: 10, wander: 12, hunt: 12, arena: 12,
-  duel: 12, quest: 12, mingle: 12, travel: 14, tournament: 14, romance: 16,
-  boss: 16, secret: 16, disciple: 18,
-};
+/* Minimum ages for certain endeavours live in the shared data layer (the single
+ * source of truth, also enforced model-side) so the UI greys a button out at
+ * exactly the age the action itself would refuse. */
+const AGE_MIN = D.AGE_MIN;
 // True if old enough; otherwise emits a note and returns false.
 function ageAllows(key) {
   const min = AGE_MIN[key] || 0;

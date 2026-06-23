@@ -426,9 +426,15 @@ web/              # mobile-first PWA port (iOS & Android)
 ## Tests
 
 ```bash
-python tests/test_game.py      # or: python -m pytest
+python tests/test_game.py      # the terminal/Python build  (or: python -m pytest)
+node   tests/test_web.mjs       # the mobile web (PWA) build  (Node 18+)
 ```
 
-The suite plays hundreds of randomised lives headlessly to guarantee the game
+Both suites play hundreds of randomised lives headlessly to guarantee the game
 never crashes, the difficulty curve holds, and birth randomness produces a wide
-spread of fates.
+spread of fates. The web suite additionally asserts that **age-appropriate
+gating holds at the model layer** — a minor can never stumble into a romance,
+wed, or bear a child, however the action is reached — and that the large systems
+(combat, cultivation, alchemy, Dao, treasures, reincarnation) interlock without
+crashing. Minimum ages for every endeavour live in one shared table
+(`web/data.js` → `AGE_MIN`), read by both the interface and the rules engine.

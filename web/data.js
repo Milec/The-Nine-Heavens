@@ -490,6 +490,22 @@ export function karmaLabel(k) {
 
 export const AWAKENING_AGE = 6;     // spiritual root revealed (测灵根)
 export const COMING_OF_AGE = 16;    // adulthood; free to leave home
+export const PARENTHOOD_AGE = 18;   // old enough to raise children of your own
+
+// Canonical minimum ages for the game's endeavours — the single source of
+// truth for age-appropriate gating, shared by the UI (which greys out a button
+// too soon) and the model layer (which refuses the action outright, however it
+// is reached). A six-year-old shouldn't be raiding Secret Realms, courting a
+// dao companion, or travelling the world alone. Keyed by endeavour.
+export const AGE_MIN = {
+  train: 4, study: 5, spar: 6, oddjobs: 10, alchemy: 10, wander: 12, hunt: 12,
+  arena: 12, duel: 12, quest: 12, mingle: 12, travel: 14, tournament: 14,
+  romance: COMING_OF_AGE, boss: 16, secret: 16, disciple: 18, child: PARENTHOOD_AGE,
+};
+// The minimum age for an endeavour (0 if ungated).
+export const ageMin = key => AGE_MIN[key] || 0;
+// True if the character is old enough for the endeavour.
+export const oldEnoughFor = (c, key) => (c.age || 0) >= ageMin(key);
 
 // What your parents do, and roughly how cultivated they are, by birth standing.
 // [father_occupation, mother_occupation, parent_realm_index]

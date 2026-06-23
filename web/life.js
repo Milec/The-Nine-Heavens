@@ -118,7 +118,7 @@ export function mingle(c, rng) {
   const pull = c.charm + (["striking", "peerless", "immortal"].includes(c.appearanceKey) ? 20 : 0);
   const roll = rng.random();
   // Romance blooms once you've come of age; you may gather more than one love.
-  if (c.age >= 16 && roll < 0.22 + pull / 500 && c.relationships.filter(n => n.role === "companion" && n.alive).length < D.HAREM_CAP) {
+  if (c.age >= D.ageMin("romance") && roll < 0.22 + pull / 500 && c.relationships.filter(n => n.role === "companion" && n.alive).length < D.HAREM_CAP) {
     const n = meetPerson(c, rng, "companion", { affinity: 18 + Math.floor(pull / 7) });
     c.happiness = clampN(c.happiness + 6, 0, 100);
     return [`✦ You cross paths with ${n.name}, and a spark kindles. A new romance — court them, and a dao companion they may become.`];
@@ -294,7 +294,7 @@ const ordinal = n => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n
 // Try for a child with a wedded spouse; bears them into your line.
 export function tryForChild(c, npc, rng) {
   if (childrenOf(c).length >= 10) return ["Your line is already vast — ten children is legacy enough for any cultivator."];
-  if (c.age < 18) return ["You are not yet of an age to raise children."];
+  if (c.age < D.ageMin("child")) return ["You are not yet of an age to raise children."];
   if (rng.random() < 0.55 + c.luck / 400) {
     const son = rng.random() < 0.5;
     const child = meetPerson(c, rng, "family", { kin: son ? "Son" : "Daughter", affinity: 70, born: c.age, parent: npc.name });
@@ -597,7 +597,13 @@ export function relationActions(c, npc) {
   return acts;
 }
 
+// Matters of the heart are gated to the coming-of-age, however they are reached
+// (UI button, a stray event, or an inherited bond) — enforced here, not just in
+// the interface, so the rule holds across every system.
+const ROMANCE_ACTIONS = { court: 1, propose: 1, dual: 1, trychild: 1 };
 export function doRelationAction(c, npc, action, rng) {
+  if (ROMANCE_ACTIONS[action] && c.age < D.ageMin("romance"))
+    return ["You are too young yet for matters of the heart — such bonds must wait until you come of age."];
   const adj = d => { npc.affinity = clampN(npc.affinity + d, -100, 100); };
   const happy = n => { c.happiness = clampN(c.happiness + n, 0, 100); };
   switch (action) {
