@@ -559,7 +559,7 @@ export const EVENTS = [
     id: "lantern_festival", weight: 5, minAge: 14, maxAge: 9000,
     text: () => "A great lantern festival lights the river with a thousand floating flames.",
     choices: [
-      { label: "Float a lantern with a wish", result: (c, rng, A) => { A.happy(8); if (!c.relationships.some(n => n.role === "companion" && n.alive) && c.age >= 16 && rng.random() < 0.25) { const n = A.meet("companion", { affinity: 24 }); return `As your lantern drifts off, your hand brushes another's at the rail — ${n.name}. Fate, perhaps.`; } return "You whisper a wish and watch your light join the river of stars. Your heart eases."; } },
+      { label: "Float a lantern with a wish", result: (c, rng, A) => { A.happy(8); if (!c.relationships.some(n => n.role === "companion" && n.alive) && c.age >= D.ageMin("romance") && rng.random() < 0.25) { const n = A.meet("companion", { affinity: 24 }); return `As your lantern drifts off, your hand brushes another's at the rail — ${n.name}. Fate, perhaps.`; } return "You whisper a wish and watch your light join the river of stars. Your heart eases."; } },
       { label: "Sell trinkets to the crowd", result: (c, rng, A) => { A.stones(rng.randint(4, 12)); return "You hawk paper charms to lovers and families, turning a tidy profit on the festival mood."; } },
     ],
   },
