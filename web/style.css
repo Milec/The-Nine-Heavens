@@ -331,6 +331,62 @@ body {
 .loc-person { color: var(--jade); cursor: pointer; border-bottom: 1px dotted var(--jade); }
 .loc-person:active { color: var(--accent); }
 
+/* ============================ equipment paperdoll =================== */
+.doll-panel {
+  position: relative; width: 100%; aspect-ratio: 1 / 0.9; margin: 8px 0 4px;
+  background: radial-gradient(ellipse 72% 85% at 50% 38%, #131e34 0%, #0c1422 55%, #080c18 100%);
+  border: 1px solid var(--line2); overflow: hidden;
+  clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+  box-shadow: inset 0 0 0 1px var(--line2), inset 0 0 60px rgba(0,0,0,.4);
+}
+.doll-figure {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  color: var(--accent2); opacity: .2;
+}
+.doll-slot {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 58px; height: 58px; padding: 3px;
+  background: rgba(8,12,24,.88); border: 1.5px solid var(--line2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  cursor: pointer; backdrop-filter: blur(6px);
+  transition: border-color .15s, box-shadow .15s;
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+}
+.doll-slot:active { transform: translate(-50%, -50%) scale(.88); }
+.doll-slot.filled {
+  border-color: var(--accent2);
+  box-shadow: 0 0 14px var(--aura), 0 0 0 1px rgba(182,147,74,.2);
+  background: rgba(12,18,32,.92);
+}
+.ds-icon { font-size: 1.45rem; line-height: 1; }
+.ds-cn   { font-size: .52rem; letter-spacing: .06em; color: var(--muted); font-family: var(--font-engrave); text-transform: uppercase; line-height: 1.1; }
+.ds-name { font-size: .57rem; font-weight: 700; color: var(--accent); text-align: center; line-height: 1.15; max-width: 54px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* grade badge used in trove cells */
+.grade-cn { font-size: .55rem; color: var(--accent); font-weight: 700; font-family: var(--font-engrave); letter-spacing: .02em; }
+/* treasure trove grid */
+.trove-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 6px 0 2px; }
+.trove-cell {
+  aspect-ratio: 1; border: 1px solid var(--line2); background: var(--panel);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  cursor: pointer; transition: border-color .12s, box-shadow .12s;
+  position: relative; overflow: hidden; padding: 5px 3px;
+  clip-path: polygon(5px 0, calc(100% - 5px) 0, 100% 5px, 100% calc(100% - 5px), calc(100% - 5px) 100%, 5px 100%, 0 calc(100% - 5px), 0 5px);
+}
+.trove-cell:active { background: var(--panel2); transform: scale(.94); }
+.trove-cell.equipped { border-color: var(--accent2); box-shadow: inset 0 0 10px var(--aura); }
+.trove-cell.empty { opacity: .28; cursor: default; pointer-events: none; }
+.tc-icon { font-size: 1.25rem; line-height: 1; }
+.tc-name { font-size: .56rem; color: var(--ink2); text-align: center; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+/* sundry item cards */
+.sundry-card { display: flex; align-items: flex-start; gap: 11px; padding: 9px 0 8px; border-bottom: 1px solid var(--line); }
+.sundry-card:last-child { border-bottom: none; }
+.sc-icon { font-size: 1.35rem; flex: none; width: 28px; text-align: center; margin-top: 1px; }
+.sc-body { flex: 1; min-width: 0; }
+.sc-top  { display: flex; align-items: baseline; gap: 8px; }
+.sc-name { font-weight: 700; font-size: .84rem; }
+.sc-qty  { font-size: .72rem; color: var(--muted); }
+.sc-desc { font-size: .76rem; color: var(--muted); margin-top: 3px; line-height: 1.38; }
+
 /* ============================ world map =============================== */
 .worldmap {
   position: relative; width: 100%; aspect-ratio: 1 / 0.74; margin: 4px 0 12px;

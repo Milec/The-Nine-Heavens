@@ -764,6 +764,7 @@ function abodeYearly(c, rng, events) {
 export function upgradeAbode(c) {
   const next = D.abodeNext(c.abode || 0);
   if (!next) return ["Your abode is already a Cave Heaven — the very pinnacle. There is nothing higher to build."];
+  if (!c.abode && !D.oldEnoughFor(c, "abode")) return [`You are too young to stake a claim on a spirit vein. Only at age ${D.ageMin("abode")} may one establish a cave dwelling.`];
   if (c.spiritStones < next[3]) return [`You need ${next[3]} spirit stones to ${c.abode ? "expand your abode into" : "establish"} the ${next[1]}. (You have ${c.spiritStones}.)`];
   const was = c.abode || 0;
   c.spiritStones -= next[3];

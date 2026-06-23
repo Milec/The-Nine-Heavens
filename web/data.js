@@ -492,6 +492,36 @@ export const AWAKENING_AGE = 6;     // spiritual root revealed (测灵根)
 export const COMING_OF_AGE = 16;    // adulthood; free to leave home
 export const PARENTHOOD_AGE = 18;   // old enough to raise children of your own
 
+// Descriptions for free-form sundry items that land in c.inventory.
+// Keys are the exact string pushed into the array.
+export const SUNDRY_DESCRIPTIONS = {
+  // Hunter's Child
+  "Coarse Iron Saber":      { icon: "🗡️", desc: "A heavy iron saber, rough-forged but battle-proven. Your family hunted mountain spirits with it for generations. No qi refinement — pure edge and weight." },
+  // Martial Clan
+  "Tiger-Bone Manual":      { icon: "📜", desc: "A clan scripture transcribed on oiled hide, detailing bone-forging exercises passed down through three generations of mortal warriors." },
+  // Scholar House
+  "Annotated Dao Classic":  { icon: "📖", desc: "A well-thumbed copy of the Dao De Jing annotated in your grandfather's hand. Each marginal note hints at a cultivation insight beyond the plain text." },
+  // Sect Disciple
+  "Outer-Sect Robes":       { icon: "🥋", desc: "Plain grey robes marked with your sect's outer-ring sigil. Ordinary cloth — no qi refinement — but wearing them marks you as a cultivator of record." },
+  "Qi-Gathering Pill":      { icon: "⚗️", desc: "A pale-green spirit pill issued to new outer disciples. One dose — taken at a breakthrough moment — floods the meridians with ambient qi to ease the crossing." },
+  // Noble Clan
+  "Clan Spirit Sword":      { icon: "⚔️", desc: "A spirit-grade flying sword passed down your cultivation clan's ancestral line. Its qi pathways are worn smooth from generations of use — still keenly sharp." },
+  "Foundation Pill":        { icon: "💊", desc: "A rare crimson pill refined from ten-year spirit herbs. Swallowing it at the right cultivation stage fortifies the meridians and all but guarantees Foundation establishment." },
+  // Imperial Bloodline
+  "Dragon-Pattern Jade":    { icon: "🐉", desc: "A thumb-sized jade tablet carved with a coiling imperial dragon. Its faint pulse resonates with bloodline arts and opens doors no amount of gold can buy." },
+  "Imperial Body Lotion":   { icon: "🫙", desc: "A lacquered jar of golden salve refined for the imperial family. Applied nightly it nourishes the spirit channels and maintains the bloodline's natural cultivation lustre." },
+  // Demon Scion
+  "Blood Refining Manual":  { icon: "📕", desc: "A demonic scripture inked in dried lifeblood. Its techniques are swift and brutally potent — and quietly hungry for vital force. Orthodox sects will execute a bearer on sight." },
+  "Soul-Eating Talisman":   { icon: "🧧", desc: "Ghost-script etched on bone-yellow paper. On detonation it tears a sliver of the target's soul. One use only — even the handle is cold to the touch." },
+  // Hidden Master's Heir
+  "Mysterious Jade Slip":   { icon: "💚", desc: "A slender jade slab carved with techniques your reclusive master left without explanation. Meditating on it reveals new layers each year; its full depth has yet to surface." },
+  "Spirit Herb Bundle":     { icon: "🌿", desc: "Rare spirit herbs wrapped in oil-paper, still fragrant with earth-qi. Enough to start an alchemy session, or barter for spirit stones at any market." },
+  // Merchant Family
+  "Spirit-Gathering Charm": { icon: "🔮", desc: "A paper charm inscribed with qi-condensing arrays. Hang it in your cultivation chamber to thin the veil between your meridians and ambient spirit-qi." },
+  // Loot drop
+  "Spirit Jade Shard":      { icon: "💠", desc: "A fragment of pure spirit jade dense with latent qi. Accepted as currency by most cultivators, useful as a talisman anchor, or readily sold at market." },
+};
+
 // Canonical minimum ages for the game's endeavours — the single source of
 // truth for age-appropriate gating, shared by the UI (which greys out a button
 // too soon) and the model layer (which refuses the action outright, however it
@@ -500,7 +530,7 @@ export const PARENTHOOD_AGE = 18;   // old enough to raise children of your own
 export const AGE_MIN = {
   train: 4, study: 5, spar: 6, oddjobs: 10, alchemy: 10, wander: 12, hunt: 12,
   arena: 12, duel: 12, quest: 12, mingle: 12, travel: 14, tournament: 14,
-  romance: COMING_OF_AGE, boss: 16, secret: 16, disciple: 18, child: PARENTHOOD_AGE,
+  romance: COMING_OF_AGE, boss: 16, secret: 16, abode: COMING_OF_AGE, disciple: 18, child: PARENTHOOD_AGE,
 };
 // The minimum age for an endeavour (0 if ungated).
 export const ageMin = key => AGE_MIN[key] || 0;

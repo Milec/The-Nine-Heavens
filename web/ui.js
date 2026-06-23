@@ -813,7 +813,7 @@ function actAdventure() {
     const here = W.currentLoc(c), reg = D.REGION_BY_KEY[c.region], t = W.typeOf(here);
     if (here) body.appendChild(el("p", "note", `You range out from <b>${escapeHtml(here.name)}</b> — ${reg ? reg[1] : ""} (${DANGER_TIER(reg ? reg[3] : 1)} country).${t.hunt ? " The surrounding wilds teem with spirit-beasts." : ""}${t.delve ? " Sealed ruins lie close at hand — ripe for delving." : ""} Travel the realm below to find deadlier, richer lands.`));
     const g = leafGrid(body);
-    g.mk("Travel the Realm", c.age < AGE_MIN.travel ? `from age ${AGE_MIN.travel}` : (here ? "now at " + here.name : "the world map"), openWorldMap, { full: true, disabled: c.age < AGE_MIN.travel });
+    g.mk("Travel the Realm", here ? "now at " + here.name : "the world map", openWorldMap, { full: true });
     g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander });
     g.mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
     g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
@@ -973,6 +973,7 @@ function openAbode() {
       body.appendChild(el("p", "note", "You have no cave abode yet — only the open road and borrowed corners. Stake a claim on a spirit vein to build a home that cultivates while you live, yielding herbs and stones each year."));
     }
     if (next) {
+      const tooYoung = !cur && c.age < AGE_MIN.abode;
       const canAfford = c.spiritStones >= next[3];
       body.appendChild(el("div", "section-h", cur ? "Upgrade" : "Establish an Abode"));
       body.appendChild(el("p", "note", `${next[1]} (${next[2]}) — ${next[8]}`));
@@ -981,9 +982,12 @@ function openAbode() {
         ["Cultivation", `+${Math.round(next[4] * 100)}%`],
         ["Yield / year", `+${next[5]} 🌿  +${next[6]} 💎`],
       ]));
-      const up = el("button", "mbtn full" + (canAfford ? " primary" : ""));
-      up.innerHTML = `${cur ? "Upgrade to" : "Establish"} ${escapeHtml(next[1])}<small>${canAfford ? "free · spend " + next[3] + " stones" : "need " + next[3] + " stones"}</small>`;
-      if (canAfford) up.onclick = () => runFree(() => L.upgradeAbode(c));
+      if (tooYoung) {
+        body.appendChild(el("p", "note", `You are too young to stake a claim on a spirit vein. Only at age ${AGE_MIN.abode} may one establish a cave dwelling.`));
+      }
+      const up = el("button", "mbtn full" + (canAfford && !tooYoung ? " primary" : ""));
+      up.innerHTML = `${cur ? "Upgrade to" : "Establish"} ${escapeHtml(next[1])}<small>${tooYoung ? "from age " + AGE_MIN.abode : canAfford ? "free · spend " + next[3] + " stones" : "need " + next[3] + " stones"}</small>`;
+      if (canAfford && !tooYoung) up.onclick = () => runFree(() => L.upgradeAbode(c));
       else up.disabled = true;
       body.appendChild(up);
     } else if (cur) {
@@ -1039,9 +1043,11 @@ function openWorldMap() {
     // A journey already underway: offer to ride on toward the remembered goal.
     if (c.journeyTo != null && c.journeyTo !== c.location && W.locById(c, c.journeyTo)) {
       const dest = W.locById(c, c.journeyTo), left = E.travelDeeds(c, c.journeyTo);
-      const cont = el("button", "mbtn full primary");
-      cont.innerHTML = `Continue to ${escapeHtml(dest.name)}<small>${left} stage${left > 1 ? "s" : ""} of road remain</small>`;
-      cont.onclick = () => travelTo(c.journeyTo);
+      const canTravel = c.age >= AGE_MIN.travel;
+      const cont = el("button", "mbtn full" + (canTravel ? " primary" : ""));
+      cont.innerHTML = `Continue to ${escapeHtml(dest.name)}<small>${canTravel ? left + " stage" + (left > 1 ? "s" : "") + " of road remain" : "from age " + AGE_MIN.travel}</small>`;
+      if (canTravel) cont.onclick = () => travelTo(c.journeyTo);
+      else cont.disabled = true;
       body.appendChild(cont);
     }
 
@@ -1118,10 +1124,12 @@ function openLocationCard(id) {
     }
     else {
       const hops = W.travelHops(c, id), cost = E.travelDeeds(c, id), avail = deedsLeft("act"), years = Math.ceil(cost / DEEDS_PER_CAT);
-      body.appendChild(el("p", "note", `The road runs ${hops} stage${hops > 1 ? "s" : ""} — ${cost} travel deed${cost > 1 ? "s" : ""} at your pace (${E.hopsPerDeed(c)}/deed). ${cost <= avail ? "You can reach it this year." : `Too far for one year — you'll rest at waystations along the way (about ${years} year${years > 1 ? "s" : ""} of travel).`}`));
-      const go = el("button", "mbtn full primary");
-      go.innerHTML = `Set out for ${escapeHtml(loc.name)}<small>${cost <= avail ? `arrive this year · ${cost} deed${cost > 1 ? "s" : ""}` : `${avail > 0 ? "travel " + Math.min(avail, cost) + " deed" + (Math.min(avail, cost) > 1 ? "s" : "") + " now, rest, continue" : "no deeds left — age up first"}`}</small>`;
-      go.onclick = () => travelTo(id);
+      const canTravel = c.age >= AGE_MIN.travel;
+      body.appendChild(el("p", "note", canTravel ? `The road runs ${hops} stage${hops > 1 ? "s" : ""} — ${cost} travel deed${cost > 1 ? "s" : ""} at your pace (${E.hopsPerDeed(c)}/deed). ${cost <= avail ? "You can reach it this year." : `Too far for one year — you'll rest at waystations along the way (about ${years} year${years > 1 ? "s" : ""} of travel).`}` : `You are too young to venture out into the world alone — travel opens at age ${AGE_MIN.travel}. For now, study this place from a distance.`));
+      const go = el("button", "mbtn full" + (canTravel ? " primary" : ""));
+      go.innerHTML = `Set out for ${escapeHtml(loc.name)}<small>${!canTravel ? "from age " + AGE_MIN.travel : cost <= avail ? `arrive this year · ${cost} deed${cost > 1 ? "s" : ""}` : `${avail > 0 ? "travel " + Math.min(avail, cost) + " deed" + (Math.min(avail, cost) > 1 ? "s" : "") + " now, rest, continue" : "no deeds left — age up first"}`}</small>`;
+      if (canTravel) go.onclick = () => travelTo(id);
+      else go.disabled = true;
       body.appendChild(go);
     }
     backBtn(body, openWorldMap);
@@ -1204,10 +1212,27 @@ function openBeast() {
     backBtn(body, openAssets);
   });
 }
+// Slot positions on the paperdoll (top%, left% of panel).
+// Arranged anatomically: crown→head, weapon/treasure flanking arms,
+// robe on torso, ring at waist, boots at feet.
+const DOLL_POS = {
+  headpiece: ["11%", "50%"],
+  weapon:    ["40%", "12%"],
+  robe:      ["46%", "50%"],
+  treasure:  ["40%", "88%"],
+  ring:      ["64%", "50%"],
+  boots:     ["83%", "50%"],
+};
+// Chinese-character grade abbreviations for compact trove cells.
+const GRADE_CN = { Mortal: "凡", Spirit: "灵", Earth: "地", Heaven: "天", Immortal: "仙" };
+
 function openAssets() {
   const c = state.c;
-  openOverlay("Equipment & Beast", body => {
-    body.appendChild(el("div", "section-h", "Spirit Beast"));
+  openOverlay("Inventory 法宝装备", body => {
+    E.ensureEquipment(c);
+
+    // ── Spirit Beast ──────────────────────────────────────────────────────
+    body.appendChild(el("div", "section-h", "Spirit Beast 灵兽"));
     if (c.beast) {
       E.normalizeBeast(c.beast);
       const b = c.beast;
@@ -1216,46 +1241,94 @@ function openAssets() {
       row.onclick = () => openBeast();
       body.appendChild(row);
     } else body.appendChild(el("p", "note", "None. Best a wild beast while wandering to try taming one."));
-    E.ensureEquipment(c);
-    // ── Equipment slots ──────────────────────────────────────────────────
-    body.appendChild(el("div", "section-h", "Equipment (装备)"));
-    body.appendChild(el("p", "note", "Bind one treasure per slot. Their bonuses stack — tap an empty slot to fill it, or an equipped treasure below to unbind it."));
-    for (const [slot, name, cn, ic, blurb] of D.EQUIP_SLOTS) {
+
+    // ── Paperdoll body ────────────────────────────────────────────────────
+    body.appendChild(el("div", "section-h", "Equipment 装备"));
+    const panel = el("div", "doll-panel");
+    // Cultivator silhouette: topknot, head, hanfu robes, wide sleeves, qi meridian.
+    panel.innerHTML = `<svg class="doll-figure" viewBox="0 0 100 100" preserveAspectRatio="none" fill="none" stroke="currentColor">
+      <line x1="50" y1="4.8" x2="50" y2="2" stroke-width=".8"/>
+      <path d="M47,5.2 Q50,1.8 53,5.2" stroke-width=".8"/>
+      <circle cx="50" cy="11" r="6.5" stroke-width="1.2"/>
+      <line x1="50" y1="17.5" x2="50" y2="22" stroke-width="1"/>
+      <path d="M44,22 L50,30 L56,22" stroke-width=".9"/>
+      <path d="M44,22 Q30,24 19,32" stroke-width="1"/>
+      <path d="M56,22 Q70,24 81,32" stroke-width="1"/>
+      <path d="M19,32 L13,70 L50,77 L87,70 L81,32" stroke-width="1" fill="rgba(255,255,255,.02)"/>
+      <path d="M16,52 Q50,57 84,52" stroke-width=".75" fill="none"/>
+      <path d="M19,32 L7,46 L9,53" stroke-width="1" fill="none"/>
+      <path d="M81,32 L93,46 L91,53" stroke-width="1" fill="none"/>
+      <path d="M29,77 L21,94" stroke-width=".9"/>
+      <path d="M71,77 L79,94" stroke-width=".9"/>
+      <line x1="21" y1="94" x2="79" y2="94" stroke-width=".6"/>
+      <line x1="50" y1="17.5" x2="50" y2="77" stroke-width=".35" stroke-dasharray="2,2.8" opacity=".65"/>
+      <circle cx="50" cy="33" r="1.6" fill="currentColor" stroke="none" opacity=".7"/>
+      <circle cx="50" cy="47" r="2" fill="currentColor" stroke="none" opacity=".9"/>
+      <circle cx="50" cy="62" r="1.6" fill="currentColor" stroke="none" opacity=".7"/>
+      <path d="M26,47 L74,47" stroke-width=".3" stroke-dasharray="1.5,2.5" opacity=".45"/>
+    </svg>`;
+    // One absolute-positioned slot button per gear slot.
+    for (const [slot, name, cn, ic] of D.EQUIP_SLOTS) {
+      const pos = DOLL_POS[slot]; if (!pos) continue;
       const key = c.equipment[slot];
-      const r = el("div", "listrow" + (key ? " bound" : ""));
-      if (key) { const lv = E.refineLevel(c, key);
-        r.innerHTML = `<div class="lr-ava">${ic}</div><div class="lr-main"><div class="lr-title">${escapeHtml(name)} · ${escapeHtml(cn)}</div><div class="lr-sub">★ ${escapeHtml(D.ARTIFACT_BY_KEY[key][1])} (${D.artifactGrade(key)}${lv ? ` +${lv}` : ""}) — ${escapeHtml(E.artifactEffectText(key, c))}</div></div>`;
-      } else r.innerHTML = `<div class="lr-ava" style="opacity:.5">${ic}</div><div class="lr-main"><div class="lr-title" style="opacity:.7">${escapeHtml(name)} · ${escapeHtml(cn)}</div><div class="lr-sub">empty — ${escapeHtml(blurb)}</div></div>`;
-      if (key) r.onclick = () => openTreasureCard(key);
-      else r.onclick = () => openSlotPicker(slot);
-      body.appendChild(r);
+      const btn = el("button", "doll-slot" + (key ? " filled" : ""));
+      btn.style.top = pos[0]; btn.style.left = pos[1];
+      if (key) {
+        const lv = E.refineLevel(c, key), art = D.ARTIFACT_BY_KEY[key];
+        btn.innerHTML = `<span class="ds-icon">${ic}</span><span class="ds-cn">${cn}</span><span class="ds-name">${escapeHtml(art[1])}${lv ? " +" + lv : ""}</span>`;
+        btn.onclick = () => openTreasureCard(key);
+      } else {
+        btn.innerHTML = `<span class="ds-icon" style="opacity:.35">${ic}</span><span class="ds-cn">${cn}</span><span class="ds-name" style="color:var(--muted);opacity:.55">${name}</span>`;
+        btn.onclick = () => openSlotPicker(slot);
+      }
+      panel.appendChild(btn);
     }
-    // Aggregate bonuses, so the player sees the full loadout at a glance.
+    body.appendChild(panel);
+
+    // Loadout summary and set/elemental lines below the panel.
     const eff = E.equipmentEffects(c);
     if (E.equippedKeys(c).length) {
       const summary = ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]
-        .filter(k => eff[k]).map(k => `+${Math.round(eff[k] * 100)}% ${ {atk:"power",def:"defense",hp:"battle HP",dodge:"dodge",crit:"crit",life:"lifesteal",qi:"qi",qiMax:"max qi"}[k] }`).join(" · ");
+        .filter(k => eff[k]).map(k => `+${Math.round(eff[k] * 100)}% ${{atk:"power",def:"defense",hp:"battle HP",dodge:"dodge",crit:"crit",life:"lifesteal",qi:"qi",qiMax:"max qi"}[k]}`).join(" · ");
       body.appendChild(el("p", "note", "✦ Total (gear + sets): " + summary));
     }
-    // Active equipment-set bonuses.
     const setLines = E.setBonusLines(c);
     if (setLines.length) for (const line of setLines) body.appendChild(el("p", "note", "套 " + line));
-    // Elemental attunement granted by equipped treasures.
     const gearEls = E.equipmentElements(c);
-    if (gearEls.length) body.appendChild(el("p", "note", "灵 Attuned (gear): " + gearEls.map(e => `${C.elementIcon(e)} ${e}`).join(" · ") + " — matching arts strike harder; you resist these elements."));
-    // ── Treasure trove (full inventory) ──────────────────────────────────
-    body.appendChild(el("div", "section-h", "Treasure Trove (法宝库)"));
-    if (!c.artifacts.length) body.appendChild(el("p", "note", "You own no treasures yet."));
+    if (gearEls.length) body.appendChild(el("p", "note", "灵 Attuned: " + gearEls.map(e => `${C.elementIcon(e)} ${e}`).join(" · ") + " — matching arts strike harder; you resist these elements."));
+
+    // ── Treasure Trove — grid of owned artifacts ──────────────────────────
+    body.appendChild(el("div", "section-h", "Treasure Trove 法宝库"));
+    const filled = c.artifacts.length;
+    const totalCells = Math.max(8, Math.ceil((filled + 1) / 4) * 4);
+    const grid = el("div", "trove-grid");
     for (const key of c.artifacts) {
-      const equipped = E.isEquipped(c, key), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)], lv = E.refineLevel(c, key), elem = D.artifactElement(key);
-      const row = el("div", "listrow" + (equipped ? " bound" : ""));
-      row.innerHTML = `<div class="lr-ava">${si ? si[3] : "⚔️"}</div><div class="lr-main"><div class="lr-title">${equipped ? "★ " : ""}${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}${elem ? ` ${C.elementIcon(elem)}` : ""}${lv ? ` <span class="lr-sub" style="display:inline">+${lv}</span>` : ""}</div><div class="lr-sub">${D.artifactGrade(key)} ${si ? si[1] : ""} · ${escapeHtml(E.artifactEffectText(key, c))}</div></div>`;
-      row.onclick = () => openTreasureCard(key);
-      body.appendChild(row);
+      const equipped = E.isEquipped(c, key);
+      const si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];
+      const lv = E.refineLevel(c, key);
+      const grade = D.artifactGrade(key);
+      const cell = el("div", "trove-cell" + (equipped ? " equipped" : " filled"));
+      cell.innerHTML = `<span class="tc-icon">${si ? si[3] : "⚔️"}</span><span class="tc-name">${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}</span><span class="grade-cn">${lv ? "+" + lv : (GRADE_CN[grade] || grade)}</span>`;
+      cell.onclick = () => openTreasureCard(key);
+      grid.appendChild(cell);
     }
-    // ── Sundry trinkets ──────────────────────────────────────────────────
-    body.appendChild(el("div", "section-h", "Sundries"));
-    body.appendChild(el("p", "note", c.inventory.length ? c.inventory.join(", ") : "(empty)"));
+    for (let i = 0; i < totalCells - filled; i++) grid.appendChild(el("div", "trove-cell empty"));
+    body.appendChild(grid);
+
+    // ── Sundries — described items ────────────────────────────────────────
+    body.appendChild(el("div", "section-h", "Sundries 杂物"));
+    if (!c.inventory.length) {
+      body.appendChild(el("p", "note", "(empty)"));
+    } else {
+      const counts = {};
+      for (const item of c.inventory) counts[item] = (counts[item] || 0) + 1;
+      for (const [name, qty] of Object.entries(counts)) {
+        const info = D.SUNDRY_DESCRIPTIONS[name] || { icon: "📦", desc: "A miscellaneous item of uncertain purpose." };
+        const card = el("div", "sundry-card");
+        card.innerHTML = `<span class="sc-icon">${info.icon}</span><div class="sc-body"><div class="sc-top"><span class="sc-name">${escapeHtml(name)}</span>${qty > 1 ? `<span class="sc-qty">×${qty}</span>` : ""}</div><div class="sc-desc">${escapeHtml(info.desc)}</div></div>`;
+        body.appendChild(card);
+      }
+    }
     backBtn(body, actHome);
   });
 }
