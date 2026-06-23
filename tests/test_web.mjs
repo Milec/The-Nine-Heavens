@@ -185,6 +185,41 @@ function testReincarnationCarriesLegacy() {
   assert(next.comprehension >= 1, "legacy never produces an invalid attribute");
 }
 
+// 道之境界: a comprehended Dao deepens through tiers, scaling its bonuses and —
+// from Great Mastery — manifesting in battle. Legacy saves must migrate cleanly.
+function testDaoTiers() {
+  // (1) Legacy save (daos but no daoLevels) migrates to tier 1 each.
+  const legacy = { daos: ["sword", "void"], daoFocus: "ghost" };
+  E.ensureDaos(legacy);
+  assert(E.daoTierOf(legacy, "sword") === 1 && E.daoTierOf(legacy, "void") === 1, "migrated Daos default to Glimpsed");
+  assert(legacy.daoFocus === null, "a focus on an unheld Dao is cleared on migration");
+
+  // (2) Deeper tiers scale a Dao's power bonus monotonically upward.
+  const c = L.bornCharacter(new E.RNG(7), "Sage", null);
+  c.realm = E.DAO_MIN_REALM; c.comprehension = c.soul = c.luck = 150;
+  c.daos = ["sword"]; c.daoLevels = { sword: 1 }; c.daoFocus = "sword";
+  const bonusAt = lvl => { c.daoLevels.sword = lvl; return E.daoPowerBonus(c); };
+  assert(bonusAt(2) > bonusAt(1) && bonusAt(3) > bonusAt(2) && bonusAt(4) > bonusAt(3),
+    "each Dao tier must raise the power bonus");
+
+  // (3) Focused meditation actually deepens the focused Dao (and never past 圆满).
+  c.daoLevels.sword = 1;
+  const rng = new E.RNG(3);
+  for (let i = 0; i < 400 && E.daoTierOf(c, "sword") < D.DAO_MAX_TIER && c.alive; i++) {
+    c.age = 30; c.maxAge = 9999;     // keep the soul alive through the long meditation
+    E.meditate(c, rng, 1);
+  }
+  assert(E.daoTierOf(c, "sword") === D.DAO_MAX_TIER, "focused meditation reaches Consummation");
+  c.daoLevels.sword = D.DAO_MAX_TIER + 5;  // even a corrupt level is clamped in scoring
+  assert(D.daoTierFactor(c.daoLevels.sword) === D.daoTierFactor(D.DAO_MAX_TIER), "tier factor clamps to the max tier");
+
+  // (4) Battle manifestations only switch on at Great Mastery (tier 3+).
+  const lo = (() => { const x = { daos: ["void", "slaughter"], daoLevels: { void: 2, slaughter: 2 } }; return E.daoBattleMods(x); })();
+  const hi = (() => { const x = { daos: ["void", "slaughter"], daoLevels: { void: 4, slaughter: 4 } }; return E.daoBattleMods(x); })();
+  assert(lo.pierce === 0 && lo.enemyWeaken === 0, "no battle manifestation below Great Mastery");
+  assert(hi.pierce > 0 && hi.enemyWeaken > 0, "Great Mastery+ Daos manifest in battle");
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -194,6 +229,7 @@ try {
   test("age-appropriate gating holds at the model layer", testAgeGatingHolds);
   test("large systems interlock without crashing", testSystemsInterlock);
   test("reincarnation carries a legacy", testReincarnationCarriesLegacy);
+  test("Daos deepen through tiers and manifest in battle", testDaoTiers);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

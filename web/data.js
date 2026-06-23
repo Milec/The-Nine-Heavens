@@ -476,6 +476,41 @@ export const DAOS = [
 ];
 export const DAO_BY_KEY = Object.fromEntries(DAOS.map(d => [d[0], d]));
 
+/* 道之境界 — a comprehended Dao is not static. Through patient meditation it
+ * deepens across four tiers of insight, each scaling the law's power and
+ * breakthrough bonuses — and from Great Mastery upward, manifesting in battle.
+ * A character's per-Dao tier (1..4) lives in c.daoLevels; 1 = freshly Glimpsed. */
+export const DAO_MAX_TIER = 4;
+// [english, 中文, bonus-scaling factor applied to the Dao's base bonuses]
+export const DAO_TIERS = [
+  null,                                 // index 0 unused — tiers are 1-based
+  ["Glimpsed",      "初窥", 1.00],
+  ["Minor Mastery", "小成", 1.60],
+  ["Great Mastery", "大成", 2.30],
+  ["Consummate",    "圆满", 3.20],
+];
+const daoTierClamp = lvl => Math.max(1, Math.min(DAO_MAX_TIER, lvl || 1));
+export const daoTierFactor = lvl => DAO_TIERS[daoTierClamp(lvl)][2];
+export function daoTierLabel(lvl) { const t = DAO_TIERS[daoTierClamp(lvl)]; return `${t[0]} (${t[1]})`; }
+export const daoTierName = lvl => DAO_TIERS[daoTierClamp(lvl)][0];
+
+/* Battle manifestations — unlocked at Great Mastery (tier 3) and intensified at
+ * Consummation (tier 4). The label shows on a Dao's card; the numbers live in
+ * one place, engine.daoBattleMods, so combat just reads the aggregate. */
+export const DAO_MANIFEST = {
+  sword:     "Sword-heart — a keener edge: +crit in battle.",
+  flame:     "Burning law — searing strikes: +crit.",
+  thunder:   "Heaven's wrath — punishing blows: +crit and armour-pierce.",
+  space:     "Folded space — your form blurs: +dodge.",
+  dream:     "Illusion — the foe's eyes deceive them: +dodge.",
+  time:      "Stretched moments: +dodge in battle, faster cultivation.",
+  vitality:  "Life unending: +battle HP and steady regeneration.",
+  void:      "Void edge: your strikes pierce more of the foe's defense.",
+  devour:    "Ravenous law: passive lifesteal on every blow.",
+  karma:     "Cause & effect — heaven shields you as the battle joins.",
+  slaughter: "Killing intent — the foe enters cowed and bleeding.",
+};
+
 export function karmaLabel(k) {
   if (k <= -120) return "Heaven-Defying Devil";
   if (k <= -40) return "Blood-Soaked";

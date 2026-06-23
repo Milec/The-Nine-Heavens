@@ -78,6 +78,7 @@ function checkAchievements() {
   if (c.karma <= -120) award("devil");
   if (c.karma >= 120) award("saint");
   if (c.daos && c.daos.length) award("daoist");
+  if (c.daoLevels && Object.values(c.daoLevels).some(l => l >= D.DAO_MAX_TIER)) award("dao_master");
   if (c.beast) award("tamer");
   const spouses = c.relationships.filter(n => n.role === "companion" && n.married && n.alive).length;
   if (spouses >= 1) award("companion");
@@ -443,7 +444,14 @@ function openCultivate() {
         addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
       addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult"));
       addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult"), { disabled: c.pills <= 0 });
-      addBtn(g, "Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1), "cult"), { disabled: !E.canComprehend(c) });
+      {
+        const tgt = E.canMeditate(c) ? E.meditationTarget(c) : null;
+        const sub = !E.canMeditate(c) ? "needs Nascent Soul"
+          : tgt && tgt.mode === "deepen" ? `deepen the ${D.DAO_BY_KEY[tgt.key][1].split(" (")[0]}`
+          : "seek a new Law";
+        addBtn(g, "Comprehend the Dao", sub, () => runTimed(() => E.meditate(c, state.rng, 1), "cult"), { disabled: !E.canMeditate(c) });
+      }
+      if (c.realm >= E.DAO_MIN_REALM) addBtn(g, "The Daos 道之境界", c.daos.length ? `${c.daos.length} comprehended` : "the Laws of heaven", openDaos);
       body.appendChild(g);
     } else {
       body.appendChild(el("p", "note", "The heavens have shut the gate of qi to you — but the road of the body remains open. Temper your flesh until even immortals must take notice."));
@@ -698,6 +706,48 @@ function openTechniques() {
     }
   });
 }
+// The Daos: review each comprehended Law, its tier of insight and battle
+// manifestation, and choose where to focus your meditation.
+function openDaos() {
+  const c = state.c;
+  openOverlay("The Daos 道之境界", body => {
+    E.ensureDaos(c);
+    body.appendChild(el("p", "note", "A comprehended Dao deepens through four tiers — 初窥 → 小成 → 大成 → 圆满 — each scaling its bonuses, and from Great Mastery (大成) manifesting in battle. Choose where to focus your meditation; tap “Comprehend the Dao” to spend a year."));
+    const target = E.meditationTarget(c);
+    const thr = target ? (target.mode === "deepen" ? E.daoDeepenThreshold(c, target.key) : E.daoInsightThreshold(c)) : 1;
+    if (target) progress(body, target.mode === "deepen" ? `Deepening the ${D.DAO_BY_KEY[target.key][1].split(" (")[0]}` : "Seeking a new Dao", c.daoInsight || 0, thr, "cult");
+
+    // A row to focus on seeking an entirely new Dao.
+    const newFocused = !c.daoFocus && E.canComprehend(c);
+    if (E.canComprehend(c)) {
+      const r = el("div", "listrow" + (newFocused ? " bound" : ""));
+      r.innerHTML = `<div class="lr-ava">☯</div><div class="lr-main">
+        <div class="lr-title">Seek a New Dao${newFocused ? " · focused" : ""}</div>
+        <div class="lr-sub">${D.DAOS.length - c.daos.length} Law${D.DAOS.length - c.daos.length === 1 ? "" : "s"} yet unknown to you</div></div>`;
+      r.onclick = () => { c.daoFocus = null; save(); openDaos(); };
+      body.appendChild(r);
+    }
+
+    if (!c.daos.length) { body.appendChild(el("p", "note", "You have comprehended no Dao yet. Meditate to glimpse your first Law.")); return; }
+    for (const k of c.daos) {
+      const dao = D.DAO_BY_KEY[k], lvl = E.daoTierOf(c, k);
+      const focused = c.daoFocus === k;
+      const atMax = lvl >= D.DAO_MAX_TIER;
+      const pBon = Math.round(dao[2] * D.daoTierFactor(lvl) * 100);
+      const bBon = Math.round(dao[3] * D.daoTierFactor(lvl) * 100);
+      const manifest = lvl >= 3 && D.DAO_MANIFEST[k] ? D.DAO_MANIFEST[k] : (D.DAO_MANIFEST[k] ? `Manifests in battle at Great Mastery — ${D.DAO_MANIFEST[k]}` : "");
+      const r = el("div", "listrow" + (focused ? " bound" : ""));
+      r.innerHTML = `<div class="lr-ava">☯</div><div class="lr-main">
+        <div class="lr-title">${escapeHtml(dao[1])} <span class="lr-sub" style="display:inline">· ${D.daoTierLabel(lvl)}</span></div>
+        <div class="lr-sub">+${pBon}% power · +${bBon}% breakthrough${atMax ? " · 圆满" : focused ? " · focused" : ""}</div>
+        ${manifest ? `<div class="lr-sub" style="opacity:.85">${escapeHtml(manifest)}</div>` : ""}
+        <div class="affbar"><div style="width:${(lvl / D.DAO_MAX_TIER) * 100}%;background:var(--gold2)"></div></div></div>`;
+      if (!atMax) r.onclick = () => { c.daoFocus = k; save(); openDaos(); };
+      body.appendChild(r);
+    }
+  });
+}
+
 // Forge an original technique from your element and insight — costly and uncertain.
 function openForgeTech() {
   const c = state.c;
@@ -1669,7 +1719,7 @@ function openSheet() {
       ["Equipment", E.equipmentSummary(c)]];
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
     if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
-    if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);
+    if (c.daos.length) rows.push(["Daos", c.daos.map(d => `${D.DAO_BY_KEY[d][1].split(" (")[0]} · ${D.daoTierName(E.daoTierOf(c, d))}`).join(", ")]);
     { const art = E.bestMovementArt(c); rows.push(["Movement 轻功", `${art ? `${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : "—"} · ${E.hopsPerDeed(c)} stage${E.hopsPerDeed(c) > 1 ? "s" : ""}/deed`]); }
     if ((c.epithets || []).length) rows.push(["Monikers 名号", c.epithets.map(e => `「${e.text}」`).join(" "), "monikers"]);
     if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
@@ -1961,6 +2011,7 @@ function resumeFrom(sv) {
   if (c.sectJoinedAge === undefined) c.sectJoinedAge = c.sectKey ? c.age : null;
   if (!c.artifacts) c.artifacts = [];
   E.ensureEquipment(c);   // migrate legacy single-slot treasure → equipment slots
+  E.ensureDaos(c);        // backfill tiered-Dao fields on older saves
   if (!c.movementArts) c.movementArts = [];
   if (!c.moveMastery) c.moveMastery = {};
   if (!c.customTechs) c.customTechs = [];

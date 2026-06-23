@@ -197,6 +197,14 @@ Three more systems round out a cultivator's life:
   tournament champion, your nemesis) **enter a second phase at half health** and
   **telegraph a devastating element-themed ultimate** — guard, heal, or be
   shattered when it lands.
+- **The great Daos (大道)** — from Nascent Soul, **meditate** to comprehend the
+  Laws of heaven, then **deepen each through four tiers (初窥·小成·大成·圆满)**,
+  steering your insight toward a favoured Law or out across many. Every tier
+  scales the Law's power and breakthrough bonuses, and **from Great Mastery up a
+  Dao manifests in your fights** — killing intent that cows and bleeds the foe,
+  a void-edge that pierces armour, life-force that swells your battle vigour, a
+  sword-heart that sharpens your crits. A **Daos 道之境界** screen shows each Law's
+  tier, bonuses and battle manifestation, and lets you set your meditation focus.
 - **A living world of cultivators** — every NPC (family, friends, rivals, masters,
   disciples, dao companions) is a **full cultivator** with their own root, physique,
   realm and techniques; they **advance along their own road** (capped by their
@@ -377,8 +385,15 @@ your peers instead of being matched away.
 
 - **Dao comprehension (法则·大道, option d)** — from **Nascent Soul** upward,
   meditate to grasp the great Laws — Sword, Flame, Space, Time, Vitality,
-  Slaughter, Karma, the Void — each permanently magnifying your power and
-  smoothing every breakthrough. They are the true road to ascension.
+  Slaughter, Karma, the Void and more — each permanently magnifying your power and
+  smoothing every breakthrough. A grasped Law is not static: it **deepens through
+  four tiers of insight** — *Glimpsed → Minor Mastery → Great Mastery →
+  Consummation* (初窥·小成·大成·圆满) — and you **choose where to focus your
+  meditation**, racing to deepen a favoured Law or spreading wide to seek new
+  ones. Each tier scales the Law's bonuses, and **from Great Mastery upward it
+  manifests in battle** — the Dao of Slaughter's killing intent cows the foe, the
+  Void's edge pierces armour, Vitality's life-force swells your battle vigour, the
+  Sword's heart sharpens your crits. They are the true road to ascension.
 - **Karma (业力)** — slaying devils and rogues earns merit; demonic paths and
   cruelty stain your soul. Merit softens the Heavenly Tribulation (the heavens
   favour the virtuous), while a blood-soaked cultivator must also overcome the

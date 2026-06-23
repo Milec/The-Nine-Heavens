@@ -228,6 +228,20 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     beastRank: (c.beast && c.beast.alive) ? (c.beast.rank || 1) : 0,
     ally: bondedAlly(c, enemyDef),
   };
+  // A deeply-comprehended Dao (Great Mastery+) manifests in the fight: keener
+  // crits, blurred footwork, void-piercing strikes, killing intent and the like.
+  const dm = E.daoBattleMods(c);
+  if (dm.hp) {
+    player.maxHp *= (1 + dm.hp);
+    player.hp = player.maxHp * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1);
+  }
+  player.crit = clampN(player.crit + dm.crit, 0, 0.85);
+  player.dodge = clampN(player.dodge + dm.dodge, 0, 0.7);
+  player.equipLifesteal = (player.equipLifesteal || 0) + dm.lifesteal;
+  player.daoPierce = dm.pierce || 0;
+  if (dm.shield) player.shield += player.maxHp * dm.shield;
+  if (dm.regen) player.statuses.push({ type: "regen", turns: 99, value: dm.regen });
+
   const ep = enemyDef.power;
   const hpMult = enemyDef.hpMult || 2.3;
   const enemy = {
@@ -240,6 +254,11 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     boss: !!enemyDef.boss, tribulation: !!enemyDef.tribulation, _enraged: false,
     phase: 1, ultName: enemyDef.ultName, ultElement: enemyDef.ultElement, _charging: false,
   };
+  // The Dao of Slaughter's killing intent cows the foe: it opens weakened, its
+  // crits blunted, and (at Consummation) already bleeding.
+  if (dm.enemyWeaken) enemy.statuses.push({ type: "weaken", turns: 99, value: clampN(dm.enemyWeaken, 0, 0.4) });
+  if (dm.enemyCritDown) enemy.crit = clampN(enemy.crit - dm.enemyCritDown, 0, 1);
+  if (dm.enemyBleed && !enemyDef.tribulation) enemy.statuses.push({ type: "bleed", turns: 4, value: dm.enemyBleed });
   const B = {
     player, enemy, rng, def: enemyDef, opts, turn: 1, over: false, outcome: null,
     actions: () => listActions(B),
@@ -328,7 +347,7 @@ function resolveSkill(B, att, def, skill, lines) {
     if (crit) mult *= 2;
     base *= mult * rng.uniform(0.9, 1.1);
     if (rng.random() < def.dodge) { lines.push(`${icon(def)} ${def.name} evades${hits > 1 ? ` hit ${h + 1}` : ""} — dodged!`); continue; }
-    let dmg = base * (1 - def.mitig * (1 - (skill.pierce || 0)));
+    let dmg = base * (1 - def.mitig * (1 - clampN((skill.pierce || 0) + (att.daoPierce || 0), 0, 0.9)));
     // The defender's own root element resonates against an attack of that element.
     if (skEl && def.rootElements && def.rootElements.includes(skEl)) dmg *= (1 - (def.attune || 0) * 0.5);
     if (def.shield > 0) { const a = Math.min(def.shield, dmg); def.shield -= a; dmg -= a; }
