@@ -1212,6 +1212,20 @@ function openBeast() {
     backBtn(body, openAssets);
   });
 }
+// Slot positions on the paperdoll (top%, left% of panel).
+// Arranged anatomically: crown→head, weapon/treasure flanking arms,
+// robe on torso, ring at waist, boots at feet.
+const DOLL_POS = {
+  headpiece: ["11%", "50%"],
+  weapon:    ["40%", "12%"],
+  robe:      ["46%", "50%"],
+  treasure:  ["40%", "88%"],
+  ring:      ["64%", "50%"],
+  boots:     ["83%", "50%"],
+};
+// Chinese-character grade abbreviations for compact trove cells.
+const GRADE_CN = { Mortal: "凡", Spirit: "灵", Earth: "地", Heaven: "天", Immortal: "仙" };
+
 function openAssets() {
   const c = state.c;
   openOverlay("Inventory 法宝装备", body => {
@@ -1228,68 +1242,93 @@ function openAssets() {
       body.appendChild(row);
     } else body.appendChild(el("p", "note", "None. Best a wild beast while wandering to try taming one."));
 
-    // ── Equipment body — paperdoll slot grid ──────────────────────────────
+    // ── Paperdoll body ────────────────────────────────────────────────────
     body.appendChild(el("div", "section-h", "Equipment 装备"));
-    body.appendChild(el("p", "note", "Tap a slot to equip or inspect. Bonuses from all bound treasures stack."));
-
-    // Slot layout: [headpiece, treasure] [weapon, robe] [ring, boots]
-    // Full-row slots get their own row spanning both columns.
-    // Ordered: headpiece (top), weapon+treasure (mid), robe (full), ring+boots (bottom)
-    const SLOT_LAYOUT = [
-      // [slotKey, fullRow]
-      ["headpiece", false], ["treasure", false],
-      ["weapon",    false], ["robe",     false],
-      ["ring",      false], ["boots",    false],
-    ];
-
-    const equipGrid = el("div", "equip-body");
-    for (const [slot] of SLOT_LAYOUT) {
-      const si = D.EQUIP_SLOT_BY_KEY[slot];
-      if (!si) continue;
-      const [, name, cn, ic, blurb] = si;
+    const panel = el("div", "doll-panel");
+    // Cultivator silhouette: topknot, head, hanfu robes, wide sleeves, qi meridian.
+    panel.innerHTML = `<svg class="doll-figure" viewBox="0 0 100 100" preserveAspectRatio="none" fill="none" stroke="currentColor">
+      <line x1="50" y1="4.8" x2="50" y2="2" stroke-width=".8"/>
+      <path d="M47,5.2 Q50,1.8 53,5.2" stroke-width=".8"/>
+      <circle cx="50" cy="11" r="6.5" stroke-width="1.2"/>
+      <line x1="50" y1="17.5" x2="50" y2="22" stroke-width="1"/>
+      <path d="M44,22 L50,30 L56,22" stroke-width=".9"/>
+      <path d="M44,22 Q30,24 19,32" stroke-width="1"/>
+      <path d="M56,22 Q70,24 81,32" stroke-width="1"/>
+      <path d="M19,32 L13,70 L50,77 L87,70 L81,32" stroke-width="1" fill="rgba(255,255,255,.02)"/>
+      <path d="M16,52 Q50,57 84,52" stroke-width=".75" fill="none"/>
+      <path d="M19,32 L7,46 L9,53" stroke-width="1" fill="none"/>
+      <path d="M81,32 L93,46 L91,53" stroke-width="1" fill="none"/>
+      <path d="M29,77 L21,94" stroke-width=".9"/>
+      <path d="M71,77 L79,94" stroke-width=".9"/>
+      <line x1="21" y1="94" x2="79" y2="94" stroke-width=".6"/>
+      <line x1="50" y1="17.5" x2="50" y2="77" stroke-width=".35" stroke-dasharray="2,2.8" opacity=".65"/>
+      <circle cx="50" cy="33" r="1.6" fill="currentColor" stroke="none" opacity=".7"/>
+      <circle cx="50" cy="47" r="2" fill="currentColor" stroke="none" opacity=".9"/>
+      <circle cx="50" cy="62" r="1.6" fill="currentColor" stroke="none" opacity=".7"/>
+      <path d="M26,47 L74,47" stroke-width=".3" stroke-dasharray="1.5,2.5" opacity=".45"/>
+    </svg>`;
+    // One absolute-positioned slot button per gear slot.
+    for (const [slot, name, cn, ic] of D.EQUIP_SLOTS) {
+      const pos = DOLL_POS[slot]; if (!pos) continue;
       const key = c.equipment[slot];
-      const card = el("button", "equip-slot" + (key ? " filled" : ""));
+      const btn = el("button", "doll-slot" + (key ? " filled" : ""));
+      btn.style.top = pos[0]; btn.style.left = pos[1];
       if (key) {
         const lv = E.refineLevel(c, key), art = D.ARTIFACT_BY_KEY[key];
-        const elem = D.artifactElement(key);
-        card.innerHTML = `<span class="es-icon">${ic}</span><span class="es-type">${escapeHtml(cn)} ${escapeHtml(name)}</span><span class="es-name">${escapeHtml(art[1])}${elem ? " " + C.elementIcon(elem) : ""}${lv ? ` <span class="es-grade">+${lv}</span>` : ""}</span><span class="es-detail">${escapeHtml(E.artifactEffectText(key, c))}</span>`;
-        card.onclick = () => openTreasureCard(key);
+        btn.innerHTML = `<span class="ds-icon">${ic}</span><span class="ds-cn">${cn}</span><span class="ds-name">${escapeHtml(art[1])}${lv ? " +" + lv : ""}</span>`;
+        btn.onclick = () => openTreasureCard(key);
       } else {
-        card.innerHTML = `<span class="es-icon" style="opacity:.4">${ic}</span><span class="es-type">${escapeHtml(cn)} ${escapeHtml(name)}</span><span class="es-empty">${escapeHtml(blurb)}</span>`;
-        card.onclick = () => openSlotPicker(slot);
+        btn.innerHTML = `<span class="ds-icon" style="opacity:.35">${ic}</span><span class="ds-cn">${cn}</span><span class="ds-name" style="color:var(--muted);opacity:.55">${name}</span>`;
+        btn.onclick = () => openSlotPicker(slot);
       }
-      equipGrid.appendChild(card);
+      panel.appendChild(btn);
     }
-    body.appendChild(equipGrid);
+    body.appendChild(panel);
 
-    // Aggregate bonuses — full loadout summary
+    // Loadout summary and set/elemental lines below the panel.
     const eff = E.equipmentEffects(c);
     if (E.equippedKeys(c).length) {
       const summary = ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]
         .filter(k => eff[k]).map(k => `+${Math.round(eff[k] * 100)}% ${{atk:"power",def:"defense",hp:"battle HP",dodge:"dodge",crit:"crit",life:"lifesteal",qi:"qi",qiMax:"max qi"}[k]}`).join(" · ");
       body.appendChild(el("p", "note", "✦ Total (gear + sets): " + summary));
     }
-    // Active set bonuses
     const setLines = E.setBonusLines(c);
     if (setLines.length) for (const line of setLines) body.appendChild(el("p", "note", "套 " + line));
-    // Elemental attunement
     const gearEls = E.equipmentElements(c);
-    if (gearEls.length) body.appendChild(el("p", "note", "灵 Attuned (gear): " + gearEls.map(e => `${C.elementIcon(e)} ${e}`).join(" · ") + " — matching arts strike harder; you resist these elements."));
+    if (gearEls.length) body.appendChild(el("p", "note", "灵 Attuned: " + gearEls.map(e => `${C.elementIcon(e)} ${e}`).join(" · ") + " — matching arts strike harder; you resist these elements."));
 
-    // ── Treasure trove (full inventory list) ─────────────────────────────
+    // ── Treasure Trove — grid of owned artifacts ──────────────────────────
     body.appendChild(el("div", "section-h", "Treasure Trove 法宝库"));
-    if (!c.artifacts.length) body.appendChild(el("p", "note", "You own no treasures yet."));
+    const filled = c.artifacts.length;
+    const totalCells = Math.max(8, Math.ceil((filled + 1) / 4) * 4);
+    const grid = el("div", "trove-grid");
     for (const key of c.artifacts) {
-      const equipped = E.isEquipped(c, key), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)], lv = E.refineLevel(c, key), elem = D.artifactElement(key);
-      const row = el("div", "listrow" + (equipped ? " bound" : ""));
-      row.innerHTML = `<div class="lr-ava">${si ? si[3] : "⚔️"}</div><div class="lr-main"><div class="lr-title">${equipped ? "★ " : ""}${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}${elem ? ` ${C.elementIcon(elem)}` : ""}${lv ? ` <span class="lr-sub" style="display:inline">+${lv}</span>` : ""}</div><div class="lr-sub">${D.artifactGrade(key)} ${si ? si[1] : ""} · ${escapeHtml(E.artifactEffectText(key, c))}</div></div>`;
-      row.onclick = () => openTreasureCard(key);
-      body.appendChild(row);
+      const equipped = E.isEquipped(c, key);
+      const si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];
+      const lv = E.refineLevel(c, key);
+      const grade = D.artifactGrade(key);
+      const cell = el("div", "trove-cell" + (equipped ? " equipped" : " filled"));
+      cell.innerHTML = `<span class="tc-icon">${si ? si[3] : "⚔️"}</span><span class="tc-name">${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}</span><span class="grade-cn">${lv ? "+" + lv : (GRADE_CN[grade] || grade)}</span>`;
+      cell.onclick = () => openTreasureCard(key);
+      grid.appendChild(cell);
     }
+    for (let i = 0; i < totalCells - filled; i++) grid.appendChild(el("div", "trove-cell empty"));
+    body.appendChild(grid);
 
-    // ── Sundries ──────────────────────────────────────────────────────────
+    // ── Sundries — described items ────────────────────────────────────────
     body.appendChild(el("div", "section-h", "Sundries 杂物"));
-    body.appendChild(el("p", "note", c.inventory.length ? c.inventory.join(", ") : "(empty)"));
+    if (!c.inventory.length) {
+      body.appendChild(el("p", "note", "(empty)"));
+    } else {
+      const counts = {};
+      for (const item of c.inventory) counts[item] = (counts[item] || 0) + 1;
+      for (const [name, qty] of Object.entries(counts)) {
+        const info = D.SUNDRY_DESCRIPTIONS[name] || { icon: "📦", desc: "A miscellaneous item of uncertain purpose." };
+        const card = el("div", "sundry-card");
+        card.innerHTML = `<span class="sc-icon">${info.icon}</span><div class="sc-body"><div class="sc-top"><span class="sc-name">${escapeHtml(name)}</span>${qty > 1 ? `<span class="sc-qty">×${qty}</span>` : ""}</div><div class="sc-desc">${escapeHtml(info.desc)}</div></div>`;
+        body.appendChild(card);
+      }
+    }
     backBtn(body, actHome);
   });
 }
