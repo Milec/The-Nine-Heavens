@@ -1916,6 +1916,24 @@ export function maybeAwardEpithet(c, rng, opts = {}) {
   return [`✦ A new name spreads through the cultivation world — they have taken to calling you 「${text}」.`];
 }
 
+/* The reckoning: settle a lifelong rivalry. Called after winning a nemesis duel.
+ * The fallen rival yields their signature treasure (themed to their element),
+ * a slayer's title, renown — and the long grudge is finally laid to rest. */
+export function defeatNemesis(c, nem, rng) {
+  if (!nem) return [];
+  nem.alive = false; nem.role = "nemesis";
+  const lines = [`✦ ${nem.name} falls at last. The grudge of a lifetime — ${nem.grudge || "an old slight"} — is settled in blood and silence.`];
+  c.reputation += 12;
+  const title = `Nemesis Slain: ${nem.name}`;
+  if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, `Slew their sworn nemesis, ${nem.name}.`]); }
+  // The fallen rival's own treasure, themed to the element they fought with.
+  pushAll(lines, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.45 ? "Heaven" : null, { element: nem.element || null })));
+  c.spiritStones += (c.realm + 2) * rng.randint(12, 24);
+  pushAll(lines, maybeAwardEpithet(c, rng, { base: 0.45 }));
+  lines.push("  The weight you have carried for so long lifts. The road ahead is your own.");
+  return lines;
+}
+
 /* ---------------------------- sparring reward ---------------------------- *
  * A friendly bout is real training: trading blows against a live opponent
  * deepens the art you lean on, polishes your dao, and now and then leaves a

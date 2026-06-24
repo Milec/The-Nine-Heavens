@@ -878,6 +878,7 @@ function actAdventure() {
     g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
     g.mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
     g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
+    { const nem = L.getNemesis(c); if (nem) g.mk("⚔ Settle the Score 宿敌", canHunt ? `duel ${nem.name} to the death` : "needs cultivation", doNemesisReckoning, { full: true, disabled: !canHunt }); }
     backBtn(body, openActivities);
   });
 }
@@ -2151,6 +2152,24 @@ function doBossFight() {
   const boss = C.makeBoss(c, state.rng, { factorMult: worldDanger(c) });
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
   startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
+}
+// The reckoning: hunt down your sworn nemesis and settle the grudge in a duel to
+// the death. They fight with their own realm-built arts, as a true boss-tier peer.
+function doNemesisReckoning() {
+  const c = state.c; const nem = L.getNemesis(c);
+  if (!nem) return;
+  if (!useAction()) return;
+  closeOverlay();
+  E.ensureNpcProfile(nem, state.rng);
+  nem.encounters = (nem.encounters || 0) + 1;
+  const foe = C.makeEnemyFromNpc(c, nem, state.rng, { boss: true, reward: (c.realm + 2) * 10 });
+  logMessages([`You hunt down ${nem.name} and bar their road. "${nem.grudge ? "For " + nem.grudge + "," : "This ends today,"}" you say. "One of us does not walk away." Steel and killing intent fill the air.`]);
+  startBattle(foe, { title: `Reckoning · ${nem.name}` }, o => {
+    const cc = state.c;
+    if (o === "win") { logMessages(E.defeatNemesis(cc, nem, state.rng)); if (cc.titles.some(x => x.startsWith("Nemesis Slain"))) award("nemesis"); }
+    else if (cc.alive) { nem.power *= 1.2; logMessages([`${nem.name} stands over you and laughs, then turns their back and walks away — sparing you, the cruelest cut of all. Their power swells, and your shame burns.`]); }
+    endActivityYear();
+  });
 }
 /* ----------------------- alchemy furnace minigame ------------------------ */
 // Keep the heat needle inside the drifting target band over several phases to

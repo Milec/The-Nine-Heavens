@@ -355,6 +355,34 @@ function testCombatVerbsAndMovement() {
   assert(B2.enemy.statuses.some(s => s.type === "sunder"), "sunder applies an armour-break debuff to the foe");
 }
 
+// The Nemesis Reckoning: a spawned nemesis is a fightable peer, and settling the
+// grudge slays them, yields a slayer's title and spoils, and lays the rivalry down.
+function testNemesisReckoning() {
+  const rng = new E.RNG(11);
+  const c = L.bornCharacter(rng, "Avenger", null);
+  c.realm = 5; c.stage = 2; c.comprehension = c.soul = c.constitution = 130; c.awakened = true;
+  c.root = { key: "heavenly", name: "Heavenly Root", multiplier: 2.6, purity: 1, elements: ["Fire"] };
+  E.recomputeMaxHp(c); c.hp = c.maxHp;
+  // A nemesis appears via the same path the events use.
+  L.makeNemesis ? L.makeNemesis(c, rng, "a stolen inheritance") : null;
+  let nem = L.getNemesis(c);
+  if (!nem) {  // makeNemesis is module-private; spawn via the event API surface instead
+    c.relationships.push({ name: "Gu Hanzhi", role: "nemesis", kin: "Nemesis", affinity: -45, alive: true, element: "Metal", grudge: "a stolen inheritance", encounters: 0, realm: 5 });
+    nem = L.getNemesis(c);
+  }
+  assert(nem && nem.alive, "a nemesis exists and lives");
+  // They build into a real boss-tier foe from their own profile.
+  const foe = C.makeEnemyFromNpc(c, nem, rng, { boss: true });
+  assert(foe.boss && foe.power > 0 && foe.name === nem.name, "the nemesis fights as a boss-tier peer");
+  // Settling the score slays them and grants the slayer's title + spoils.
+  const titlesBefore = c.titles.length, repBefore = c.reputation;
+  const lines = E.defeatNemesis(c, nem, rng);
+  assert(!nem.alive, "a defeated nemesis is slain");
+  assert(c.titles.some(t => t.startsWith("Nemesis Slain")), "slaying a nemesis grants the slayer's title");
+  assert(c.reputation > repBefore && lines.length > 0, "the reckoning yields renown and a narrative");
+  assert(L.getNemesis(c) === null, "no living nemesis remains after the reckoning");
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -370,6 +398,7 @@ try {
   test("new alchemy pills raise their attributes within caps", testAlchemyPills);
   test("spirit beasts carry traits that shape feeding and battle", testBeastTraits);
   test("new combat verbs (sunder, execute) and movement-art evasion", testCombatVerbsAndMovement);
+  test("the Nemesis Reckoning settles a rivalry with spoils", testNemesisReckoning);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

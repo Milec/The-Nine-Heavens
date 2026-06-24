@@ -78,8 +78,12 @@ Your techniques have **mastery** that deepens every time you use them in battle
 (or drill them) — Untrained → Novice → … → Perfected — raising their power, so a
 favoured art grows with you. And early in life a **destined nemesis (宿敌)** is
 born: an arrogant rival who taunts, ambushes and **cultivates in lockstep with
-you** across the years, until you finally hunt them down for a climactic boss
-showdown — the classic xianxia grudge, paid in full.
+you** across the years. When you are ready, **⚔ Settle the Score** from the
+Adventure menu and **hunt them down for an interactive duel to the death** —
+they fight as a **boss-tier peer with their own realm-built arts**, and the
+victor takes the loser's signature treasure, a **slayer's title**, and the
+silence of a grudge finally laid to rest. The classic xianxia rivalry, paid in
+full.
 
 The sect **Grand Tournament** is a four-round gauntlet of **interactive duels**
 against rival disciples, capped by a fight with the **Reigning Champion**, for
