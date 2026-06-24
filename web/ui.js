@@ -474,6 +474,14 @@ function openCultivate() {
     body.appendChild(bg);
 
     // ---- shared ----
+    body.appendChild(el("div", "section-h", "Dao Heart 道心"));
+    body.appendChild(infoRows([["Resolve", `${E.daoHeartLabel(c.daoHeart || 0)} (${Math.round(c.daoHeart || 0)}/${E.DAO_HEART_MAX})`]]));
+    progress(body, "Dao Heart", c.daoHeart || 0, E.DAO_HEART_MAX, "dao");
+    body.appendChild(el("p", "note", "Your resolve wards the soul against heart demons, illusion and temptation, and shrugs off mind-afflictions in battle. Stillness tempers it."));
+    const hg = el("div", "menu-grid");
+    addBtn(hg, "Still the Heart 静心", "a deed · temper your resolve", () => runTimed(() => E.stillHeart(c, state.rng), "cult"), { full: true });
+    body.appendChild(hg);
+
     const sg = el("div", "menu-grid");
     addBtn(sg, "Techniques & Mastery", "drill your learned arts", openTechniques, { full: true });
     { const [ok] = E.canForgeTech(c); addBtn(sg, "Forge Your Own Art 创功", ok ? "weave a new technique from your dao" : "needs Foundation, 80 Comp, 70 Soul", openForgeTech, { full: true, disabled: !ok }); }
@@ -716,7 +724,7 @@ function openDaos() {
     body.appendChild(el("p", "note", "A comprehended Dao deepens through four tiers — 初窥 → 小成 → 大成 → 圆满 — each scaling its bonuses, and from Great Mastery (大成) manifesting in battle. Choose where to focus your meditation; tap “Comprehend the Dao” to spend a year."));
     const target = E.meditationTarget(c);
     const thr = target ? (target.mode === "deepen" ? E.daoDeepenThreshold(c, target.key) : E.daoInsightThreshold(c)) : 1;
-    if (target) progress(body, target.mode === "deepen" ? `Deepening the ${D.DAO_BY_KEY[target.key][1].split(" (")[0]}` : "Seeking a new Dao", c.daoInsight || 0, thr, "cult");
+    if (target) progress(body, target.mode === "deepen" ? `Deepening the ${D.DAO_BY_KEY[target.key][1].split(" (")[0]}` : "Seeking a new Dao", c.daoInsight || 0, thr, "dao");
 
     // A row to focus on seeking an entirely new Dao.
     const newFocused = !c.daoFocus && E.canComprehend(c);
@@ -1247,8 +1255,10 @@ function openBeast() {
       ["Species", b.species],
       ["Rank", `${E.beastTier(b)} (${b.rank}/5)`],
       ["Element", b.element || "—"],
+      ["Trait 天赋", E.beastTraitOf(b) ? D.beastTraitName(b.trait) : "—"],
       ["Power", Math.floor(b.power)],
     ]));
+    if (E.beastTraitOf(b)) body.appendChild(el("p", "note", D.BEAST_TRAIT_BY_KEY[b.trait][3]));
     progress(body, "Bond", b.bond, 100, "bond", `${Math.round(b.bond)} / 100`);
     if (b.rank < 5) progress(body, `Experience → rank ${b.rank + 1}`, b.exp, req, "exp", b.bond >= 55 && b.exp >= req ? `<b class="pb-ready">ready to evolve</b>` : `${b.exp} / ${req}`);
     body.appendChild(el("p", "note", `In battle ${b.name} strikes each round for a share of its power, with its element's advantage and — from Earth Beast rank — a chance to inflict its elemental bite. Feeding raises its bond and experience; fed and battle-hardened, it can evolve into a mightier form. (Fed ${b.fedThisYear}/3 this year.)`));
@@ -1721,6 +1731,7 @@ function openSheet() {
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
     if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => `${D.DAO_BY_KEY[d][1].split(" (")[0]} · ${D.daoTierName(E.daoTierOf(c, d))}`).join(", ")]);
+    rows.push(["Dao Heart 道心", `${E.daoHeartLabel(c.daoHeart || 0)} (${Math.round(c.daoHeart || 0)}/${E.DAO_HEART_MAX})`]);
     { const art = E.bestMovementArt(c); rows.push(["Movement 轻功", `${art ? `${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : "—"} · ${E.hopsPerDeed(c)} stage${E.hopsPerDeed(c) > 1 ? "s" : ""}/deed`]); }
     if ((c.epithets || []).length) rows.push(["Monikers 名号", c.epithets.map(e => `「${e.text}」`).join(" "), "monikers"]);
     if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
@@ -2013,6 +2024,8 @@ function resumeFrom(sv) {
   if (!c.artifacts) c.artifacts = [];
   E.ensureEquipment(c);   // migrate legacy single-slot treasure → equipment slots
   E.ensureDaos(c);        // backfill tiered-Dao fields on older saves
+  if (c.daoHeart == null) c.daoHeart = Math.round((c.soul || 30) * 0.25);  // older saves get a resolve from their soul
+  if (c.beast && c.beast.alive && !c.beast.trait) c.beast.trait = E.rollBeastTrait(state.rng);  // older beasts get an innate trait
   if (!c.movementArts) c.movementArts = [];
   if (!c.moveMastery) c.moveMastery = {};
   if (!c.customTechs) c.customTechs = [];

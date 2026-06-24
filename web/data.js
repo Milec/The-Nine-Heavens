@@ -441,6 +441,10 @@ export const PILL_RECIPES = [
   ["body", "Marrow-Cleansing Pill", 5, 0.55, "Tempers the flesh, permanently raising Constitution."],
   ["soul", "Soul-Nourishing Pill", 5, 0.55, "Refines the spirit, permanently raising Soul Sense."],
   ["breakthrough", "Foundation Breakthrough Pill", 7, 0.45, "Consumed on your next breakthrough to greatly improve its odds."],
+  ["comprehension", "Spirit-Enlightening Pill", 6, 0.50, "Clears the sea of consciousness; permanently sharpens Comprehension."],
+  ["charm", "Jade-Countenance Pill", 4, 0.58, "Refines the flesh to an immortal's grace; permanently raises Charm."],
+  ["daoheart", "Heart-Calming Pill", 5, 0.52, "Stills the turbid heart; permanently steels your Dao Heart against demons."],
+  ["fortune", "Heaven-Fortune Pill", 9, 0.32, "A near-mythical pill said to coax the threads of fate; permanently nudges Fortune."],
   ["longevity", "Nine-Turn Longevity Pill", 12, 0.30, "The grandmaster's art -- adds precious years to your lifespan."],
 ];
 export const PILL_BY_KEY = Object.fromEntries(PILL_RECIPES.map(p => [p[0], p]));
@@ -811,6 +815,19 @@ export function beastEvolvedName(base, rank) {
     default: return base;
   }
 }
+/* Innate beast traits (天赋): every spirit beast is born with one, a quirk of
+ * its blood that shapes how it fights at your side and forages at your abode.
+ * [key, name, cn, blurb, weight] */
+export const BEAST_TRAITS = [
+  ["ferocious", "Ferocious", "凶悍", "Born for the kill — its battle assists strike far harder.", 26],
+  ["vigilant",  "Vigilant",  "机警", "Ever-watchful — it throws itself between you and harm, shielding you in battle.", 18],
+  ["nimble",    "Nimble",    "灵巧", "Quicksilver and sure-footed — its presence sharpens your own evasion.", 16],
+  ["auspicious","Auspicious","祥瑞", "A lucky omen of a beast — it forages far richer at your abode.", 20],
+  ["devoted",   "Devoted",   "忠勇", "Bonds fast and deep — it trusts you sooner and treasures every kindness.", 20],
+];
+export const BEAST_TRAIT_BY_KEY = Object.fromEntries(BEAST_TRAITS.map(t => [t[0], t]));
+export const beastTraitName = key => BEAST_TRAIT_BY_KEY[key] ? `${BEAST_TRAIT_BY_KEY[key][1]} (${BEAST_TRAIT_BY_KEY[key][2]})` : "";
+
 // Infer a beast's innate element from its species name (null if none fits).
 export function beastElement(species) {
   const s = (species || "").toLowerCase();

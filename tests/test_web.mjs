@@ -248,6 +248,74 @@ function testSecretRealmThemes() {
   }
 }
 
+// Dao Heart (道心): resolve strengthens the heart-demon ward and battle
+// mind-resistance, is tempered by stillness with diminishing returns, and caps.
+function testDaoHeartResolve() {
+  const rng = new E.RNG(4);
+  const c = L.bornCharacter(rng, "Monk", null);
+  c.soul = 80; c.comprehension = 80; c.daoHeart = 10;
+  const w0 = E.daoHeartWard(c), r0 = E.mentalResist(c);
+  c.daoHeart = 90;
+  assert(E.daoHeartWard(c) > w0 && E.mentalResist(c) > r0, "Dao Heart strengthens ward and mental resist");
+  assert(E.mentalResist(c) <= 0.6, "mental resist stays capped");
+  // Stilling raises it toward the cap; a real gain at low resolve.
+  c.daoHeart = 10; E.stillHeart(c, rng);
+  assert(c.daoHeart - 10 >= 1, "stilling at low resolve yields a real gain");
+  c.daoHeart = 95; const before = c.daoHeart; E.stillHeart(c, rng);
+  assert(c.daoHeart > before && c.daoHeart <= E.DAO_HEART_MAX, "stilling raises Dao Heart but never past the max");
+  c.daoHeart = E.DAO_HEART_MAX; E.stillHeart(c, rng);
+  assert(c.daoHeart === E.DAO_HEART_MAX, "a flawless Dao Heart stays at the max");
+}
+
+// New alchemy pills permanently raise their attribute, within the usual caps.
+function testAlchemyPills() {
+  const rng = new E.RNG(6);
+  const c = L.bornCharacter(rng, "Alchemist", null);
+  c.comprehension = c.charm = c.luck = 50; c.daoHeart = 10;
+  for (const key of ["comprehension", "charm", "fortune", "daoheart"]) {
+    assert(D.PILL_BY_KEY[key], `new pill recipe exists: ${key}`);
+    assert(E.pricePill(c, key) > 0, `pill carries a price: ${key}`);
+  }
+  const b = { comprehension: c.comprehension, charm: c.charm, luck: c.luck, daoHeart: c.daoHeart };
+  E.grantPill(c, "comprehension", rng, 1); E.grantPill(c, "charm", rng, 1);
+  E.grantPill(c, "fortune", rng, 1); E.grantPill(c, "daoheart", rng, 1);
+  assert(c.comprehension > b.comprehension && c.charm > b.charm && c.luck > b.luck && c.daoHeart > b.daoHeart,
+    "attribute pills raise their attribute");
+  c.comprehension = 159; E.grantPill(c, "comprehension", rng, 4);
+  assert(c.comprehension <= 160, "an attribute pill respects the cap");
+}
+
+// Spirit-beast traits: every tamed beast carries a valid innate trait, Devoted
+// beasts bond faster, and a trait-bearing high-rank beast fights without error.
+function testBeastTraits() {
+  assert(D.BEAST_TRAITS.length >= 4, "expected several beast traits");
+  const seen = new Set();
+  for (let s = 0; s < 60; s++) {
+    const r = new E.RNG(s);
+    const c = L.bornCharacter(r, "Tamer" + s, null);
+    c.beast = null; c.soul = c.charm = c.comprehension = 120;
+    E.tryTame(c, "Iron-Fang Wolf", E.power(c) * 0.15, r);
+    if (c.beast) { assert(D.BEAST_TRAIT_BY_KEY[c.beast.trait], "a tamed beast carries a valid trait"); seen.add(c.beast.trait); }
+  }
+  assert(seen.size >= 2, "innate traits vary across tames");
+  const bondAfterFeed = trait => {
+    const r = new E.RNG(9); const c = L.bornCharacter(r, "B", null); c.herbs = 100;
+    c.beast = E.normalizeBeast({ name: "X", species: "Wolf", baseSpecies: "Wolf", element: "Metal", power: 50, bond: 50, rank: 1, exp: 0, fedThisYear: 0, trait, alive: true });
+    E.feedBeast(c, r, false); return c.beast.bond;
+  };
+  assert(bondAfterFeed("devoted") > bondAfterFeed("ferocious"), "a Devoted beast gains more bond per feed");
+  const r = new E.RNG(3); const c = L.bornCharacter(r, "Rider", null);
+  c.realm = 6; c.stage = 2; c.comprehension = c.soul = c.constitution = 140; c.awakened = true;
+  c.root = { key: "heavenly", name: "Heavenly Root", multiplier: 2.6, purity: 1, elements: ["Fire"] };
+  E.recomputeMaxHp(c); c.hp = c.maxHp;
+  c.beast = E.normalizeBeast({ name: "Bai", species: "Mythic Wolf", baseSpecies: "Wolf", element: "Metal", power: E.power(c) * 0.3, bond: 90, rank: 4, exp: 0, fedThisYear: 0, trait: "ferocious", alive: true });
+  const B = C.createBattle(c, C.makeEnemy(c, r, {}), r, {});
+  assert(B.player.beastTrait === "ferocious", "combat captures the beast trait");
+  let guard = 0;
+  while (!B.over && guard++ < 100) { const a = B.actions().find(x => !x.disabled && x.id !== "flee") || B.actions()[0]; B.act(a.id); }
+  assert(B.over, "a trait-bearing beast-assisted battle resolves cleanly");
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -259,6 +327,9 @@ try {
   test("reincarnation carries a legacy", testReincarnationCarriesLegacy);
   test("Daos deepen through tiers and manifest in battle", testDaoTiers);
   test("Secret Realms are themed and their pieces resolve", testSecretRealmThemes);
+  test("Dao Heart tempers resolve, ward and battle nerve", testDaoHeartResolve);
+  test("new alchemy pills raise their attributes within caps", testAlchemyPills);
+  test("spirit beasts carry traits that shape feeding and battle", testBeastTraits);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

@@ -226,6 +226,8 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     beastElement: (c.beast && c.beast.alive) ? (c.beast.element || null) : null,
     beastBond: (c.beast && c.beast.alive) ? (c.beast.bond != null ? c.beast.bond : 50) : 0,
     beastRank: (c.beast && c.beast.alive) ? (c.beast.rank || 1) : 0,
+    beastTrait: (c.beast && c.beast.alive) ? E.beastTraitOf(c.beast) : null,
+    beastName: (c.beast && c.beast.alive) ? c.beast.name : null,
     ally: bondedAlly(c, enemyDef),
   };
   // A deeply-comprehended Dao (Great Mastery+) manifests in the fight: keener
@@ -241,6 +243,10 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
   player.daoPierce = dm.pierce || 0;
   if (dm.shield) player.shield += player.maxHp * dm.shield;
   if (dm.regen) player.statuses.push({ type: "regen", turns: 99, value: dm.regen });
+  // A tempered Dao Heart shrugs off mind-afflictions (stun/weaken) in battle.
+  player.mentalResist = E.mentalResist(c);
+  // A Nimble spirit beast lends you its quicksilver footwork.
+  if (player.beastTrait === "nimble") player.dodge = clampN(player.dodge + 0.05, 0, 0.7);
 
   const ep = enemyDef.power;
   const hpMult = enemyDef.hpMult || 2.3;
@@ -361,7 +367,15 @@ function resolveSkill(B, att, def, skill, lines) {
     if (cs && dmg > 0) { const refl = Math.round(dmg * cs.value); att.hp -= refl; def.statuses = def.statuses.filter(s => s !== cs); lines.push(`   ✦ ${def.name} reflects ${refl} damage back!`); }
   }
   // Status afflictions (applied once, if the foe still stands).
-  const applyTarget = t => { if (t && def.hp > 0 && !(t.type === "burn" && def.burnImmune) && (t.chance == null || rng.random() < t.chance)) { addStatus(def, t.type, t.turns + 1, t.value); lines.push(`   ${def.name} is afflicted: ${t.type}!`); } };
+  const applyTarget = t => {
+    if (!t || def.hp <= 0 || (t.type === "burn" && def.burnImmune)) return;
+    if (t.chance != null && rng.random() >= t.chance) return;
+    // A steady Dao Heart wards the mind against stun and weaken.
+    if (def.isPlayer && (t.type === "stun" || t.type === "weaken") && rng.random() < (def.mentalResist || 0)) {
+      lines.push(`   Your dao heart holds — you shrug off the ${t.type}!`); return;
+    }
+    addStatus(def, t.type, t.turns + 1, t.value); lines.push(`   ${def.name} is afflicted: ${t.type}!`);
+  };
   applyTarget(skill.target);
   applyTarget(skill.target2);
 }
@@ -422,11 +436,23 @@ function takeRound(B, actionId) {
   if (P.beast > 0 && En.hp > 0 && actionId !== "flee") {
     const bondMult = 0.7 + (P.beastBond / 100) * 0.6;            // 0.7 .. 1.3
     const em = elementMult(P.beastElement, En.element);
-    const bd = Math.round(P.beast * 0.22 * bondMult * B.rng.uniform(0.8, 1.2) * em);
-    En.hp -= bd; lines.push(`🐾 ${c.beast.name} lunges in for ${bd} dmg${em > 1.05 ? " 🔆" : ""}.`);
+    const ferocity = P.beastTrait === "ferocious" ? 1.35 : 1;   // a Ferocious beast hits far harder
+    const bd = Math.round(P.beast * 0.22 * bondMult * ferocity * B.rng.uniform(0.8, 1.2) * em);
+    En.hp -= bd; lines.push(`🐾 ${c.beast.name} lunges in for ${bd} dmg${em > 1.05 ? " 🔆" : ""}${ferocity > 1 ? " 🩸" : ""}.`);
     if (P.beastRank >= 3 && P.beastElement && En.hp > 0 && B.rng.random() < 0.25) {
       const fx = BEAST_BITE[P.beastElement];
       if (fx && !(fx[0] === "burn" && En.burnImmune)) { addStatus(En, fx[0], fx[1] + 1, fx[2]); lines.push(`   ${En.name} suffers the beast's ${fx[0]}!`); }
+    }
+    // A Vigilant beast guards you, raising a qi shield when you most need it.
+    if (P.beastTrait === "vigilant" && P.hp < P.maxHp * 0.6 && B.rng.random() < 0.30) {
+      const sh = Math.round(P.maxHp * 0.10); P.shield += sh;
+      lines.push(`   🛡 ${c.beast.name} wheels to guard you (+${sh} shield).`);
+    }
+    // From the Heaven-Beast rank, a deeply-bonded beast can loose a signature
+    // savaging — a heavy elemental strike beyond its usual assist.
+    if (P.beastRank >= 4 && P.beastBond >= 70 && En.hp > 0 && B.rng.random() < 0.18) {
+      const sd = Math.round(P.beast * 0.55 * bondMult * ferocity * B.rng.uniform(0.9, 1.2) * em);
+      En.hp -= sd; lines.push(`   ✦ ${c.beast.name} unleashes a ${P.beastElement || "primal"} savaging — ${sd} dmg!`);
     }
   }
 
@@ -487,6 +513,7 @@ function finishBattle(B) {
     if (B.outcome === "win") {
       c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac));
       c.qi += E.qiToNext(c) * 0.3;
+      c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + rng.randint(2, 5));   // crossing the heavens steels the heart
       lines.push("⚡ You weather the Heavenly Tribulation! The clouds disperse and your new realm settles, unshakable.");
     } else {
       if (rng.random() < c.luck / 320 + (D.physEffect(c).deathSave || 0)) { c.hp = c.maxHp * 0.1; lines.push("⚡ The final bolt should have ended you — but your undying flesh drags you back from oblivion!"); }

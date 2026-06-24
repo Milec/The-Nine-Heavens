@@ -750,7 +750,10 @@ function abodeYearly(c, rng, events) {
   const residents = abodeResidents(c);
   const tenders = residents.filter(n => n.role === "disciple").length;
   if (tenders) herbs += tenders * Math.max(1, Math.round(abode[5] * 0.3));   // disciples tend the herb fields
-  if (c.beast && c.beast.alive) { herbs += (c.beast.rank || 1) + Math.floor((c.abode || 0) / 2); stones += Math.floor(c.abode || 0); }  // beast forages (better the higher its rank)
+  if (c.beast && c.beast.alive) {  // beast forages (better the higher its rank; an Auspicious beast richer still)
+    const aus = E.beastTraitOf(c.beast) === "auspicious" ? 2 : 1;
+    herbs += ((c.beast.rank || 1) + Math.floor((c.abode || 0) / 2)) * aus; stones += Math.floor(c.abode || 0) * aus;
+  }
   c.herbs += Math.round(herbs * danger);
   c.spiritStones += Math.round(stones * danger);
   // Living among your own spirit vein steadies the heart; resident disciples

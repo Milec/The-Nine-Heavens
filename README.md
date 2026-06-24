@@ -168,7 +168,18 @@ Three more systems round out a cultivator's life:
   needle inside a drifting jade band over several phases to build **pill
   quality** (Crude → Fine → Flawless, scaling the effect) while avoiding the
   instability that blows up your furnace. Soul, comprehension and skill widen
-  your margin for error.
+  your margin for error. The **pill catalogue** runs from the alchemist's
+  bread-and-butter Qi and Healing pills up through body- and soul-tempering
+  pills to rarer arts that permanently sharpen **Comprehension** (悟道丹),
+  **Charm** (驻颜丹), **Fortune** (转运丹) and your **Dao Heart** (定神丹), a
+  breakthrough pill for the crucial leap, and the grandmaster's **Nine-Turn
+  Longevity Pill** — all of them bought at the Market or refined at the furnace.
+- **Dao Heart (道心)** — a cultivator's **resolve**, the will that holds the soul
+  whole. **Still the heart** in meditation to temper it from *Unsteady* up to a
+  *Diamond Heart*; a deep dao heart **wards off the heart demon** at a
+  breakthrough, **shrugs off mind-afflictions** (stun and weaken) in battle, and
+  steels you against illusion and temptation. Adversity hardens it too — survive
+  a heart demon or cross a Heavenly Tribulation and your resolve deepens.
 - **World standing (声望)** — your name climbs from *Unknown* to *Legendary* (or
   sinks to *Notorious*). Fame draws **sect invitations, grand banquets and
   admirers' gifts**; infamy and heavy sin mark you **Wanted**, summoning bounty
@@ -202,8 +213,14 @@ Three more systems round out a cultivator's life:
   ranks** (Mortal → Spirit → Earth → Heaven → **Mythic Beast**) into ever mightier
   forms. Each beast has an **innate element**, so in battle its every-round assist
   lands with Wu Xing advantage — and from the Earth-Beast rank up it inflicts its
-  own **elemental bite** (burn, freeze, bleed…). A beast also **forages at your
-  abode**, better the higher its rank.
+  own **elemental bite** (burn, freeze, bleed…). Every beast is also born with an
+  **innate trait (天赋)** that shapes how it serves you: a **Ferocious** beast
+  savages your foes, a **Vigilant** one throws up a shield to guard you when
+  you're hard-pressed, a **Nimble** one sharpens your own evasion, an
+  **Auspicious** one forages far richer, and a **Devoted** one bonds to you fast
+  and deep. And from the **Heaven-Beast rank**, a deeply-bonded companion can
+  loose a **signature savaging** — a heavy elemental strike beyond its usual
+  assist. A beast also **forages at your abode**, better the higher its rank.
 - **Multi-phase bosses** — boss-tier foes (named cultivators, realm guardians, the
   tournament champion, your nemesis) **enter a second phase at half health** and
   **telegraph a devastating element-themed ultimate** — guard, heal, or be
@@ -405,10 +422,13 @@ your peers instead of being matched away.
   manifests in battle** — the Dao of Slaughter's killing intent cows the foe, the
   Void's edge pierces armour, Vitality's life-force swells your battle vigour, the
   Sword's heart sharpens your crits. They are the true road to ascension.
-- **Karma (业力)** — slaying devils and rogues earns merit; demonic paths and
-  cruelty stain your soul. Merit softens the Heavenly Tribulation (the heavens
-  favour the virtuous), while a blood-soaked cultivator must also overcome the
-  **heart demon (心魔)** that rises mid-breakthrough to devour the unprepared.
+- **Karma (业力) & the Dao Heart (道心)** — slaying devils and rogues earns merit;
+  demonic paths and cruelty stain your soul. Merit softens the Heavenly
+  Tribulation (the heavens favour the virtuous), while a blood-soaked cultivator
+  must also overcome the **heart demon (心魔)** that rises mid-breakthrough to
+  devour the unprepared. Your defence against it is your **Dao Heart** — the
+  resolve you temper by **stilling the heart**, which wards the demon, shrugs off
+  mind-afflictions in battle, and hardens further each time you survive an ordeal.
 
 ## Reincarnation (转世重生)
 

@@ -261,6 +261,8 @@ export function beastTier(b) {
   return D.beastRankName(r);
 }
 // Back-fill the progression fields on a beast (older saves / freshly-tamed).
+export const rollBeastTrait = rng => weightedChoice(rng, D.BEAST_TRAITS, 4)[0];
+export const beastTraitOf = b => (b && b.trait && D.BEAST_TRAIT_BY_KEY[b.trait]) ? b.trait : null;
 export function normalizeBeast(b) {
   if (!b) return b;
   if (b.rank == null) b.rank = (b.power < 200 ? 1 : b.power < 2000 ? 2 : b.power < 20000 ? 3 : b.power < 200000 ? 4 : 5);
@@ -305,7 +307,7 @@ function newCharacter() {
     sectKey: null, sectRank: 0, contribution: 0, sectMissions: 0, sectJoinedAge: null, titles: [], epithets: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equipment: {}, refinement: {}, equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
-    daos: [], daoLevels: {}, daoFocus: null, daoInsight: 0, karma: 0, reincarnationCount: 0,
+    daos: [], daoLevels: {}, daoFocus: null, daoInsight: 0, daoHeart: 10, karma: 0, reincarnationCount: 0,
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
     movementArts: [], moveMastery: {}, customTechs: [],
     mastery: {},
@@ -652,16 +654,54 @@ export function attemptBreakthrough(c, rng, opts = {}) {
 function heartDemon(c, rng) {
   if (c.karma >= -30) return [];
   const peril = Math.min(0.6, (-c.karma - 30) / 220.0);
-  const ward = c.soul / 300.0 + c.daos.length * 0.04 + c.comprehension / 600.0;
+  const ward = daoHeartWard(c);
   const msgs = ["", "👁 A heart demon rises from your karma to devour your dao heart..."];
   if (rng.random() < peril - ward) {
     c.hp = Math.max(1.0, c.hp - c.maxHp * rng.uniform(0.3, 0.6));
     c.stage = Math.max(0, c.stage - 1);
-    msgs.push("   The inner demon savages your mind; you slip a stage, shaken.");
+    c.daoHeart = Math.max(0, (c.daoHeart || 0) - rng.randint(2, 5));   // the demon scars your resolve
+    msgs.push("   The inner demon savages your mind; you slip a stage, shaken, your dao heart cracked.");
   } else {
-    msgs.push("   Your dao heart holds firm and the demon dissolves.");
+    c.daoHeart = clamp((c.daoHeart || 0) + rng.randint(2, 4), 0, 100);  // adversity tempers resolve
+    msgs.push("   Your dao heart holds firm and the demon dissolves — your resolve hardens for the trial.");
   }
   return msgs;
+}
+
+/* Dao Heart (道心): a cultivator's resolve — the will that holds the soul whole
+ * against heart demons, illusion and temptation. It is tempered by stilling the
+ * heart in meditation and by surviving the demons it wards against. */
+export const DAO_HEART_MAX = 100;
+export function daoHeartLabel(v) {
+  v = v || 0;
+  if (v < 12) return "Unsteady";
+  if (v < 28) return "Settling";
+  if (v < 45) return "Steady";
+  if (v < 64) return "Tempered";
+  if (v < 82) return "Unshakable";
+  return "Diamond Heart";
+}
+// Defense a heart demon (and like ordeals) must overcome.
+export const daoHeartWard = c =>
+  (c.daoHeart || 0) / 170.0 + c.soul / 320.0 + (c.daos || []).length * 0.035 + c.comprehension / 600.0;
+// In battle, resolve lets you shrug off mind-afflictions (stun/weaken).
+export const mentalResist = c => clamp((c.daoHeart || 0) / 240.0 + c.soul / 700.0, 0, 0.6);
+
+// Temper the Dao Heart through stillness — diminishing returns as it deepens,
+// quicker for the soul-keen and the serene.
+export function stillHeart(c, rng) {
+  if (!c.alive) return ["You are dead."];
+  if (c.daoHeart == null) c.daoHeart = 10;
+  const room = DAO_HEART_MAX - c.daoHeart;
+  if (room <= 0) return ["Your dao heart is already a flawless diamond — nothing more can be added by stillness alone."];
+  const gain = Math.max(1, Math.round((1.6 + c.soul / 50 + c.comprehension / 80) * (0.4 + room / DAO_HEART_MAX) * rng.uniform(0.8, 1.2)));
+  c.daoHeart = clamp(c.daoHeart + gain, 0, DAO_HEART_MAX);
+  if (typeof c.happiness === "number") c.happiness = clamp(c.happiness + 2, 0, 100);
+  const flash = rng.random() < 0.12 + c.comprehension / 1200
+    ? "  In the silence the world falls away, and for a heartbeat you simply are." : "";
+  const lines = [`You sit in stillness and temper your dao heart. (+${gain} — ${daoHeartLabel(c.daoHeart)})`];
+  if (flash) lines.push(flash);
+  return lines;
 }
 
 function tribulation(c, rng) {
@@ -979,7 +1019,7 @@ function tameChance(c, beastPow, rng) {
 export function tryTame(c, species, beastPow, rng) {
   if (c.beast !== null) return [];
   if (rng.random() < tameChance(c, beastPow, rng)) {
-    c.beast = normalizeBeast({ name: beastName(species, rng), species, baseSpecies: species, element: D.beastElement(species), power: beastPow * rng.uniform(0.6, 0.9), bond: 50, rank: 1, exp: 0, fedThisYear: 0, alive: true });
+    c.beast = normalizeBeast({ name: beastName(species, rng), species, baseSpecies: species, element: D.beastElement(species), power: beastPow * rng.uniform(0.6, 0.9), bond: 50, rank: 1, exp: 0, fedThisYear: 0, trait: rollBeastTrait(rng), alive: true });
     const el = c.beast.element ? ` Its nature runs to ${c.beast.element}.` : "";
     note(c, `Tamed a ${species} as a spirit beast companion.`);
     return [`  ✦ You subdue the ${species} and bind it as a spirit beast companion! (${c.beast.name}, ${beastTier(c.beast)})${el}`];
@@ -1009,13 +1049,14 @@ export function feedBeast(c, rng, usePill = false) {
   const b = c.beast; if (!b || !b.alive) return ["You have no spirit beast to feed."];
   normalizeBeast(b);
   if (b.fedThisYear >= 3) return [`${b.name} is sated for now — it will take more food next year.`];
+  const devoted = beastTraitOf(b) === "devoted" ? 1.5 : 1;   // a devoted beast bonds faster
   if (usePill) {
     if (c.pills <= 0) return ["You have no pills to feed it."];
-    c.pills -= 1; b.exp += 28; b.bond = clamp(b.bond + 12, 0, 100); b.power *= 1.04; b.fedThisYear += 1;
+    c.pills -= 1; b.exp += 28; b.bond = clamp(b.bond + 12 * devoted, 0, 100); b.power *= 1.04; b.fedThisYear += 1;
     return [`You feed ${b.name} a spirit pill. Its eyes blaze; it grows visibly stronger and nuzzles you. (bond ${Math.round(b.bond)}/100)`];
   }
   if (c.herbs < 2) return ["You need at least 2 spirit herbs to feed your beast."];
-  c.herbs -= 2; b.exp += 10; b.bond = clamp(b.bond + 5, 0, 100); b.power += power(c) * 0.012; b.fedThisYear += 1;
+  c.herbs -= 2; b.exp += 10; b.bond = clamp(b.bond + 5 * devoted, 0, 100); b.power += power(c) * 0.012; b.fedThisYear += 1;
   return [`You feed ${b.name} a bundle of spirit herbs. It chuffs contentedly. (bond ${Math.round(b.bond)}/100, exp ${b.exp}/${D.BEAST_EXP_REQ[b.rank] || "—"})`];
 }
 
@@ -1060,6 +1101,10 @@ export function grantPill(c, key, rng, mult = 1) {
   if (key === "breakthrough") { const n = scale(1); c.breakthroughPills += n; return [`  You refine ${n} ${name}(s) -- save for a breakthrough.`]; }
   if (key === "body") { const g = scale(rng.randint(1, 3)); c.constitution = Math.min(160, c.constitution + g); recomputeMaxHp(c); return [`  The ${name} tempers your body. (+${g} Constitution)`]; }
   if (key === "soul") { const g = scale(rng.randint(1, 3)); c.soul = Math.min(160, c.soul + g); return [`  The ${name} refines your spirit. (+${g} Soul Sense)`]; }
+  if (key === "comprehension") { const g = scale(rng.randint(1, 3)); c.comprehension = Math.min(160, c.comprehension + g); return [`  The ${name} clears your mind. (+${g} Comprehension)`]; }
+  if (key === "charm") { const g = scale(rng.randint(1, 3)); c.charm = Math.min(160, c.charm + g); return [`  The ${name} refines your features. (+${g} Charm)`]; }
+  if (key === "fortune") { const g = scale(rng.randint(1, 2)); c.luck = Math.min(160, c.luck + g); return [`  The ${name} stirs the threads of fate. (+${g} Fortune)`]; }
+  if (key === "daoheart") { const g = scale(rng.randint(2, 4)); c.daoHeart = clamp((c.daoHeart || 0) + g, 0, DAO_HEART_MAX); return [`  The ${name} stills your heart. (+${g} Dao Heart — ${daoHeartLabel(c.daoHeart)})`]; }
   if (key === "longevity") { const g = Math.round((Math.floor(c.maxAge * rng.uniform(0.05, 0.11)) + 20) * mult); c.longevityBonus = (c.longevityBonus || 0) + g; recomputeMaxAge(c); note(c, `Refined a ${name}, +${g} years of life.`); return [`  ✦ The ${name} adds ${g} years to your lifespan!`]; }
   return ["  Success!"];
 }

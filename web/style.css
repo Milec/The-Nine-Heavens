@@ -441,6 +441,7 @@ body {
 .pb-fill.bond { background: linear-gradient(90deg, #b0476a, #e89bb7); }
 .pb-fill.exp { background: linear-gradient(90deg, #2f7a4a, #6fd6b3); }
 .pb-fill.rank { background: linear-gradient(90deg, #c79a44, #f0d27a); }
+.pb-fill.dao { background: linear-gradient(90deg, #2e8c84, #7fd9c9); }
 .pb-ready { color: var(--gold) !important; font-weight: 700; }
 
 /* ============================ event card ============================== */
