@@ -36,7 +36,15 @@ a reclusive elder poses a riddle over tea, a voice in the dark bargains for your
 soul in escalating offers, a cornered thief pleads his case, a silver-tongued
 merchant haggles round by round — **named speakers talk back, and every reply is
 a fork in the road**, so you converse and decide your way through, not merely
-pick once and move on. Within each year you may perform a few **deeds** — use
+pick once and move on. Others open into **multi-year storylines (机缘)** that
+thread across a life: a dying sword-immortal offers you his inheritance —
+**accept it** and temper a stolen sword-intent over years toward mastery (or be
+overwhelmed by it), **grant him a clean death** for the virtue of it, or **rob
+his tomb** and one day answer to his vengeful sword-wraith. Take in a starving
+**foundling (孤雏)** and how you raise them across the years — with kindness,
+with iron, or with neglect — decides whether they become your **devoted
+disciple**, a **cold blade**, a stranger who departs, or a **nemesis of your own
+making**. The same choice means different things three years on. Within each year you may perform a few **deeds** — use
 the tabs to **Cultivate** (seclusion, breakthroughs, the Dao), tend
 **Relationships** (family, masters, rivals, dao companions, even children of
 your own), pursue **Activities** (train, study, rest, alchemy, adventure), and

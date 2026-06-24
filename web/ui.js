@@ -2035,6 +2035,7 @@ function resumeFrom(sv) {
   E.ensureEquipment(c);   // migrate legacy single-slot treasure → equipment slots
   E.ensureDaos(c);        // backfill tiered-Dao fields on older saves
   if (c.daoHeart == null) c.daoHeart = Math.round((c.soul || 30) * 0.25);  // older saves get a resolve from their soul
+  if (!c.arcs || typeof c.arcs !== "object") c.arcs = {};  // multi-year storyline state
   if (c.beast && c.beast.alive && !c.beast.trait) c.beast.trait = E.rollBeastTrait(state.rng);  // older beasts get an innate trait
   if (!c.movementArts) c.movementArts = [];
   if (!c.moveMastery) c.moveMastery = {};

@@ -1290,6 +1290,140 @@ export const EVENTS = [
       { label: "Decline politely and move on", result: () => "You smile, shake your head, and walk on. The hum of the gourd fades behind you." },
     ],
   },
+
+  /* ==================== multi-year storyline arcs ======================= *
+   * Arcs play out over several years: a choice now sets the arc's stage, and a
+   * later beat (gated on stage + years elapsed) continues it, branching on what
+   * you chose before. Arc-flagged beats are drawn with priority (see
+   * rollYearEvents) so a saga you're living through reliably advances. */
+
+  // — The Dying Sword-Immortal's Inheritance (剑冢传承) — power, virtue, or theft.
+  {
+    id: "swordtomb_start", arc: true, weight: 6, minAge: 14, minRealm: 2, awakened: true, cooldown: 0,
+    cond: c => c.root.key !== "none" && arcStage(c, "swordtomb") === 0,
+    speaker: () => "A Dying Sword-Immortal",
+    text: () => "Deep in a cleft of grey stone you find an ancient man impaled on his own black sword, dying slow across centuries. His eyes snap open. \"You... have the bones for it. Quickly — my sword-heart cannot pass into the dirt. Will you take it, and all the ruin it brings?\"",
+    choices: [
+      { label: "Kneel and accept his final transmission", result: (c, rng, A) => { arcSet(c, "swordtomb", 1); cap(c, "comprehension", 2); A.note("Accepted a dying sword-immortal's transmission."); return ["He presses two fingers to your brow and a seed of cold, singing light buries itself in your sea of consciousness. \"Temper it,\" he breathes, \"or it will temper you.\" Then he is dust. (A sword-seed is planted; the path will unfold over the coming years.)"]; } },
+      { label: "Grant him a clean death and take nothing", result: (c, rng, A) => { arcSet(c, "swordtomb", 99); A.karma(10); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); cap(c, "soul", 2); return ["You ease his blade free and let the old killer go in peace. He smiles, surprised, and crumbles to dust. You leave his tomb unrobbed — and walk away lighter than you came. (+Karma, +Dao Heart, +Soul)"]; } },
+      { label: "Slay him and seize the black sword now", result: (c, rng, A) => { arcSet(c, "swordtomb", 11); A.karma(-18); A.note("Robbed a dying sword-immortal's tomb."); return ["You end him with his own edge and tear the black sword free. Cold power thrums up your arm — and somewhere, something marks the theft. (−Karma)"].concat(E.acquireArtifact(c, E.randomArtifact(c, rng, "Heaven", { slot: "weapon", element: "Dark" }))); } },
+    ],
+  },
+  {
+    id: "swordtomb_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "swordtomb") === 1 && arcYears(c, "swordtomb") >= 2,
+    text: () => "The sword-seed in your sea of consciousness has grown teeth. One night it wakes, and a storm of killing intent not your own howls through your meridians, demanding to be mastered — or to master you.",
+    choices: [
+      { label: "Hurl yourself into the sword-intent", result: (c, rng, A) => {
+        if (rng.random() < 0.35 + c.comprehension / 260 + (c.daoHeart || 0) / 300) { arcSet(c, "swordtomb", 2); A.qi(0.8); cap(c, "comprehension", 3); return ["You meet the storm with your whole soul and ride it down into stillness. The sword-intent bends its neck to you at last. (+Comprehension, +qi — mastery is near.)"]; }
+        A.heal(-Math.round(c.maxHp * 0.25)); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 4); return ["The intent is an ocean and you a stone; it batters you bloody and withdraws, unbroken. You will have to try again, stronger. (−health, −Dao Heart)"];
+      } },
+      { label: "Temper it slowly, a little each year", result: (c, rng, A) => { arcSet(c, "swordtomb", 2); cap(c, "soul", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); return ["You refuse to be rushed. Night after night you sit with the cold light, coaxing it a finger's breadth at a time. Slow — but sure. (+Soul, +Dao Heart)"]; } },
+      { label: "Cast the sword-seed out for good", result: (c, rng, A) => { arcSet(c, "swordtomb", 99); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 5); cap(c, "soul", 1); return ["A borrowed blade is no blade at all, you decide. With a wrenching effort you expel the seed; it gutters out in the dark, and you are only yourself again — and at peace with it. (+Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "swordtomb_master", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "swordtomb") === 2 && arcYears(c, "swordtomb") >= 2,
+    text: () => "The sword-seed is ripe. To take its inheritance whole you must forge it into a sword-heart of your own — and the heavens watch to see whether you are worthy, or merely a thief of a dead man's strength.",
+    choices: [
+      { label: "Forge the sword-heart", result: (c, rng, A) => {
+        arcSet(c, "swordtomb", 99);
+        if ((c.daoHeart || 0) >= 35 || rng.random() < 0.4 + c.comprehension / 300) {
+          if (!c.techniques.includes("heaven_slash")) c.techniques.push("heaven_slash");
+          cap(c, "comprehension", 4); A.note("Forged a sword-immortal's inheritance into a sword-heart.");
+          return ["Steel and soul fuse. The old immortal's centuries pour into you and settle as your own — you understand the sword now, all the way down. You have inherited the Heaven-Splitting Sabre! (+Comprehension)"]
+            .concat(E.acquireArtifact(c, E.randomArtifact(c, rng, "Heaven", { slot: "weapon", element: "Metal" })))
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.5 }));
+        }
+        A.heal(-Math.round(c.maxHp * 0.4)); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); c.stage = Math.max(0, c.stage - 1);
+        if (!c.techniques.includes("sword_rain")) c.techniques.push("sword_rain");
+        return ["Your dao heart cannot yet hold a dead man's centuries. The sword-intent rebels, savaging your meridians before you wrestle it to a sullen truce. You salvage only a fragment of the art — and a scar on your soul. (−health, −Dao Heart, slipped a stage; learned a lesser sword art)"];
+      } },
+    ],
+  },
+  {
+    id: "swordtomb_haunt", arc: true, weight: 18, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "swordtomb") === 11 && arcYears(c, "swordtomb") >= 2,
+    speaker: () => "A Vengeful Sword-Wraith",
+    text: () => "The black sword you stole has been whispering. Tonight the whispers take shape: the murdered immortal's killing intent claws out of the blade, a wraith of grey fire with your theft burning in its eyes. \"THIEF.\"",
+    choices: [
+      { label: "Face the wraith, blade to blade", result: (c, rng, A) => {
+        const res = A.fight(["the Sword-Immortal's Wraith", A.power() * rng.uniform(1.1, 1.45), (c.realm + 1) * 9, "rogue"]);
+        if (c.alive) { arcSet(c, "swordtomb", 99); c.reputation += 6; cap(c, "comprehension", 3); res.push("You shatter the wraith and the black sword falls silent at last — truly yours now, paid for in full. (+Reputation, +Comprehension)"); }
+        return ["Grey fire against your steel."].concat(res);
+      } },
+      { label: "Kneel, repent, and offer the sword back", result: (c, rng, A) => {
+        arcSet(c, "swordtomb", 99);
+        if ((c.karma || 0) >= 0 || (c.daoHeart || 0) >= 30) { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); A.karma(8); return ["You lay the blade down and press your forehead to the cold stone. The wraith studies you a long moment — then sighs and sinks back into the steel, appeased. The sword is yours with its blessing now. (+Karma, +Dao Heart)"]; }
+        A.heal(-Math.round(c.maxHp * 0.3)); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 5); return ["Your repentance rings hollow even to your own ears. The wraith sees the rot in your heart and sinks its grey fire into your soul before it fades — a curse you will carry a long time. (−health, −Dao Heart)"];
+      } },
+    ],
+  },
+
+  // — The Foundling (孤雏) — a ward you raise across the years into a devoted
+  //   disciple, a cold blade, a stranger who departs, or a nemesis of your making.
+  {
+    id: "foundling_start", arc: true, weight: 5, minAge: 18, minRealm: 1, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "foundling") === 0 && !arcNpc(c, "foundling"),
+    text: () => "In a famine-struck town a filthy child plants themselves in your path, eyes too old for their face. \"You're a cultivator,\" they say — not asking. \"Take me. I'll work, I'll—\" The small hands are shaking. Something in them flickers: the faintest spark of a spiritual root.",
+    choices: [
+      { label: "Take the child in as your ward", result: (c, rng, A) => {
+        const n = A.meet("friend", { affinity: 40, realm: 0 });
+        n.arcTag = "foundling"; n.kin = "Foundling Ward";
+        arcSet(c, "foundling", 1, { ward: n.name });
+        A.happy(5); A.note(`Took in a foundling, ${n.name}.`);
+        return [`You hold out a hand. ${n.name} stares at it as though it might vanish, then seizes it with both of theirs. You have a ward now — and the long, uncertain work of raising one. (See them in Relationships.)`];
+      } },
+      { label: "Give them silver and a warm meal", result: (c, rng, A) => { arcSet(c, "foundling", 99); A.karma(6); A.happy(3); A.stones(-Math.min(c.spiritStones, 5)); return ["You press silver and bread into their hands and point them to a temple that takes orphans. It is not nothing. It is not everything. They watch you go with a look you try not to remember. (+Karma)"]; } },
+      { label: "Step around them and walk on", result: (c, rng, A) => { arcSet(c, "foundling", 99); A.happy(-3); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 1); return ["The world is full of dying children and you cannot save them all. You tell yourself this all the way down the road, and most of the way through the night. (−Happiness)"]; } },
+    ],
+  },
+  {
+    id: "foundling_lost", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => (arcStage(c, "foundling") === 1 || arcStage(c, "foundling") === 2) && !arcNpc(c, "foundling"),
+    auto: (c, rng, A) => { arcSet(c, "foundling", 99); A.happy(-12); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 2); return "Word comes that your ward did not survive — the world is hard on small things, and you were not there to shield them. You bury what little there is to bury, and carry the weight of it the rest of your days. (−Happiness)"; },
+  },
+  {
+    id: "foundling_raise", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "foundling") === 1 && arcYears(c, "foundling") >= 3 && !!arcNpc(c, "foundling"),
+    text: c => { const n = arcNpc(c, "foundling"); return `Three years on, ${n ? n.name : "your ward"} has filled out and steadied, and their spark of talent has caught into a flame. How you raise them now will shape who they become.`; },
+    choices: [
+      { label: "Teach with patient kindness", result: (c, rng, A) => { const n = arcNpc(c, "foundling"); if (n) n.affinity = clampN((n.affinity || 40) + 25, -100, 100); arcSet(c, "foundling", 2, { path: "kind" }); A.happy(4); return [`You are gentle where the world was not. ${n ? n.name : "Your ward"} blooms under it, following you like a second shadow, hungry to make you proud.`]; } },
+      { label: "Drill them with harsh discipline", result: (c, rng, A) => { const n = arcNpc(c, "foundling"); if (n) { n.affinity = clampN((n.affinity || 40) - 8, -100, 100); n.power = (n.power || 1) * 1.6; n.realm = Math.min(Math.max(0, c.realm - 2), (n.realm || 0) + 1); } arcSet(c, "foundling", 2, { path: "harsh" }); return [`You are iron with them — cold dawns, bleeding hands, no praise. They grow strong and hard and fast, and learn to read your moods like weather. Whether love or fear drives them, even you cannot always tell.`]; } },
+      { label: "Leave them to fend while you cultivate", result: (c, rng, A) => { const n = arcNpc(c, "foundling"); if (n) n.affinity = clampN((n.affinity || 40) - 24, -100, 100); arcSet(c, "foundling", 2, { path: "neglect" }); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 2); return [`Your dao comes first; it always has. ${n ? n.name : "The child"} is fed and housed and otherwise alone, learning what your silences mean. (−the bond between you)`]; } },
+    ],
+  },
+  {
+    id: "foundling_grown", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "foundling") === 2 && arcYears(c, "foundling") >= 3 && !!arcNpc(c, "foundling"),
+    text: c => { const n = arcNpc(c, "foundling"); return `${n ? n.name : "Your ward"} comes of age — no longer a foundling but a young cultivator in their own right. The shape of what you made of them comes due.`; },
+    choices: [
+      { label: "See what they have become", result: (c, rng, A) => {
+        const n = arcNpc(c, "foundling"); arcSet(c, "foundling", 99);
+        if (!n) return ["But they are already gone, slipped away in the night without a word."];
+        const aff = n.affinity || 0; n.arcTag = null;
+        if (aff >= 55) {
+          n.role = "disciple"; n.kin = "Disciple"; n.resides = true; n.learned = n.learned || []; n.affinity = clampN(aff + 10, -100, 100);
+          A.happy(8); c.reputation += 4; A.note(`${n.name}, once a foundling, became your devoted disciple.`);
+          return [`${n.name} kneels and kowtows three times, then presses a gift into your hands, bought with years of saved coppers. "Everything I am, master, you made." They are yours now, heart and blade, and come to live at your side. (A devoted disciple!)`]
+            .concat(E.acquireArtifact(c, E.randomArtifact(c, rng, null)));
+        }
+        if (aff >= 0) {
+          n.role = "disciple"; n.kin = "Disciple"; n.learned = n.learned || [];
+          return [`${n.name} bows, correct and cool, and takes a place among your disciples. They are strong, and loyal — in the way a well-made blade is loyal. Warmth was never part of the bargain. (A disciple gained.)`];
+        }
+        if (aff <= -25) {
+          n.role = "nemesis"; n.kin = "Nemesis"; n.grudge = "the master who raised them like a tool and called it love"; n.encounters = 0;
+          E.ensureNpcProfile(n, rng, { realm: Math.max(1, c.realm - 2) });
+          A.happy(-8); A.note(`${n.name}, the foundling you failed, became your nemesis.`);
+          return [`${n.name} looks at you with your own coldness reflected back, and it is worse than hatred. "I learned everything from you," they say softly. "Including this." They turn and walk into the world as your sworn enemy. (A nemesis is born of your neglect — settle it in Adventure.)`];
+        }
+        A.happy(-4); n.role = "friend";
+        return [`${n.name} thanks you with stiff formality for "all you did," and takes their leave to walk their own road. You will hear their name now and then, from a distance. They will not visit. (Your ward departs.)`];
+      } },
+    ],
+  },
 ];
 
 /* ----------------------- eligibility & rolling --------------------------- */
@@ -1393,15 +1527,35 @@ export function quietYearEvent(c, rng, A) {
 
 export function rollYearEvents(c, rng, A) {
   const out = [];
-  let pool = EVENTS.filter(e => eligible(c, e));
-  if (pool.length) out.push(instantiate(c, rng, A, rng.choices(pool, pool.map(e => e.weight || 1))));
-  // A modest chance of a second, different event in the same year.
-  if (c.alive && rng.random() < 0.3) {
-    pool = EVENTS.filter(e => eligible(c, e) && !out.some(o => o.id === e.id));
-    if (pool.length) out.push(instantiate(c, rng, A, rng.choices(pool, pool.map(e => e.weight || 1))));
-  }
+  const draw = pool => { if (pool.length) out.push(instantiate(c, rng, A, rng.choices(pool, pool.map(e => e.weight || 1)))); };
+  // 1) A due storyline beat takes priority, so multi-year arcs progress reliably
+  //    rather than being lost in the weighted shuffle of ordinary events.
+  draw(EVENTS.filter(e => e.arc && eligible(c, e)));
+  // 2) An ordinary life event (never a second arc beat in the same year).
+  if (c.alive) draw(EVENTS.filter(e => !e.arc && eligible(c, e) && !out.some(o => o.id === e.id)));
+  // 3) A modest chance of one more, different event.
+  if (c.alive && rng.random() < 0.3) draw(EVENTS.filter(e => !e.arc && eligible(c, e) && !out.some(o => o.id === e.id)));
   // No scripted card came due — let a small, mechanically real "quiet year" stand
   // in, so every single year carries a consequence rather than empty flavour.
   if (c.alive && !out.length) out.push({ id: "quiet_" + c.age, auto: true, text: [quietYearEvent(c, rng, A)] });
   return out;
 }
+
+/* ---------------------- multi-year storyline arcs ------------------------ *
+ * Some encounters open a saga that plays out over several years: a choice now
+ * sets an arc's stage, and a later beat (gated on that stage and the years
+ * elapsed) continues it, branching on what you chose before. Arc state lives in
+ * c.arcs[id] = { stage, since, ...flags }. Arc-flagged events (`arc: true`) are
+ * drawn with priority so a storyline you are living through reliably advances. */
+export const arcOf = (c, id) => (c.arcs && c.arcs[id]) || null;
+export const arcStage = (c, id) => { const a = arcOf(c, id); return a ? a.stage : 0; };
+export const arcYears = (c, id) => { const a = arcOf(c, id); return a ? c.age - (a.since != null ? a.since : c.age) : 0; };
+export function arcSet(c, id, stage, extra) {
+  if (!c.arcs) c.arcs = {};
+  c.arcs[id] = Object.assign({}, c.arcs[id], extra || {}, { stage, since: c.age });
+  return c.arcs[id];
+}
+export function arcEnd(c, id) { if (c.arcs && c.arcs[id]) delete c.arcs[id]; }
+// Find a recurring arc NPC (tagged when the arc created it).
+const arcNpc = (c, tag) => (c.relationships || []).find(n => n.arcTag === tag && n.alive) || null;
+

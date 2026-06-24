@@ -13,7 +13,8 @@ import * as E from "../web/engine.js";
 import * as L from "../web/life.js";
 import * as D from "../web/data.js";
 import * as C from "../web/combat.js";
-import { EVENTS } from "../web/events.js";
+import * as Ev from "../web/events.js";
+const { EVENTS } = Ev;
 
 /* --------------------------- tiny test harness --------------------------- */
 let passed = 0;
@@ -430,6 +431,75 @@ function testDialogueTrees() {
   }
 }
 
+// Multi-year storyline arcs: a choice now sets an arc's stage; later beats gate
+// on that stage and the years elapsed and branch on what came before, threading
+// a coherent saga across a life — with genuinely divergent outcomes.
+function testStoryArcs() {
+  // Arc-state helpers.
+  const h = L.bornCharacter(new E.RNG(1), "Arc", null);
+  assert(Ev.arcStage(h, "x") === 0, "an unknown arc reads as stage 0");
+  Ev.arcSet(h, "x", 1); assert(Ev.arcStage(h, "x") === 1, "arcSet records the stage");
+  h.age += 4; assert(Ev.arcYears(h, "x") === 4, "arcYears tracks elapsed years");
+  Ev.arcEnd(h, "x"); assert(Ev.arcStage(h, "x") === 0, "arcEnd clears the arc");
+
+  const mkChar = seed => {
+    const rng = new E.RNG(seed); const c = L.bornCharacter(rng, "Hero" + seed, null);
+    c.realm = 4; c.stage = 2; c.awakened = true; c.comprehension = c.soul = 140; c.daoHeart = 60; c.age = 30; c.spiritStones = 100;
+    if (c.root.key === "none") c.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Metal"], comprehensionBonus: 0, display: "H" };
+    E.recomputeMaxHp(c); E.recomputeMaxAge(c); c.hp = c.maxHp; return { c, rng };
+  };
+  const api = (c, rng) => ({
+    qi: () => { c.qi = (c.qi || 0) + 1; }, happy: n => { c.happiness = Math.max(0, Math.min(100, (c.happiness || 50) + n)); },
+    heal: n => { c.hp = Math.max(1, (c.hp || 1) + n); }, stones: n => { c.spiritStones = Math.max(0, (c.spiritStones || 0) + n); },
+    herbs: n => { c.herbs = Math.max(0, (c.herbs || 0) + n); }, karma: n => { c.karma = (c.karma || 0) + n; }, note: t => c.log.push([c.age, t]),
+    learnTech: () => "Test Manual", giveArtifact: g => E.acquireArtifact(c, E.randomArtifact(c, rng, g)),
+    power: () => E.power(c), fight: e => E.fight(c, rng, e),
+    meet: (role, opts = {}) => { const n = { name: "NPC" + c.relationships.length, role, affinity: opts.affinity != null ? opts.affinity : 20, alive: true, power: 0 }; E.ensureNpcProfile(n, rng, { realm: opts.realm != null ? opts.realm : 0 }); c.relationships.push(n); return n; },
+  });
+  const ev = id => EVENTS.find(e => e.id === id);
+  const choose = (c, rng, A, id, i) => { const e = ev(id); const ch = e.choices.filter(x => !x.cond || x.cond(c))[i]; return ch.result(c, rng, A); };
+
+  // Sword-tomb arc, heir path: accept → temper → forge → mastery (a sword art).
+  { const { c, rng } = mkChar(11); const A = api(c, rng);
+    assert(ev("swordtomb_start").cond(c), "the sword-tomb opener is eligible");
+    choose(c, rng, A, "swordtomb_start", 0); assert(Ev.arcStage(c, "swordtomb") === 1, "accepting the transmission advances to stage 1");
+    c.age += 3; assert(ev("swordtomb_trial").cond(c), "the trial beat comes due after the years pass");
+    choose(c, rng, A, "swordtomb_trial", 1); assert(Ev.arcStage(c, "swordtomb") === 2, "tempering advances to stage 2");
+    c.age += 3; assert(ev("swordtomb_master").cond(c), "the mastery beat comes due");
+    const before = c.techniques.length; choose(c, rng, A, "swordtomb_master", 0);
+    assert(Ev.arcStage(c, "swordtomb") === 99, "the sword-tomb arc resolves");
+    assert(c.techniques.length > before, "mastering the inheritance teaches a sword art");
+  }
+  // Virtuous fork ends the arc at once and differently (karma, not a technique).
+  { const { c, rng } = mkChar(12); const A = api(c, rng); const k = c.karma;
+    choose(c, rng, A, "swordtomb_start", 1);
+    assert(Ev.arcStage(c, "swordtomb") === 99 && c.karma > k, "the clean-death fork ends the arc with merit");
+  }
+  // Foundling arc: take in → neglect → a bitter ward becomes a nemesis.
+  { const { c, rng } = mkChar(13); const A = api(c, rng);
+    choose(c, rng, A, "foundling_start", 0);
+    assert(Ev.arcStage(c, "foundling") === 1, "taking in the ward advances to stage 1");
+    const ward = c.relationships.find(n => n.arcTag === "foundling"); assert(ward, "the ward is created and tagged for later beats");
+    c.age += 3; choose(c, rng, A, "foundling_raise", 2);
+    assert(ward.affinity < 40, "neglect erodes the ward's affinity");
+    ward.affinity = -40;
+    c.age += 3; choose(c, rng, A, "foundling_grown", 0);
+    assert(Ev.arcStage(c, "foundling") === 99 && ward.role === "nemesis", "a neglected ward can grow into a nemesis");
+  }
+  // Foundling arc, kind path: a treasured ward becomes a devoted disciple.
+  { const { c, rng } = mkChar(14); const A = api(c, rng);
+    choose(c, rng, A, "foundling_start", 0); const ward = c.relationships.find(n => n.arcTag === "foundling");
+    c.age += 3; choose(c, rng, A, "foundling_raise", 0);
+    c.age += 3; choose(c, rng, A, "foundling_grown", 0);
+    assert(ward.role === "disciple", "a kindly-raised ward becomes a disciple");
+  }
+  // A due storyline beat is drawn with priority by the year-roller.
+  { const { c, rng } = mkChar(15); const A = api(c, rng); Ev.arcSet(c, "swordtomb", 1); c.age += 3;
+    const out = Ev.rollYearEvents(c, rng, A);
+    assert(out.some(o => { const e = ev(o.id); return e && e.arc; }), "a due arc beat is prioritised in the yearly roll");
+  }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -447,6 +517,7 @@ try {
   test("new combat verbs (sunder, execute) and movement-art evasion", testCombatVerbsAndMovement);
   test("the Nemesis Reckoning settles a rivalry with spoils", testNemesisReckoning);
   test("branching dialogue events resolve every path to a terminal", testDialogueTrees);
+  test("multi-year storyline arcs thread and branch across the years", testStoryArcs);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);
