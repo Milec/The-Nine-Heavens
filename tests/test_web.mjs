@@ -518,7 +518,9 @@ function testTriggeredArcs() {
     if (cc.root.key === "none") cc.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Metal"], comprehensionBonus: 0, display: "H" };
     E.recomputeMaxHp(cc); E.recomputeMaxAge(cc); cc.hp = cc.maxHp; return { c: cc, rng };
   };
-  const api = (c, rng) => ({ qi: () => {}, happy: () => {}, heal: n => { c.hp = Math.max(1, c.hp + n); }, stones: n => { c.spiritStones = Math.max(0, c.spiritStones + n); }, herbs: n => { c.herbs = Math.max(0, c.herbs + n); }, karma: n => { c.karma = (c.karma || 0) + n; }, note: () => {}, learnTech: () => "M", giveArtifact: g => E.acquireArtifact(c, E.randomArtifact(c, rng, g)), power: () => E.power(c), fight: e => E.fight(c, rng, e), meet: () => ({ name: "n", alive: true }) });
+  const api = (c, rng) => ({ qi: () => {}, happy: () => {}, heal: n => { c.hp = Math.max(1, c.hp + n); }, stones: n => { c.spiritStones = Math.max(0, c.spiritStones + n); }, herbs: n => { c.herbs = Math.max(0, c.herbs + n); }, karma: n => { c.karma = (c.karma || 0) + n; }, note: () => {}, learnTech: () => "M", giveArtifact: g => E.acquireArtifact(c, E.randomArtifact(c, rng, g)), power: () => E.power(c), fight: e => E.fight(c, rng, e),
+    meet: (role, opts = {}) => { const n = { name: "NPC" + c.relationships.length, role, affinity: opts.affinity != null ? opts.affinity : 20, alive: true, power: 0 }; c.relationships.push(n); return n; },
+    makeNemesis: g => { const n = { name: "Foe", role: "nemesis", kin: "Nemesis", grudge: g, affinity: -45, alive: true, power: 1, element: "Dark" }; c.relationships.push(n); return n; } });
   const ev = id => EVENTS.find(e => e.id === id);
   const choose = (c, rng, A, id, i) => { const e = ev(id); const ch = e.choices.filter(x => !x.cond || x.cond(c))[i]; return ch.result(c, rng, A); };
 
@@ -569,6 +571,45 @@ function testTriggeredArcs() {
     c.age += 2; choose(c, rng, A, "beastking_trial", 0); assert(Ev.arcStage(c, "beastking") === 2, "the trial advances the arc");
     const before = c.beast.power; c.age += 2; choose(c, rng, A, "beastking_boon", 0);
     assert(Ev.arcStage(c, "beastking") === 99 && c.beast.power > before, "the Beast-King's boon empowers your companion");
+  }
+
+  // Sealed Will: realm-armed → commune → take all → climax resolves the arc.
+  { const { c, rng } = mk(26); const A = api(c, rng); E.armArc(c, "sealedwill", rng, 1);
+    assert(ev("sealedwill_start").cond(c), "an armed Sealed-Will opener is eligible");
+    choose(c, rng, A, "sealedwill_start", 0); assert(Ev.arcStage(c, "sealedwill") === 1, "communing begins the arc");
+    c.age += 2; choose(c, rng, A, "sealedwill_pull", 0); assert(Ev.arcStage(c, "sealedwill") === 2, "the pull deepens to stage 2");
+    c.age += 2; choose(c, rng, A, "sealedwill_climax", 0); assert(Ev.arcStage(c, "sealedwill") === 99, "the Sealed-Will arc resolves at its climax");
+  }
+  // Sect Schism: a ranked disciple is drawn in; loyalty, fought through, rewarded.
+  { const { c, rng } = mk(27); const A = api(c, rng); c.sectKey = "azure"; c.sectRank = 2;
+    assert(ev("schism_start").cond(c), "a ranked disciple in a sect can be drawn into a schism");
+    choose(c, rng, A, "schism_start", 0); assert(Ev.arcStage(c, "schism") === 1, "taking a side begins the schism arc");
+    c.age += 2; const rankBefore = c.sectRank; choose(c, rng, A, "schism_resolve", 0);
+    assert(Ev.arcStage(c, "schism") === 99, "the schism resolves");
+    assert(c.alive ? (c.sectRank >= rankBefore) : true, "surviving a loyal stand does not cost you rank");
+  }
+  // Reborn Bond (love): a reincarnation seed surfaces a soul reborn from a past love.
+  { const { c, rng } = mk(28); const A = api(c, rng); c.rebornBond = { name: "Yun'er", kind: "love", sex: "female" };
+    assert(ev("rebornbond_start").cond(c), "a reincarnation bond makes the Reborn-Bond opener eligible");
+    const before = c.relationships.length; choose(c, rng, A, "rebornbond_start", 0);
+    assert(Ev.arcStage(c, "rebornbond") === 99 && !c.rebornBond, "the arc resolves and consumes the bond seed");
+    assert(c.relationships.length > before && c.relationships.some(n => n.role === "companion"), "approaching a reborn love kindles a new companion");
+  }
+  // Reborn Bond (foe): approaching a reborn enemy rekindles a nemesis.
+  { const { c, rng } = mk(29); const A = api(c, rng); c.rebornBond = { name: "Mo Han", kind: "foe", element: "Dark" };
+    choose(c, rng, A, "rebornbond_start", 0);
+    assert(c.relationships.some(n => n.role === "nemesis"), "approaching a reborn enemy rekindles a nemesis");
+  }
+  // Reincarnation seeds a reborn bond from a past life's deepest tie.
+  { let seeded = false;
+    for (let s = 0; s < 30 && !seeded; s++) {
+      const rng = new E.RNG(700 + s);
+      const old = L.bornCharacter(rng, "Past", null); old.realm = 6;
+      old.relationships.push({ name: "Beloved", role: "companion", affinity: 95, alive: false, sex: "female", power: 0 });
+      const next = L.reincarnateLife(old, rng, "Reborn");
+      if (next.rebornBond) seeded = true;
+    }
+    assert(seeded, "a past life's deepest bond can be reborn into the next life");
   }
 }
 

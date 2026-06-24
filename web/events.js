@@ -1565,6 +1565,112 @@ export const EVENTS = [
       } },
     ],
   },
+
+  // — The Sealed Will (残识之秘) — armed by conquering a Secret Realm; a dead
+  //   power's memory-shard that offers knowledge and covets your body.
+  {
+    id: "sealedwill_start", arc: true, weight: 40, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "sealedwill") === 0 && E.arcArmed(c, "sealedwill"),
+    speaker: () => "A Will Not Your Own",
+    text: () => "The thing that followed you out of the realm stirs in your sea of consciousness — a shard of some long-dead immortal's will, watchful and patient. <Child,> it murmurs, in a voice like dust settling, <I have waited an age for a vessel. Walk with me, and I will give you a thousand years of my knowing.>",
+    choices: [
+      { label: "Commune with the remnant", result: (c, rng, A) => { E.disarmArc(c, "sealedwill"); arcSet(c, "sealedwill", 1, { path: "commune" }); cap(c, "comprehension", 2); A.note("Began communing with a sealed immortal's will."); return ["You lower your guard, just a little, and let the old will speak. Knowledge older than your sect washes through you — and a cold patience settles in behind your eyes, waiting. (+Comprehension)"]; } },
+      { label: "Seal it away behind your dao heart", result: (c, rng, A) => { E.disarmArc(c, "sealedwill"); arcSet(c, "sealedwill", 99); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); cap(c, "soul", 2); return ["You will not share your own skull with a dead thing's ambition. With patient effort you wall the shard behind your dao heart, where it rages, and quiets, and at last goes still. (+Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "sealedwill_pull", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "sealedwill") === 1 && arcYears(c, "sealedwill") >= 2,
+    text: () => "The sealed will has been generous — and each gift binds you a little tighter. Tonight it offers a true treasure of its knowing, and you feel how much of yourself it would cost to take it whole.",
+    choices: [
+      { label: "Take everything it offers", result: (c, rng, A) => { arcSet(c, "sealedwill", 2, { path: "deep" }); A.qi(0.9); cap(c, "comprehension", 4); return ["You open wide and drink it all down. Power and memory not your own flood your meridians — magnificent, intoxicating — and your own thoughts feel, for a moment, like a guest's in someone else's house. (+++Comprehension, +qi)"]; } },
+      { label: "Take only what you can hold — and keep your self", result: (c, rng, A) => { arcSet(c, "sealedwill", 2, { path: "guarded" }); cap(c, "comprehension", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 4); return ["You take a careful sip and no more, holding the line at the edge of your own name. The will is displeased — but you remain wholly, stubbornly yourself. (+Comprehension, +Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "sealedwill_climax", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "sealedwill") === 2 && arcYears(c, "sealedwill") >= 2,
+    speaker: () => "The Will, Unmasked",
+    text: () => "The sealed will makes its move at last, surging up to seize the body it has fed so patiently. <Enough sipping, child. The vessel is ripe — and it was always going to be mine.> Your own hands no longer entirely answer you.",
+    choices: [
+      { label: "Wrestle it for your own soul", result: (c, rng, A) => {
+        const deep = c.arcs.sealedwill && c.arcs.sealedwill.path === "deep"; arcSet(c, "sealedwill", 99);
+        const ward = (c.daoHeart || 0) / 150 + c.soul / 400 - (deep ? 0.18 : -0.05);
+        if (rng.random() < 0.45 + ward) {
+          cap(c, "comprehension", 4); cap(c, "soul", 3); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); A.note("Mastered a sealed immortal's will and made its knowing your own.");
+          return ["You seize the intruding will in your own and *crush* it down, and in crushing it, claim it — its thousand years of knowing dissolve into yours, ownerless now, yours alone. You are wholly yourself, and so much more than you were."]
+            .concat(E.acquireArtifact(c, E.randomArtifact(c, rng, "Heaven")))
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.5 }));
+        }
+        c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); c.soul = Math.max(1, c.soul - 5); c.comprehension = Math.max(1, c.comprehension - 4); A.heal(-Math.round(c.maxHp * 0.3)); cap(c, "constitution", 0);
+        return ["You hold the line — barely — and drive the will back into its shard, but the war leaves you torn. It cost you pieces of yourself you are not sure you will get back, and the shard, beaten, still whispers in the dark. (−Soul, −Comprehension, −Dao Heart, −health)"];
+      } },
+    ],
+  },
+
+  // — Sect Schism (宗门之变) — a power-struggle that finds an established disciple.
+  {
+    id: "schism_start", arc: true, weight: 4, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "schism") === 0 && !!c.sectKey && (c.sectRank || 0) >= 2,
+    speaker: () => "A Conspirator at Your Door",
+    text: c => `A Grand Elder of the ${E.sectName(c)} comes to your quarters by night, unannounced. "The Sect Master grows old and weak, and clutches the seat like a miser," they murmur. "Some of us mean to see the sect led by the strong again. A disciple of your standing must choose a side — tonight. Where do you stand?"`,
+    choices: [
+      { label: "Stand with the Sect Master", result: (c, rng, A) => { arcSet(c, "schism", 1, { path: "loyal" }); return ["You show the conspirator the door. \"The sect is not a prize to be seized.\" They leave with a cold nod — and now both factions know exactly where you stand. The mountain holds its breath."]; } },
+      { label: "Join the rebel faction", result: (c, rng, A) => { arcSet(c, "schism", 1, { path: "rebel" }); A.karma(-4); return ["You clasp the elder's arm. Ambition answers ambition. In shadowed halls the rebels gather strength, and you among them — for a sect led by the strong has a place near its summit for those who helped it rise."]; } },
+      { label: "Stay out of it and watch", result: (c, rng, A) => { arcSet(c, "schism", 1, { path: "neutral" }); cap(c, "soul", 1); return ["\"This is above an inner disciple,\" you demur, and keep your own counsel. Both sides mark you as uncommitted — useful, perhaps, or expendable. You will know soon which. (+Soul)"]; } },
+    ],
+  },
+  {
+    id: "schism_moot", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "schism") === 1 && !c.sectKey,
+    auto: (c, rng, A) => { arcSet(c, "schism", 99); return "Word reaches you that the schism you left behind has run its course without you — masters risen and fallen, the mountain reshaped. It is no longer your concern; you walk a different road now."; },
+  },
+  {
+    id: "schism_resolve", arc: true, weight: 22, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "schism") === 1 && arcYears(c, "schism") >= 2 && !!c.sectKey,
+    text: c => `The long cold war within the ${E.sectName(c)} erupts into open blades. Disciples choose their sides on the duelling terraces, and the matter will be settled in qi and steel by nightfall. Your moment has come.`,
+    choices: [
+      { label: "Throw your strength behind your chosen side", result: (c, rng, A) => {
+        const path = (c.arcs.schism && c.arcs.schism.path) || "neutral"; arcSet(c, "schism", 99);
+        const foeName = path === "rebel" ? "a Loyalist Champion" : path === "loyal" ? "the Rebel Ringleader" : "a Desperate Combatant";
+        const res = A.fight([foeName, A.power() * rng.uniform(1.0, 1.35), (c.realm + 1) * 8, "rogue"]);
+        if (!c.alive) return [`Steel decides the day.`].concat(res);
+        if (path === "loyal") { c.contribution = (c.contribution || 0) + 200; c.reputation += 8; if ((c.sectRank || 0) < 4) c.sectRank = (c.sectRank || 0) + 1; A.note("Defended the Sect Master through the schism."); res.push("The rebellion breaks against the loyalists, and you at the spear-point of it. The grateful Sect Master raises your rank and heaps contribution upon you. (+rank, +contribution, +Reputation)"); }
+        else if (path === "rebel") { c.contribution = (c.contribution || 0) + 160; c.reputation += 4; A.karma(-6); if ((c.sectRank || 0) < 5) c.sectRank = Math.min(5, (c.sectRank || 0) + 2); A.note("Helped overthrow the old Sect Master."); res.push("The old master falls, and a new order rises with you high in its councils — bought with blood and a colder name. (++rank, +contribution, −Karma)"); }
+        else { c.reputation += 3; if (rng.random() < 0.4 + c.charm / 250) { A.karma(6); res.push("As the factions exhaust themselves you step between them and broker a peace no one else could. Both sides owe you now. (+Karma, +Reputation)"); } else { c.contribution = Math.max(0, (c.contribution || 0) - 40); res.push("You survive the chaos but win no glory in it; a sect that remembers your fence-sitting is slow to reward you. (−contribution)"); } }
+        return [`Blades flash across the terraces.`].concat(res);
+      } },
+    ],
+  },
+
+  // — The Reborn Bond (夙世之缘) — a soul you were bound to, returned in this life.
+  {
+    id: "rebornbond_start", arc: true, weight: 40, minAge: 14, awakened: true, cooldown: 0,
+    cond: c => !!c.rebornBond && arcStage(c, "rebornbond") === 0,
+    speaker: () => "A Face You Have Never Seen",
+    text: c => c.rebornBond && c.rebornBond.kind === "love"
+      ? "A stranger passes you in a market lane and the world tilts. You have never seen this face — and yet your heart cracks open with a grief and a tenderness that are not from this life. A name surfaces in you, unbidden, that you should have no way of knowing. The soul you loved most, in a life you do not remember, has been reborn into the turning of the wheel, the same as you."
+      : "A stranger's eyes meet yours across a crowded square and you both go rigid, hackles up, hands drifting toward weapons you have not drawn — for no reason either of you could name. You have never met. And yet every instinct you own is screaming an old, old hatred. A soul you once warred with, lifetimes ago, walks the world again.",
+    choices: [
+      { label: c => c.rebornBond && c.rebornBond.kind === "love" ? "Approach them, and trust the ache" : "Approach the old enemy", cond: () => true, result: (c, rng, A) => {
+        const bond = c.rebornBond; c.rebornBond = null; arcSet(c, "rebornbond", 99);
+        if (bond && bond.kind === "love") {
+          const n = A.meet("companion", { affinity: 45, sex: bond.sex === "female" ? "male" : bond.sex === "male" ? "female" : undefined });
+          A.happy(10); A.note("Met a soul reborn from a past life's love.");
+          return [`You cross the lane on legs not quite your own and simply say their old name. They turn, startled — and something behind their eyes wakes and *knows* you, even if their mind cannot. A bond two lifetimes deep rekindles in an afternoon. (${n ? n.name : "A new love"} — court them, and a dao companion they may again become.)`];
+        }
+        const nem = A.makeNemesis("a war fought and lost across the wheel of two lifetimes");
+        A.happy(-2);
+        return [`You stride up and name them, and the old enemy's lip curls though they cannot say why. "I don't know you," they grind out. "But I am going to enjoy this." The grudge of a forgotten lifetime takes up exactly where it left off. (${nem ? nem.name : "An old foe"} is reborn as your nemesis — settle it in Adventure.)`];
+      } },
+      { label: c => c.rebornBond && c.rebornBond.kind === "love" ? "Let the past rest, and walk on" : "Let the old grudge die unfought", result: (c, rng, A) => {
+        const love = c.rebornBond && c.rebornBond.kind === "love"; c.rebornBond = null; arcSet(c, "rebornbond", 99);
+        c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 5); cap(c, "soul", 2);
+        if (love) { A.happy(-3); return ["You close your hand around the ache and let them pass, a stranger to a stranger. Some loves are meant for one life only; carrying them into the next is a weight no soul should bear. You walk on, lighter and emptier both. (+Dao Heart, +Soul)"]; }
+        A.karma(6); return ["You unclench your fist and let the nameless hatred drain out of you. Whatever was between you belonged to two people who are both long dead. You give the stranger a small nod and walk away, a lifetime's grudge finally laid down. (+Karma, +Dao Heart)"];
+      } },
+    ],
+  },
 ];
 
 /* ----------------------- eligibility & rolling --------------------------- */

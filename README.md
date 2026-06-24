@@ -53,8 +53,17 @@ cultivation to purge it at the last); diligent, gifted **study** may draw a
 **hidden master (名师传业)** who offers a once-in-three-centuries apprenticeship
 that rewards heart and punishes shortcuts; and a spirit beast of worthy
 bloodline may be **summoned by an ancient Beast-King (兽王之召)** to be tested and,
-if proven, awaken an ancestral bloodline. Every arc is gated to a fitting age
-and realm, and triggers where it makes sense — by chance, or by certainty. Within each year you may perform a few **deeds** — use
+if proven, awaken an ancestral bloodline. Conquering a **Secret Realm** may lodge a dead immortal's **Sealed Will (残识之秘)**
+in your sea of consciousness — knowledge beyond price, and a patient hunger for
+your body that you must one day wrestle for your very soul. Rise to standing in a
+**sect** and a **Sect Schism (宗门之变)** may force you to choose loyalty, ambition,
+or neutrality in a years-long power struggle settled in blood. And the wheel of
+rebirth keeps its own bonds: a soul you loved or warred with most fiercely may be
+**reborn alongside you (夙世之缘)**, a stranger's face that stops you cold with a
+grief or a hatred not from this life — to rekindle, or to lay to rest. Every arc
+is gated to a fitting age and realm, and triggers where it makes sense — found at
+random when the time is right, or set in motion by your own deeds, by chance or
+by certainty. Within each year you may perform a few **deeds** — use
 the tabs to **Cultivate** (seclusion, breakthroughs, the Dao), tend
 **Relationships** (family, masters, rivals, dao companions, even children of
 your own), pursue **Activities** (train, study, rest, alchemy, adventure), and

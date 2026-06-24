@@ -307,7 +307,7 @@ function newCharacter() {
     sectKey: null, sectRank: 0, contribution: 0, sectMissions: 0, sectJoinedAge: null, titles: [], epithets: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equipment: {}, refinement: {}, equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
-    daos: [], daoLevels: {}, daoFocus: null, daoInsight: 0, daoHeart: 10, karma: 0, reincarnationCount: 0, arcs: {}, arcTriggers: [],
+    daos: [], daoLevels: {}, daoFocus: null, daoInsight: 0, daoHeart: 10, karma: 0, reincarnationCount: 0, arcs: {}, arcTriggers: [], rebornBond: null,
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
     movementArts: [], moveMastery: {}, customTechs: [],
     mastery: {},

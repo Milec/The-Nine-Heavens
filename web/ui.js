@@ -2369,6 +2369,9 @@ function realmComplete() {
   if (state.rng.random() < 0.5) for (const m of realmFortune(c)) lines.push("  " + m);
   const title = "Secret Realm Delver";
   if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, `Conquered the ${theme.name}.`]); lines.push(`  ✦ You earn the title: ${title}!`); }
+  // Plumbing the heart of an ancient realm can lodge a dead power's memory-shard
+  // in your sea of consciousness — arming a years-long Sealed Will arc.
+  if (c.realm >= 3 && E.armArc(c, "sealedwill", state.rng, 0.22)) lines.push("  ✦ Something in the inner sanctum looked back at you. A cold, watchful something has followed you out...");
   logMessages(lines);
   realmEnd(true);
 }

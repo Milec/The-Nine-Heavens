@@ -68,6 +68,13 @@ export function reincarnateLife(old, rng, name) {
   carryLegacySect(c, old, rng);
   c.era = old.era; c.eraYears = old.eraYears;   // the world keeps turning across rebirth
   if (old.rankboard) c.rankboard = old.rankboard;
+  // A soul you were bound to most fiercely may be reborn into this turning of the
+  // wheel too — a lost dao companion or a sworn nemesis. Seeds the Reborn Bond arc.
+  const lostLove = (old.relationships || []).filter(n => n.role === "companion" && !n.alive && (n.affinity || 0) >= 70)
+    .sort((a, b) => (b.affinity || 0) - (a.affinity || 0))[0];
+  const oldNemesis = (old.relationships || []).filter(n => n.role === "nemesis").sort((a, b) => (b.power || 0) - (a.power || 0))[0];
+  if (lostLove && rng.random() < 0.5) c.rebornBond = { name: lostLove.name, kind: "love", sex: lostLove.sex };
+  else if (oldNemesis && rng.random() < 0.5) c.rebornBond = { name: oldNemesis.name, kind: "foe", element: oldNemesis.element };
   return c;
 }
 
