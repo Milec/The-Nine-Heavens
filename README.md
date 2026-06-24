@@ -351,18 +351,27 @@ on *Random*, with a live preview and a reroll for the attributes.
 Everything that defines your potential is rolled the instant you are born:
 
 - **Spiritual Root (灵根)** — the single biggest talent factor, from the
-  sneered-at *False Five Root* through the *Heavenly* and *Variant* roots up to
-  the near-mythical *Chaos Root*. It multiplies every scrap of qi you ever
-  absorb. A *Mortal Veins* roll means no spiritual root at all.
+  sneered-at *False Five Root* through the *Heavenly* root and a clutch of
+  **variant roots** — the sword-honed *Sword-Bone Root*, the storm-touched
+  *Heavenly Thunder Root*, the *Profound Ice Root*, the rare *Void Spirit Root* —
+  up to the near-mythical *Chaos Root*. It multiplies every scrap of qi you ever
+  absorb, and a single-element root **attunes** you to that element. A *Mortal
+  Veins* roll means no spiritual root at all.
 - **Physique (体质)** — usually an ordinary body, but rarely a destiny-altering
-  constitution like the *Nine-Yang Divine Body* (faster cultivation, immune to
-  burning, lethal to demons) or the *Innate Dao Embryo* (much faster cultivation
-  and Dao insight, easier breakthroughs). Special physiques grant **lasting
-  bonuses** to cultivation, combat, healing or survival — not just birth stats.
-  Tap any stat (or the **ⓘ Glossary** in your character sheet) to learn what it does.
-- **Birth Standing (出身)** — from *Bond-Slave* and *Gutter Orphan* to *Noble
-  Cultivation Clan* and *Imperial Bloodline*. This sets your starting reputation,
-  spirit stones, and heirloom items.
+  constitution: the *Nine-Yang Divine Body* (faster cultivation, immune to
+  burning, lethal to demons), the *Innate Dao Embryo* (much faster cultivation
+  and Dao insight), the **Vermilion Phoenix Body** (healing and a rebirth from
+  death), the **True Dragon Body** and **Earth-Titan Body** (overwhelming or
+  unbreakable flesh), the **Sword-Heart Body** (a born killer's edge), the
+  **Gale-Spirit Body** (wind-quick evasion), and more. Special physiques grant
+  **lasting bonuses** to cultivation, combat, healing or survival — not just
+  birth stats — and pass down your **bloodline**. Tap any stat (or the **ⓘ
+  Glossary** in your character sheet) to learn what it does.
+- **Birth Standing (出身)** — from *Bond-Slave* and *Gutter Orphan* through a
+  *Fallen Noble*, a *Sea-Raider's Child*, a *Temple Foundling*, a *Physician's
+  Child* (a head start at the furnace) or a *Steppe Nomad*, all the way up to a
+  *Noble Cultivation Clan* and *Imperial Bloodline*. This sets your starting
+  reputation, spirit stones, upbringing, and heirloom items.
 - **Appearance (容貌)** — from *Hideous* through *Comely* and *Peerless Beauty*
   to *Immortal Grace*, rolled at birth and a heavy thumb on the Charm scale.
   A striking face opens doors, sways elders, and draws dao companions.

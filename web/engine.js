@@ -289,6 +289,10 @@ function rollRoot(rng, forcedKey) {
   else if (key === "triple") elements = rng.sample(D.ELEMENTS, 3);
   else if (key === "dual") elements = rng.sample(D.ELEMENTS, 2);
   else if (key === "heavenly") elements = [rng.choice(D.ELEMENTS)];
+  else if (key === "swordroot") elements = ["Metal"];
+  else if (key === "thunderroot") elements = ["Lightning"];
+  else if (key === "iceroot") elements = ["Ice"];
+  else if (key === "voidroot") elements = ["Void"];
   else if (key === "variant") elements = [rng.choice(D.VARIANT_ELEMENTS)];
   else if (key === "chaos") elements = ["Chaos"];
   const mult = Math.round(mult0 * rng.uniform(0.9, 1.12) * 1000) / 1000;
@@ -350,8 +354,12 @@ export function generateCharacter(rng, name, opts = {}) {
     scholar: ["comprehension", 8], noble: ["comprehension", 6], royal: ["luck", 10],
     martial: ["constitution", 10], hermit: ["comprehension", 12], demon: ["soul", 8],
     slave: ["constitution", -6], beggar: ["luck", -4],
+    temple: ["comprehension", 8], corsair: ["constitution", 6], nomad: ["constitution", 8],
+    physician: ["comprehension", 4], fallen: ["charm", 4],
   };
   if (nurture[bk]) { const [a, d] = nurture[bk]; c[a] += d; }
+  // A physician's child grows up with a real head start at the furnace.
+  if (bk === "physician") c.alchemySkill = (c.alchemySkill || 0) + 10;
   for (const a of ["comprehension", "constitution", "soul", "luck", "charm"])
     c[a] = clamp(c[a], 1, 160);
 
@@ -366,7 +374,7 @@ export function generateCharacter(rng, name, opts = {}) {
 /* ------------------------------- genetics -------------------------------- */
 // Children inherit a blend of BOTH parents: spiritual-root tier (with mutation),
 // special physiques that can run in a bloodline, looks, and core attributes.
-const GENO_SPECIALS = ["sturdy", "spirit", "yin", "yang", "dao", "immortal"];
+const GENO_SPECIALS = ["sturdy", "spirit", "yin", "yang", "dao", "phoenix", "gale", "swordheart", "titan", "dragon", "immortal"];
 const apprIdx = key => { const i = D.APPEARANCES.findIndex(a => a[0] === key); return i < 0 ? 2 : i; };
 const genomeShape = (rootKey, physiqueKey, appearanceKey, comp, con, soul, luck, charm) =>
   ({ rootKey, physiqueKey, appearanceKey, comprehension: comp, constitution: con, soul, luck, charm });

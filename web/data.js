@@ -43,8 +43,16 @@ export const ROOT_TYPES = [
     "Two harmonised elements. The kind of talent that earns a seat among a sect's core disciples."],
   ["heavenly", "Heavenly Root (天灵根)", 2.60, 10, 28,
     "A single pure element. A genius once in a generation, courted by every great sect under heaven."],
+  ["swordroot", "Sword-Bone Root (剑骨灵根)", 2.75, 11, 10,
+    "Born with sword-bones — a single killing edge of Metal affinity that takes to the blade as breath to the lungs. Sword sects would war over you."],
   ["variant", "Variant Root (异灵根)", 3.40, 14, 8,
     "A mutated root channeling a power beyond the five elements. Prophecies are written about children like you."],
+  ["thunderroot", "Heavenly Thunder Root (天雷灵根)", 3.35, 13, 4,
+    "A variant root crackling with the heavens' own lightning; tribulations recognise their own, and the sky's wrath answers your call."],
+  ["iceroot", "Profound Ice Root (玄冰灵根)", 3.35, 13, 4,
+    "A variant root of glacial cold and stillness — your qi runs clear and merciless as a winter river, and your dao heart with it."],
+  ["voidroot", "Void Spirit Root (虚灵根)", 3.45, 16, 3,
+    "A variant root attuned to the empty Void that underlies all things — rarer even than the prophecies that foretell it."],
   ["chaos", "Chaos Root (混沌灵根)", 5.00, 22, 2,
     "The legendary primordial root that devours all elements. Such a soul is born to shake the Nine Heavens themselves."],
 ];
@@ -57,6 +65,11 @@ export const PHYSIQUES = [
   ["yang", "Nine-Yang Divine Body (九阳神体)", "A blazing yang constitution that scorches all poisons and demons.", 1.5, 1.4, 1.1, 2, 18],
   ["yin", "Grand-Yin Mystic Body (太阴玄体)", "A still, cold body that drinks moonlight and soothes the soul.", 1.1, 1.5, 1.4, 2, 16],
   ["dao", "Innate Dao Embryo (先天道胎)", "A body the heavens themselves seem to have shaped for cultivation.", 1.6, 1.7, 1.6, 4, 6],
+  ["phoenix", "Vermilion Phoenix Body (朱雀涅槃体)", "A body of fire and renewal that rises from its own ashes.", 1.3, 1.4, 1.2, 2, 10],
+  ["gale", "Gale-Spirit Body (罡风之体)", "Quicksilver flesh, light as wind and twice as hard to pin.", 1.1, 1.2, 1.2, 1, 12],
+  ["swordheart", "Sword-Heart Body (剑心通明体)", "A body and mind honed for the blade; killing intent comes as easily as breath.", 1.2, 1.2, 1.4, 1, 11],
+  ["titan", "Earth-Titan Body (后土巨灵体)", "Flesh like living mountain-rock — slow to gather qi, but all but unbreakable.", 1.9, 0.9, 1.0, 0, 9],
+  ["dragon", "True Dragon Body (真龙之躯)", "The blood of dragons runs in you — overwhelming in body and qi alike.", 1.7, 1.5, 1.2, 3, 4],
   ["immortal", "Undying Golden Body (不灭金身)", "Legends say such flesh cannot truly die while a single drop of blood remains.", 2.2, 1.3, 1.2, 5, 2],
 ];
 
@@ -74,6 +87,11 @@ export const BACKGROUNDS = [
   ["royal", "Imperial Bloodline (皇族)", "A child of an immortal-blooded dynasty that rules ten thousand li.", 60, 400, ["Dragon-Pattern Jade", "Imperial Body Lotion"], 14],
   ["demon", "Demonic Sect Scion (魔道传人)", "Heir to a hunted devil-path lineage -- feared, powerful, and alone.", -5, 120, ["Blood Refining Manual", "Soul-Eating Talisman"], 25],
   ["hermit", "Hidden Master's Heir (隐世传人)", "Found and raised by a reclusive ancient who saw something in you.", 5, 40, ["Mysterious Jade Slip", "Spirit Herb Bundle"], 18],
+  ["fallen", "Fallen Noble (没落世家)", "Your once-great clan crumbled before you were grown; you carry an old name, old debts, and one heirloom blade.", 5, 20, ["Clan Spirit Sword"], 55],
+  ["corsair", "Sea-Raider's Child (海寇遗孤)", "Raised on a reaver fleet among salt, blood and stolen relics, you learned the knife before the brush.", -8, 24, ["Coarse Iron Saber"], 45],
+  ["temple", "Temple Foundling (古刹弃儿)", "Left at a mountain monastery's gate and raised on sutras and cold gruel; the bells still ring in your dreams.", 6, 4, ["Annotated Dao Classic"], 60],
+  ["physician", "Physician's Child (杏林之家)", "Raised among herbs and silver needles, you could tell a poppy from a poison blindfold before you could read.", 8, 18, ["Spirit Herb Bundle"], 55],
+  ["nomad", "Steppe Nomad (草原牧民)", "Born to the horse-clans under open sky — hardy, far-wandering, and a stranger to every sect.", 0, 8, [], 70],
 ];
 
 // [text, comp, body, soul, luck, weight]
@@ -88,6 +106,16 @@ export const BIRTH_OMENS = [
   ["A spring bubbled up in the dry courtyard and ran sweet for a day.", 0, 0, 1, 2, 22],
   ["Crows gathered by the hundred and would not be driven off.", 0, 0, 1, -3, 18],
   ["An old turtle climbed from the river and bowed its head toward the house.", 1, 0, 1, 3, 10],
+  ["Every flower in the valley bloomed at once the night you were born, then withered by dawn.", 1, 0, 1, 1, 18],
+  ["A two-headed serpent was found coiled on the threshold, and could not be killed.", 0, 1, 0, -2, 16],
+  ["Nine cranes flew down and kept vigil on the roof-ridge until you were named.", 1, 0, 1, 2, 9],
+  ["The dry well ran with sweet wine for the space of a single breath.", 0, 0, 0, 3, 12],
+  ["A meteor fell into the western hills the hour of your birth; treasure-hunters dig for it still.", 1, 1, 0, 1, 14],
+  ["Your grandmother dreamed of a golden dragon coiling into your mother's womb.", 2, 1, 1, 1, 7],
+  ["The family's old blind dog stared at your cradle and howled for three nights running.", 0, 0, 1, -3, 20],
+  ["Frost-flowers spread across every window though it was the height of summer.", 1, 0, 1, 0, 16],
+  ["You did not breathe for a full minute — then laughed, instead of crying.", 2, 0, 1, -1, 12],
+  ["A wandering monk left a single copper coin in your swaddling and walked away without a word.", 0, 0, 1, 2, 14],
 ];
 
 export const SURNAMES = ["Li","Wang","Zhang","Han","Mu","Lin","Ye","Xiao","Chu","Bai","Gu","Jiang","Yun","Ji","Su","Tang","Feng","Ling","Shen","Qin"];
@@ -140,10 +168,13 @@ export const MOVEMENT_BY_KEY = Object.fromEntries(MOVEMENT_ARTS.map(m => [m[0], 
 // [key, display, charmBonus, blurb, weight]
 export const APPEARANCES = [
   ["hideous", "Hideous (丑陋)", -25, "Scarred and misshapen; strangers flinch and look away.", 35],
+  ["weathered", "Weathered (沧桑)", -3, "A hard, careworn face that has seen too much too young — but there's a flinty appeal in it.", 120],
   ["plain", "Plain (相貌平平)", -8, "An utterly forgettable face in any crowd.", 180],
   ["ordinary", "Ordinary (寻常)", 0, "Neither handsome nor homely -- simply unremarkable.", 320],
   ["comely", "Comely (清秀)", 10, "Pleasant to look upon, with clear bright eyes.", 200],
+  ["roguish", "Roguish (风流)", 16, "A wicked, careless handsomeness that charms even as it warns.", 95],
   ["striking", "Striking (俊美)", 22, "Strikingly handsome; heads turn when you pass.", 110],
+  ["ethereal", "Ethereal Fairness (空灵之美)", 30, "A delicate, otherworldly fairness, as though you were not quite made for this world.", 50],
   ["peerless", "Peerless Beauty (倾国倾城)", 38, "A face from a master's painting -- a beauty to topple cities.", 35],
   ["immortal", "Immortal Grace (谪仙之姿)", 55, "An otherworldly presence that stills a room the moment you enter.", 12],
 ];
@@ -165,7 +196,7 @@ export const SECTS = [
 ];
 export const SECT_BY_KEY = Object.fromEntries(SECTS.map(s => [s[0], s]));
 
-export const ROOT_TIER = { none:0, waste:0, quad:1, triple:2, dual:3, heavenly:4, variant:5, chaos:6 };
+export const ROOT_TIER = { none:0, waste:0, quad:1, triple:2, dual:3, heavenly:4, swordroot:4, variant:5, thunderroot:5, iceroot:5, voidroot:5, chaos:6 };
 // Representative root for a given tier (used by bloodline genetics).
 export const ROOT_BY_TIER = { 0:"waste", 1:"quad", 2:"triple", 3:"dual", 4:"heavenly", 5:"variant", 6:"chaos" };
 
@@ -882,6 +913,11 @@ export const PHYSIQUE_EFFECTS = {
   yang:     { cultivate: 0.15, burnImmune: true, vsDemon: 0.30, element: "Fire", desc: "Nine-Yang body: +15% cultivation, immune to burning, +30% damage vs demons, innate Fire." },
   yin:      { cultivate: 0.10, healBonus: 0.6, element: "Ice", desc: "Grand-Yin body: +10% cultivation, +60% to healing arts, innate Ice." },
   dao:      { cultivate: 0.30, breakthrough: 0.08, dao: 0.45, desc: "Innate Dao Embryo: +30% cultivation, +8% breakthrough odds, greatly faster Dao insight." },
+  phoenix:  { cultivate: 0.12, healBonus: 0.6, burnImmune: true, deathSave: 0.12, element: "Fire", desc: "Vermilion Phoenix body: +12% cultivation, +60% to healing arts, immune to burning, a chance to rise from death, innate Fire." },
+  gale:     { dodge: 0.16, qiPool: 0.20, element: "Wind", desc: "Gale-Spirit body: +16% dodge, +20% combat qi, innate Wind." },
+  swordheart: { dodge: 0.06, crit: 0.10, dao: 0.20, element: "Metal", desc: "Sword-Heart body: +10% crit, +6% dodge, faster Dao insight, innate Metal." },
+  titan:    { mitig: 0.20, hp: 0.55, element: "Earth", desc: "Earth-Titan body: heavy damage-reduction, +55% battle stamina, innate Earth." },
+  dragon:   { cultivate: 0.12, mitig: 0.12, hp: 0.30, vsDemon: 0.2, element: "Water", desc: "True Dragon body: +12% cultivation, strong mitigation, +30% battle stamina, innate Water." },
   immortal: { mitig: 0.18, hp: 0.50, deathSave: 0.25, desc: "Undying Golden Body: heavy damage-reduction, +50% battle stamina, and a chance to cheat death." },
 };
 export const physEffect = c => PHYSIQUE_EFFECTS[c.physiqueKey] || PHYSIQUE_EFFECTS.ordinary;

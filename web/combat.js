@@ -219,7 +219,7 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)),
     atk: P - E.beastPower(c),
     mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + (eq.def || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.8),
-    crit: clampN(c.luck / 400 + 0.05 + (eq.crit || 0), 0, 0.7),
+    crit: clampN(c.luck / 400 + 0.05 + (eq.crit || 0) + (ph.crit || 0), 0, 0.7),
     dodge: clampN(c.luck / 600 + c.soul / 900 + (eq.dodge || 0) + (ph.dodge || 0), 0, 0.6),
     equipLifesteal: eq.life || 0,
     healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,

@@ -71,7 +71,7 @@ export const EVENTS = [
     text: c => `A robed recruiter from a nearby sect hears of your ${c.root.display.split(" (")[0]} and comes knocking.`,
     choices: [
       { label: "Beg to take the entrance trial", result: (c, rng, A) => {
-        const tier = ({ none: 0, waste: 0, quad: 1, triple: 2, dual: 3, heavenly: 4, variant: 5, chaos: 6 })[c.root.key] || 0;
+        const tier = D.ROOT_TIER[c.root.key] || 0;
         if (rng.random() < 0.35 + tier * 0.12) { c._scouted = true; A.happy(12); return "They test your meridians, nod once, and bid you present yourself at the sect gates. A door to the heavens cracks open. (Visit the Sect tab.)"; }
         A.happy(-6); return "They frown at your foundation and move on. Not yet, they say. Not yet.";
       } },

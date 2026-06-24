@@ -343,7 +343,7 @@ function testCombatVerbsAndMovement() {
   p.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Dark"] };
   p.techniques = ["basic_breathing", "soul_reap"]; E.recomputeMaxHp(p); p.hp = p.maxHp;
   const B = C.createBattle(p, C.makeEnemy(p, r, { factor: 3.0 }), r, {});
-  B.enemy.hp = B.enemy.maxHp * 0.25;
+  B.enemy.hp = B.enemy.maxHp * 0.25; B.enemy.dodge = 0;   // ensure the reaping blow lands
   const res = B.act("soul_reap");
   assert(res.lines.some(l => /EXECUTE/.test(l)), "execute fires against a foe below the HP threshold");
 
@@ -684,6 +684,54 @@ function testTriggeredArcs() {
   }
 }
 
+// Birth options: every root, physique, background, appearance and omen must be
+// well-formed and fully integrated — and hand-picking any of them at creation
+// must produce a valid, matching soul.
+function testBirthOptions() {
+  assert(D.ROOT_TYPES.length >= 12 && D.PHYSIQUES.length >= 12, "the birth catalogue has grown");
+  // Every root has a tier and (where it cultivates) a concrete element on roll.
+  for (const r of D.ROOT_TYPES) {
+    const key = r[0];
+    assert(D.ROOT_TIER[key] != null, `root ${key} has a talent tier`);
+    const c = L.bornCharacter(new E.RNG(5), "Root", null, { rootKey: key });
+    assert(c.root.key === key, `create-soul honours the chosen root ${key}`);
+    if (key !== "none") assert(c.root.elements.length >= 1, `cultivating root ${key} rolls a concrete element`);
+  }
+  // New specific-element roots attune correctly.
+  for (const [key, el] of [["swordroot", "Metal"], ["thunderroot", "Lightning"], ["iceroot", "Ice"], ["voidroot", "Void"]]) {
+    const c = L.bornCharacter(new E.RNG(6), "R", null, { rootKey: key });
+    assert(c.root.elements.includes(el), `${key} attunes to ${el}`);
+  }
+  // Every physique has a lasting-effect entry and a valid hand-picked soul.
+  for (const p of D.PHYSIQUES) {
+    const key = p[0];
+    assert(D.PHYSIQUE_EFFECTS[key] && D.PHYSIQUE_EFFECTS[key].desc, `physique ${key} has a lasting effect`);
+    const c = L.bornCharacter(new E.RNG(7), "Phys", null, { physiqueKey: key });
+    assert(c.physiqueKey === key && c.constitution >= 1 && c.constitution <= 160, `create-soul honours physique ${key} within caps`);
+  }
+  // Every background and appearance produces a valid, matching soul.
+  for (const b of D.BACKGROUNDS) {
+    const c = L.bornCharacter(new E.RNG(8), "Bg", null, { backgroundKey: b[0] });
+    assert(c.backgroundKey === b[0] && c.spiritStones >= 0, `background ${b[0]} is well-formed`);
+  }
+  for (const a of D.APPEARANCES) {
+    const c = L.bornCharacter(new E.RNG(9), "Ap", null, { appearanceKey: a[0] });
+    assert(c.appearanceKey === a[0] && c.charm >= 1 && c.charm <= 160, `appearance ${a[0]} stays within caps`);
+  }
+  // A physician's child starts with a real head-start at the furnace.
+  assert((L.bornCharacter(new E.RNG(10), "Doc", null, { backgroundKey: "physician" }).alchemySkill || 0) > 0, "a physician's child begins skilled at alchemy");
+  // Every omen is well-formed (text + four numeric nudges) and pickable.
+  for (let i = 0; i < D.BIRTH_OMENS.length; i++) {
+    const o = D.BIRTH_OMENS[i];
+    assert(typeof o[0] === "string" && o.length >= 6, `omen ${i} is well-formed`);
+    const c = L.bornCharacter(new E.RNG(11), "Om", null, { omenIndex: i });
+    assert(c.omen === o[0], `create-soul honours omen ${i}`);
+  }
+  // New special physiques can be inherited (are part of the genome's special set).
+  { const c = L.bornCharacter(new E.RNG(12), "Drag", null, { physiqueKey: "dragon" });
+    const g = E.playerGenome(c); assert(g && g.physiqueKey === "dragon", "a special physique enters the heritable genome"); }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -703,6 +751,7 @@ try {
   test("branching dialogue events resolve every path to a terminal", testDialogueTrees);
   test("multi-year storyline arcs thread and branch across the years", testStoryArcs);
   test("action-triggered arcs arm sensibly and thread to their ends", testTriggeredArcs);
+  test("new birth options are well-formed and fully integrated", testBirthOptions);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);
