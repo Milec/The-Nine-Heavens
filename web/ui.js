@@ -533,6 +533,15 @@ function challengeGenius(g) {
   });
 }
 
+// Relationship actions, grouped for the person screen so the menu reads at a
+// glance. Any action not listed here falls into a trailing "Other" section.
+const REL_ACTION_CATS = [
+  { label: "Warmth & Bonds", ids: ["talk", "gift", "court", "propose", "dual", "trychild", "reconcile"] },
+  { label: "Cultivation & Arts", ids: ["teach", "seekteaching", "guide", "mguidance", "guidance", "mission", "bestow", "askmaster", "askhelp"] },
+  { label: "Sparring & Duels", ids: ["spar", "duel"] },
+  { label: "Household", ids: ["invite", "sendaway"] },
+  { label: "Strain the Bond", ids: ["taunt", "harsh", "insult", "breakup", "expel"] },
+];
 function openPeople() {
   const c = state.c;
   openOverlay("Relationships", body => {
@@ -659,7 +668,7 @@ function openPerson(n) {
       ...cult,
       ...(n.occupation ? [["Occupation", n.occupation]] : []),
     ]));
-    for (const act of L.relationActions(c, n)) {
+    const mkActBtn = (act) => {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
       b.onclick = () => {
         if (act.id === "teach") { openTeachPicker(n); return; }   // picker spends the deed on teach
@@ -709,8 +718,19 @@ function openPerson(n) {
         if (!n.alive) { closeOverlay(); openPeople(); return; }
         openPerson(n);
       };
-      body.appendChild(b);
+      return b;
+    };
+    // Group the available actions into tidy sections so a long relationship menu
+    // reads at a glance, rather than as one undifferentiated wall of buttons.
+    const acts = L.relationActions(c, n), placed = new Set();
+    for (const cat of REL_ACTION_CATS) {
+      const group = cat.ids.map(id => acts.find(a => a.id === id)).filter(Boolean);
+      if (!group.length) continue;
+      body.appendChild(el("div", "section-h", cat.label));
+      for (const act of group) { placed.add(act.id); body.appendChild(mkActBtn(act)); }
     }
+    const rest = acts.filter(a => !placed.has(a.id));
+    if (rest.length) { body.appendChild(el("div", "section-h", "Other")); for (const act of rest) body.appendChild(mkActBtn(act)); }
     const back = el("button", "mbtn full"); back.innerHTML = "‹ Back"; back.onclick = openPeople; body.appendChild(back);
   });
 }

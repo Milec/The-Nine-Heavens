@@ -542,27 +542,28 @@ export function generatePopulation(rng, world) {
     const masterRealm = Math.min(D.REALMS.length - 1, 6 + tier);
     pop.push(makeWorldNpc(rng, { home: seat.id, sectKey: key, sectRank: 5, role: "sectmaster",
       title: "Sect Master", realm: masterRealm, age: rng.randint(120, 320) }));
-    const elders = 2 + (tier >= 3 ? 1 : 0);
+    const elders = 4 + (tier >= 3 ? 2 : 0);
     for (let i = 0; i < elders; i++)
       pop.push(makeWorldNpc(rng, { home: seat.id, sectKey: key, sectRank: i === 0 ? 4 : 3, role: "elder",
         title: i === 0 ? "Grand Elder" : "Elder", realm: Math.max(4, masterRealm - rng.randint(1, 3)) }));
-    const disciples = 3 + tier;
+    const disciples = 22 + tier * 8;
     for (let i = 0; i < disciples; i++)
       pop.push(makeWorldNpc(rng, { home: seat.id, sectKey: key, sectRank: rng.randint(0, 2), role: "disciple",
         realm: Math.max(1, masterRealm - rng.randint(3, 6)), age: rng.randint(16, 60) }));
   }
-  // Rogue cultivators dwelling in each settlement.
+  // Rogue cultivators dwelling in each settlement (the more populous the place,
+  // the denser its cultivators; the deadlier the land, the harder they run).
   for (const loc of locs) {
     const t = World.LOC_TYPES[loc.type];
     if (!t || !t.settle || loc.sectKey) continue;
-    const di = dangerIdx(loc), n = (t.npc || 1) + rng.randint(0, 1);
+    const di = dangerIdx(loc), n = (t.npc || 1) * 6 + rng.randint(0, 4);
     for (let i = 0; i < n; i++)
       pop.push(makeWorldNpc(rng, { home: loc.id, role: "rogue",
         realm: clamp(1 + di + rng.randint(0, 2), 0, D.REALMS.length - 1),
         rootPool: ["waste", "quad", "quad", "triple", "triple", "dual"] }));
   }
-  // A handful of unaffiliated wanderers of real strength — the era's loose stars.
-  for (let i = 0; i < 4; i++) {
+  // Unaffiliated wanderers of real strength — the era's loose stars.
+  for (let i = 0; i < 16; i++) {
     const loc = locs.length ? rng.choice(locs) : null;
     pop.push(makeWorldNpc(rng, { home: loc ? loc.id : null, role: "genius",
       realm: rng.choices([3, 4, 5, 6], [30, 30, 25, 15]) }));
