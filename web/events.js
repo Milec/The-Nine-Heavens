@@ -1190,6 +1190,106 @@ export const EVENTS = [
       { label: "Walk on warily", result: (c, rng, A) => { cap(c, "soul", 1); return "Something about that grin sets your spirit on edge. You keep your stones and your distance. (+Soul Sense)"; } },
     ],
   },
+
+  /* ===================== branching dialogue encounters =================== *
+   * These use the multi-step dialogue framework: a choice can open a follow-on
+   * node (with an NPC speaker) instead of ending the card, so the player talks,
+   * bargains and decides their way through a real conversation. */
+  {
+    id: "dlg_hermit", weight: 5, minAge: 12, minRealm: 1, awakened: true, cooldown: 25,
+    speaker: () => "A Reclusive Elder",
+    text: () => "Crossing a misted pass you find an old man in patched grey robes, brewing tea over a thumb-sized fire. He does not look up. \"Sit,\" he says. \"The kettle is near ready, and you have walked a long way to be so tense.\"",
+    choices: [
+      { label: "Sit and share his tea", result: () => ({
+        speaker: "The Elder",
+        text: "He pours two cups without asking. \"A riddle for the tea, then. When the blade falls and the heart is still — which moves first: the hand, or the intent behind it?\"",
+        choices: [
+          { label: "\"The intent. The hand only follows.\"", result: (c, rng, A) => { cap(c, "comprehension", 3); A.qi(0.5); return ["His eyes crease. \"Just so. Few your age see it.\" He traces a character in the ash and a knot in your meridians quietly loosens. (+Comprehension, +qi)"]; } },
+          { label: "\"The hand. Intent is a story we tell after.\"", result: (c, rng, A) => { cap(c, "constitution", 2); cap(c, "soul", 1); return ["He chuckles into his cup. \"A body-cultivator's answer — not wrong, but not whole.\" He raps your wrist with a knuckle and your sinews hum. (+Constitution)"]; } },
+          { label: "\"Neither. They were never two things.\"", result: (c, rng, A) => {
+            if (rng.random() < 0.5 + c.comprehension / 220) {
+              cap(c, "comprehension", 4); cap(c, "soul", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3);
+              const t = A.learnTech(); A.note("A nameless old master left a mark on your dao.");
+              return ["The cup stops at his lips. For a long moment he only looks at you. \"...Go,\" he says at last, softly, \"before I am tempted to keep you.\" He presses a jade slip into your palm.", t ? `  In the slip: a manual — ${t}!` : "  Insight blooms behind your eyes. (+Comprehension, +Soul, +Dao Heart)"];
+            }
+            cap(c, "soul", 1); return ["\"A fine thing to say,\" he murmurs, \"if you understood it.\" He smiles, not unkindly, and pours more tea. (+Soul)"];
+          } },
+        ],
+      }) },
+      { label: "Ask to become his disciple", result: () => ({
+        speaker: "The Elder",
+        text: "\"A master?\" He laughs until he coughs. \"I have nothing to teach that the mountain won't teach you cheaper. But boldness should not go home empty-handed.\"",
+        choices: [
+          { label: "Press him, earnest and unbending", result: (c, rng, A) => { if (rng.random() < 0.25 + c.charm / 300) { A.qi(0.8); cap(c, "comprehension", 2); return ["Something in your eyes gives him pause. \"...One lesson, then. Listen well, for I will not repeat it.\" For an hour he speaks, and the world quietly rearranges itself. (+qi, +Comprehension)"]; } A.herbs(rng.randint(3, 7)); A.happy(-1); return ["\"Persistent. Good. Still no.\" He waves you off — but tucks a bundle of spirit herbs into your sleeve as you turn to go."]; } },
+          { label: "Bow to the ground and accept his refusal", result: (c, rng, A) => { cap(c, "soul", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 2); return ["You bow three times to the earth and leave without another word. \"Mm,\" he grunts, pleased despite himself. Something in you settles. (+Soul, +Dao Heart)"]; } },
+        ],
+      }) },
+      { label: "Bow and continue on your way", result: (c, rng, A) => { cap(c, "soul", 1); return ["You bow and leave the old man to his tea; the mist swallows the little fire behind you. (+Soul)"]; } },
+    ],
+  },
+  {
+    id: "dlg_devil_bargain", weight: 4, minAge: 14, minRealm: 2, awakened: true, cooldown: 22,
+    cond: c => c.root.key !== "none",
+    speaker: () => "A Voice in the Dark",
+    text: () => "Cultivating alone at the dead of night, you feel the lamp gutter. A voice slides into the room like smoke, owning no body. \"Such talent,\" it purrs, \"shackled by such patience. I could spare you a hundred years of crawling. Care to hear my terms?\"",
+    choices: [
+      { label: "\"Speak, then. I am listening.\"", result: () => ({
+        speaker: "The Voice",
+        text: "\"A morsel of forbidden art — blood for qi, the oldest trade. Your cultivation would leap like a struck flame. The cost is small. At first.\"",
+        choices: [
+          { label: "\"And the true cost? Name it.\"", result: () => ({
+            speaker: "The Voice",
+            text: "\"...Your name in a certain ledger. A shadow on your soul the heavens will one day come to collect. A trifle — for power now, while your rivals still crawl.\"",
+            choices: [
+              { label: "Accept the bargain", result: (c, rng, A) => { A.karma(-30); A.qi(1.3); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 8); if (!c.techniques.includes("blood_refine")) c.techniques.push("blood_refine"); A.note("Struck a bargain with a thing in the dark."); return ["You speak the word. Cold power floods your meridians, hungry and sweet, and the art carves itself into your soul. The voice laughs, satisfied, and is gone. The heavens will remember this. (+++qi, −−Karma, −Dao Heart, learned a blood-art)"]; } },
+              { label: "\"No. Get out.\"", result: (c, rng, A) => { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 5); cap(c, "soul", 2); return ["You name the thing for what it is and command it gone. It shrieks, thin and furious, and the lamp flares white. Your dao heart rings like a struck bell. (+Dao Heart, +Soul)"]; } },
+            ],
+          }) },
+          { label: "\"I'll have none of it. Begone.\"", result: (c, rng, A) => { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); cap(c, "soul", 1); return ["You straighten the lamp-wick and recite a calming mantra until the smoke-voice thins to nothing. (+Dao Heart, +Soul)"]; } },
+        ],
+      }) },
+      { label: "\"Begone. I climb on my own.\"", result: (c, rng, A) => { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 4); cap(c, "soul", 2); return ["You do not even turn your head. The voice hisses, affronted, and is snuffed out like a pinched wick. Your resolve hardens against the dark. (+Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "dlg_captured_rogue", weight: 4, minAge: 14, minRealm: 1, awakened: true, cooldown: 14,
+    cond: c => c.root.key !== "none",
+    text: () => "A masked rogue tries to cut your purse on a crowded road — and you catch his wrist like a striking snake. He freezes, his little blade trembling an inch from your robe.",
+    choices: [
+      { label: "Demand an explanation", result: () => ({
+        speaker: "The Thief",
+        text: "\"Mercy, fellow daoist! My sect was razed in the Demon Tide — I've a little sister to feed and not a stone to my name. I wasn't going to take much, I swear it!\"",
+        choices: [
+          { label: "Release him with a warning", result: (c, rng, A) => { A.karma(4); A.happy(2); return ["You let go. He stares, then bows again and again and melts into the crowd. Perhaps he spoke true; perhaps not. Either way you sleep easier tonight. (+Karma)"]; } },
+          { label: "Take his blade as payment for the lesson", result: (c, rng, A) => { A.stones(rng.randint(4, 10)); return ["You pluck the dagger from his fingers and send him running. A decent little blade — you sell it down the road for a few stones."]; } },
+          { label: "\"Prove it. Take me to this sister.\"", result: (c, rng, A) => { if (rng.random() < 0.55 + c.soul / 400) { A.karma(8); A.happy(4); const f = A.meet("friend", { affinity: 22 }); return [`He leads you down crooked alleys to a freezing garret where a thin girl waits, wide-eyed. It was true. You leave them silver enough for a season — and earn a debt of gratitude that may, one day, matter.${f ? ` ${f.name} will not forget this.` : ""} (+Karma)`]; } A.happy(-3); return ["He bolts the instant your grip eases, cackling — there was no sister, only a mark soft enough to believe in one. You've been played for a fool. (−a little face)"]; } },
+          { label: "Cut him down where he stands", result: (c, rng, A) => { A.karma(-12); A.happy(-2); return ["Your palm finds his heart before the lie is finished. He folds into the dust and the crowd recoils from you. Perhaps he deserved it. Perhaps not. The heavens are watching. (−Karma)"]; } },
+        ],
+      }) },
+      { label: "Hand him to the city wardens", result: (c, rng, A) => { c.reputation += 1; A.karma(2); return ["You frog-march the squirming thief to the ward-post and leave him to mortal justice. Orderly, bloodless, forgettable. (+a little Reputation)"]; } },
+    ],
+  },
+  {
+    id: "dlg_merchant_haggle", weight: 5, minAge: 12, awakened: true, cooldown: 12, cond: c => c.spiritStones >= 20,
+    speaker: () => "A Silver-Tongued Merchant",
+    text: () => "A merchant with a cart of oddments waves you over. \"Friend! You've the look of a cultivator of taste. This—\" he lifts a dusty jade gourd that hums faintly \"—a genuine spirit-treasure, and for you, a mere eighty stones!\"",
+    choices: [
+      { label: "Pay the eighty and take it", cond: c => c.spiritStones >= 80, result: (c, rng, A) => { A.stones(-80); return ["He wraps it before you can blink. \"A discerning eye!\""].concat(A.giveArtifact()); } },
+      { label: "Scoff and start to walk", result: () => ({
+        speaker: "The Merchant",
+        text: "\"Wait, wait! For a face like yours — fifty-five. I rob my own children to say it!\"",
+        choices: [
+          { label: "Pay fifty-five", cond: c => c.spiritStones >= 55, result: (c, rng, A) => { A.stones(-55); return ["He sighs as though wounded and hands it over."].concat(A.giveArtifact()); } },
+          { label: "\"Thirty. Final.\"", result: (c, rng, A) => {
+            if (rng.random() < 0.4 + c.charm / 250) { A.stones(-Math.min(c.spiritStones, 30)); return ["He clutches his chest, named a robber — then grins and slaps the gourd into your hands. \"Take it! Take it before my heart gives out!\""].concat(A.giveArtifact()); }
+            A.happy(-1); return ["He throws up his hands. \"You insult the ancestors of this gourd!\" He packs up his cart with wounded dignity and trundles off. The deal is lost."];
+          } },
+          { label: "Walk away for real", result: () => "You leave him calling prices at your back, each one lower than the last. Some games are won by not playing." },
+        ],
+      }) },
+      { label: "Decline politely and move on", result: () => "You smile, shake your head, and walk on. The hum of the gourd fades behind you." },
+    ],
+  },
 ];
 
 /* ----------------------- eligibility & rolling --------------------------- */
@@ -1213,6 +1313,33 @@ function eligible(c, e) {
   return true;
 }
 
+/* ---------------------- branching dialogue framework --------------------- *
+ * A choice's result(c,rng,A) may return either:
+ *   - terminal narration: a string or string[] (the conversation ends), OR
+ *   - a follow-on dialogue NODE to continue the exchange:
+ *       { speaker?, text, choices:[ { label, cond?, result } ] }
+ * Nodes can nest arbitrarily, so events become real multi-step conversations
+ * with named speakers and player agency at every turn. A node's `speaker`,
+ * `text` and a choice's `label` may each be a plain value or a (c)=>value. A
+ * choice may carry a `cond(c)` to show only when relevant. This is fully
+ * backward compatible: existing results return strings and simply terminate. */
+const isDialogueNode = r => r && typeof r === "object" && !Array.isArray(r) && Array.isArray(r.choices);
+function presentNode(node, c, rng, A) {
+  return {
+    speaker: typeof node.speaker === "function" ? node.speaker(c) : node.speaker,
+    text: typeof node.text === "function" ? node.text(c) : node.text,
+    dialogue: true,
+    choices: node.choices.filter(ch => !ch.cond || ch.cond(c)).map(ch => ({
+      label: typeof ch.label === "function" ? ch.label(c) : ch.label,
+      fn: () => resolveResult(ch.result(c, rng, A), c, rng, A),
+    })),
+  };
+}
+// Normalize a result into either a presentation node or terminal string[].
+function resolveResult(r, c, rng, A) {
+  return isDialogueNode(r) ? presentNode(r, c, rng, A) : (Array.isArray(r) ? r : [r]);
+}
+
 function instantiate(c, rng, A, e) {
   if (!c.firedEvents) c.firedEvents = [];
   if (!c.eventCooldowns) c.eventCooldowns = {};
@@ -1222,9 +1349,10 @@ function instantiate(c, rng, A, e) {
   if (e.choices) {
     return {
       id: e.id, text,
-      choices: e.choices.map(ch => ({
+      speaker: typeof e.speaker === "function" ? e.speaker(c) : e.speaker,
+      choices: e.choices.filter(ch => !ch.cond || ch.cond(c)).map(ch => ({
         label: typeof ch.label === "function" ? ch.label(c) : ch.label,
-        fn: () => ch.result(c, rng, A),
+        fn: () => resolveResult(ch.result(c, rng, A), c, rng, A),
       })),
     };
   }

@@ -31,7 +31,12 @@ You are **born into a family** and live your cultivator's life **one year at a
 time**: tap **Age Up** and narrative events unfold — childhood, the **Spiritual
 Root Awakening** at age 6 that reveals your talent, sect recruiters, duels,
 ruins, romance, demonic temptations, betrayals, and loss — many with **choices
-that shape your fate**. Within each year you may perform a few **deeds** — use
+that shape your fate**. Some encounters open into **branching dialogue (对话)**:
+a reclusive elder poses a riddle over tea, a voice in the dark bargains for your
+soul in escalating offers, a cornered thief pleads his case, a silver-tongued
+merchant haggles round by round — **named speakers talk back, and every reply is
+a fork in the road**, so you converse and decide your way through, not merely
+pick once and move on. Within each year you may perform a few **deeds** — use
 the tabs to **Cultivate** (seclusion, breakthroughs, the Dao), tend
 **Relationships** (family, masters, rivals, dao companions, even children of
 your own), pursue **Activities** (train, study, rest, alchemy, adventure), and

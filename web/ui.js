@@ -390,17 +390,26 @@ function processQueue(q) {
   if (ev.choices) showEventModal(ev, q);
   else { logMessages(ev.text); processQueue(q); }
 }
+// Renders an event card or any follow-on dialogue node. A choice's fn() returns
+// either terminal narration (string[]) or another node to continue the exchange,
+// so a single event can unfold into a multi-step conversation with NPC speakers.
 function showEventModal(ev, q) {
-  openOverlay("An Event", body => {
+  openOverlay(ev.dialogue || ev.speaker ? "Dialogue 对话" : "An Event", body => {
     const g = eventGlyph(ev);
-    const card = el("div", "event-card");
+    const card = el("div", "event-card" + (ev.speaker ? " ev-dialogue" : ""));
     card.appendChild(el("div", "ev-emblem " + g.tint, icon(g.name, { size: 30 })));
-    card.appendChild(el("div", "ev-text", escapeHtml(ev.text)));
+    if (ev.speaker) card.appendChild(el("div", "ev-speaker", escapeHtml(ev.speaker)));
+    card.appendChild(el("div", "ev-text" + (ev.speaker ? " ev-quote" : ""), escapeHtml(ev.text)));
     card.appendChild(el("span", "chop"));
     body.appendChild(card);
     for (const ch of ev.choices) {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(ch.label);
-      b.onclick = () => { const res = ch.fn(); closeOverlay(); logMessages(res); processQueue(q); };
+      b.onclick = () => {
+        const res = ch.fn();
+        closeOverlay();
+        if (res && res.choices) showEventModal(res, q);     // the conversation continues
+        else { logMessages(res); processQueue(q); }          // terminal — narrate and move on
+      };
       body.appendChild(b);
     }
   }, false);

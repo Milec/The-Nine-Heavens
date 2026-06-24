@@ -13,6 +13,7 @@ import * as E from "../web/engine.js";
 import * as L from "../web/life.js";
 import * as D from "../web/data.js";
 import * as C from "../web/combat.js";
+import { EVENTS } from "../web/events.js";
 
 /* --------------------------- tiny test harness --------------------------- */
 let passed = 0;
@@ -383,6 +384,52 @@ function testNemesisReckoning() {
   assert(L.getNemesis(c) === null, "no living nemesis remains after the reckoning");
 }
 
+// Branching dialogue: the authored multi-step conversations must unfold into
+// follow-on speaker nodes and resolve every branch to terminal narration —
+// no dead ends, no crashes, however the player chooses.
+function testDialogueTrees() {
+  const isNode = r => r && typeof r === "object" && !Array.isArray(r) && Array.isArray(r.choices);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const mockApi = c => ({
+    qi: () => { c.qi = (c.qi || 0) + 1; }, happy: n => { c.happiness = clamp((c.happiness || 50) + n, 0, 100); },
+    heal: n => { c.hp = Math.max(1, (c.hp || 1) + n); }, stones: n => { c.spiritStones = Math.max(0, (c.spiritStones || 0) + n); },
+    herbs: n => { c.herbs = Math.max(0, (c.herbs || 0) + n); }, karma: n => { c.karma = (c.karma || 0) + n; },
+    note: t => c.log.push([c.age, t]), learnTech: () => "Test Manual",
+    meet: (role) => ({ name: "Stranger", role, alive: true }), giveArtifact: () => ["  You obtain a treasure: Test!"],
+  });
+  // Recursively drive every choice of a node (and its sub-nodes) to a terminal.
+  const drive = (node, c, rng, A, depth) => {
+    assert(depth < 12, "dialogue tree must terminate");
+    assert(node.text != null && node.choices.length >= 1, "a node has text and at least one choice");
+    for (const ch of node.choices) {
+      if (ch.cond && !ch.cond(c)) continue;
+      assert(ch.label != null, "every choice is labelled");
+      const r = ch.result(c, rng, A);
+      if (isNode(r)) drive(r, c, rng, A, depth + 1);
+      else assert(typeof r === "string" || Array.isArray(r), "a leaf is terminal narration");
+    }
+  };
+  const ids = ["dlg_hermit", "dlg_devil_bargain", "dlg_captured_rogue", "dlg_merchant_haggle"];
+  for (const id of ids) {
+    const e = EVENTS.find(x => x.id === id);
+    assert(e && e.choices, `dialogue event exists: ${id}`);
+    let sawNode = false;
+    for (let seed = 0; seed < 8; seed++) {
+      const rng = new E.RNG(seed * 17 + 3);
+      const c = L.bornCharacter(rng, "Talker", null);
+      c.realm = 3; c.awakened = true; c.spiritStones = 200; c.daoHeart = 20;
+      const A = mockApi(c);
+      for (const ch of e.choices) {
+        if (ch.cond && !ch.cond(c)) continue;
+        const r = ch.result(c, rng, A);
+        if (isNode(r)) { sawNode = true; drive(r, c, rng, A, 1); }
+        else assert(typeof r === "string" || Array.isArray(r), "top-level leaf is terminal");
+      }
+    }
+    assert(sawNode, `${id} opens at least one follow-on dialogue node`);
+  }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -399,6 +446,7 @@ try {
   test("spirit beasts carry traits that shape feeding and battle", testBeastTraits);
   test("new combat verbs (sunder, execute) and movement-art evasion", testCombatVerbsAndMovement);
   test("the Nemesis Reckoning settles a rivalry with spoils", testNemesisReckoning);
+  test("branching dialogue events resolve every path to a terminal", testDialogueTrees);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);
