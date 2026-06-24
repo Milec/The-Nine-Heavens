@@ -1424,6 +1424,147 @@ export const EVENTS = [
       } },
     ],
   },
+
+  // — The Soul-Withering Poison (蚀魂之毒) — armed by a demonic wound in battle;
+  //   a years-long race to find a cure before it reaches your heart.
+  {
+    id: "soulpoison_start", arc: true, weight: 40, minRealm: 2, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "soulpoison") === 0 && E.arcArmed(c, "soulpoison"),
+    auto: (c, rng, A) => {
+      E.disarmArc(c, "soulpoison"); arcSet(c, "soulpoison", 1); cap(c, "soul", 0);
+      c.soul = Math.max(1, c.soul - 2); A.note("A demonic soul-poison took root in your meridians.");
+      return "The rot the demon left has spread. A healer you visit goes pale: a soul-withering poison gnaws at your spirit, and it will not stop on its own. Untreated, in a handful of years it will reach your heart — and end you. You must find a cure.";
+    },
+  },
+  {
+    id: "soulpoison_seek", arc: true, weight: 25, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "soulpoison") === 1 && arcYears(c, "soulpoison") >= 1 && arcYears(c, "soulpoison") < 6,
+    text: c => `The soul-poison deepens; your spirit-sense frays at the edges and cold aches settle in your bones. (${6 - arcYears(c, "soulpoison")} year${6 - arcYears(c, "soulpoison") === 1 ? "" : "s"} before it reaches your heart.)`,
+    choices: [
+      { label: "Seek out a renowned healer (60 stones)", cond: c => c.spiritStones >= 60, result: (c, rng, A) => {
+        A.stones(-60);
+        if (rng.random() < 0.45 + c.reputation / 400 + c.charm / 300) { arcSet(c, "soulpoison", 99); cap(c, "soul", 2); return ["A reclusive divine-healer agrees to see you. Three days of golden needles and bitter draughts later, the cold rot is drawn out at last. You are whole again. (cured — +Soul)"]; }
+        c.soul = Math.max(1, c.soul - 2); return ["The healer you find does what they can, but the poison is stubborn and deep; it buys you time, no more. The rot creeps on. (−Soul)"];
+      } },
+      { label: "Refine the antidote yourself (15 herbs)", cond: c => c.herbs >= 15, result: (c, rng, A) => {
+        A.herbs(-15);
+        if (rng.random() < 0.30 + (c.alchemySkill || 0) / 120 + c.comprehension / 400) { arcSet(c, "soulpoison", 99); cap(c, "comprehension", 2); A.note("Refined a cure for the soul-poison."); return ["Furnace-light and sleepless nights — but you crack the formula and drink down a jade-green antidote of your own making. The poison dissolves. (cured — +Comprehension)"]; }
+        c.soul = Math.max(1, c.soul - 2); A.heal(-Math.round(c.maxHp * 0.08)); return ["Your cauldron yields only a muddy failure that sickens you further. The poison grinds on. (−Soul, −health)"];
+      } },
+      { label: "Take a demonic remedy from a devil-doctor", result: (c, rng, A) => { arcSet(c, "soulpoison", 99); A.karma(-15); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); return ["A blood-robed devil-doctor purges the poison in a single screaming night — by feeding it something darker. You live, cured and clean of body, with a new stain on your soul. (cured — −Karma, −Dao Heart)"]; } },
+      { label: "Grit your teeth and endure another year", result: (c, rng, A) => { c.soul = Math.max(1, c.soul - 3); A.heal(-Math.round(c.maxHp * 0.06)); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 1); return ["You wall the poison off with sheer will and cultivate through the pain. It costs you — but your dao heart hardens in the furnace of it. (−Soul, −health, +Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "soulpoison_crisis", arc: true, weight: 40, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "soulpoison") === 1 && arcYears(c, "soulpoison") >= 6,
+    speaker: () => "The Poison, at Last",
+    text: () => "The soul-poison reaches your heart. Black threads crawl across your vision and your qi convulses — this is the hour you live or die. There is no more time to seek a cure; you have only yourself.",
+    choices: [
+      { label: "Burn your cultivation to purge it", result: (c, rng, A) => { arcSet(c, "soulpoison", 99); c.qi = 0; c.stage = Math.max(0, c.stage - 1); A.heal(-Math.round(c.maxHp * 0.3)); cap(c, "soul", 1); return ["You set your own meridians alight and scour the poison out with raw qi, burning years of progress to ash to do it. You live — diminished, scarred, but alive. (lost cultivation, slipped a stage — cured)"]; } },
+      { label: "Trust your dao heart to weather the storm", result: (c, rng, A) => {
+        arcSet(c, "soulpoison", 99);
+        if (rng.random() < 0.4 + (c.daoHeart || 0) / 160 + c.constitution / 400) { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 8); A.heal(-Math.round(c.maxHp * 0.2)); cap(c, "soul", 3); return ["You sit unmoving at the heart of the storm and simply refuse to break. Hour by hour the poison spends itself against your unshaken will — and at dawn, it is gone, and you are more than you were. (endured — +Dao Heart, +Soul)"]; }
+        if (rng.random() < c.luck / 280 + (D.physEffect(c).deathSave || 0)) { A.heal(-Math.round(c.maxHp * 0.6)); c.soul = Math.max(1, c.soul - 6); return ["The poison nearly takes you — and would have, but for a sliver of fortune that drags you back from the brink at the last. You crawl out the far side of the night barely alive. (−−health, −Soul)"]; }
+        c.alive = false; c.causeOfDeath = "a demonic soul-poison reaching the heart"; c.hp = 0; c.log.push([c.age, "Died of a soul-withering poison."]); return ["Your will is not enough. The black threads close over your heart, and the long cold finally wins. Your journey ends here, undone by an old wound you could not heal."];
+      } },
+    ],
+  },
+
+  // — The Hidden Master's Tutelage (名师传业) — armed by diligent, talented study;
+  //   a years-long apprenticeship that rewards heart, or punishes shortcuts.
+  {
+    id: "tutelage_start", arc: true, weight: 40, minAge: 16, minRealm: 1, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tutelage") === 0 && E.arcArmed(c, "tutelage"),
+    speaker: () => "A Hidden Master",
+    text: () => "The stranger who has watched you study finally speaks. Beneath a traveler's plain robe you sense an abyss of cultivation — a hidden master, generations beyond you. \"You read as if the words owe you something,\" they say, almost smiling. \"I have not taken a student in three hundred years. I am minded to take one now. Are you worth my centuries?\"",
+    choices: [
+      { label: "Kneel and beg to be taught", result: (c, rng, A) => { E.disarmArc(c, "tutelage"); arcSet(c, "tutelage", 1); cap(c, "comprehension", 2); A.note("A hidden master took you as a private student."); return ["You press your forehead to the dirt. The master snorts, hauls you up by the collar, and begins, then and there, to dismantle everything you thought you knew. The lessons will run for years. (+Comprehension)"]; } },
+      { label: "Decline — your dao is your own to walk", result: (c, rng, A) => { E.disarmArc(c, "tutelage"); arcSet(c, "tutelage", 99); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 5); cap(c, "soul", 2); return ["\"My road is mine to walk, senior, or it is nothing.\" The master studies you a long moment — then laughs, delighted. \"Perhaps that is the lesson.\" They are gone by morning, leaving your resolve the firmer. (+Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "tutelage_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tutelage") === 1 && arcYears(c, "tutelage") >= 2,
+    text: () => "Two years under the hidden master's brutal tutelage have remade you from the meridians out. Now they set you a true trial — a year of relentless, mind-breaking refinement. How you meet it will decide what they pass on.",
+    choices: [
+      { label: "Pour your whole heart into the work", result: (c, rng, A) => { arcSet(c, "tutelage", 2, { path: "diligent" }); A.qi(0.7); cap(c, "comprehension", 3); cap(c, "soul", 2); return ["You give the trial everything — sleep, pride, the skin off your hands — and come out the other side hollowed and gleaming, like a blade ground to its edge. The master nods, once. (+Comprehension, +Soul, +qi)"]; } },
+      { label: "Cut corners to chase quick power", result: (c, rng, A) => { arcSet(c, "tutelage", 2, { path: "lazy" }); A.qi(0.4); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 2); return ["You skim the tedious foundations and lunge for the showy results. It works — after a fashion. But you catch the master watching you with a flicker of disappointment they do not bother to hide. (+qi)"]; } },
+    ],
+  },
+  {
+    id: "tutelage_graduation", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tutelage") === 2 && arcYears(c, "tutelage") >= 2,
+    speaker: () => "Your Master",
+    text: () => "The day comes that the hidden master sets down their tea and says, \"I have nothing left to give you that you cannot now take for yourself.\" The years of tutelage are ending. What they leave you depends on the student you chose to be.",
+    choices: [
+      { label: "Bow, and receive their legacy", result: (c, rng, A) => {
+        const path = (c.arcs.tutelage && c.arcs.tutelage.path) || "diligent"; arcSet(c, "tutelage", 99);
+        if (path === "diligent") {
+          if (!c.techniques.includes("great_void")) c.techniques.push("great_void");
+          cap(c, "comprehension", 4); cap(c, "soul", 3); A.note("Inherited a hidden master's legacy in full.");
+          return ["\"You earned this — all of it.\" They impart the Great Void Immortal Canon, an art said to lead all the way to ascension, and a parting gift besides. Then they walk into the dawn, and you never see them again — but you carry them with you now, always. (Learned the Great Void Immortal Canon! +Comprehension, +Soul)"]
+            .concat(E.acquireArtifact(c, E.randomArtifact(c, rng, "Heaven")))
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.5 }));
+        }
+        cap(c, "comprehension", 2); A.qi(0.5);
+        return ["\"You have talent,\" they say, and the unfinished sentence hangs in the air. They teach you a solid art and a hard truth: that shortcuts compound. Then they are gone, and you are left to wonder what you might have been given, had you been worth more of their centuries. (+Comprehension, +qi)"];
+      } },
+    ],
+  },
+
+  // — The Beast-King's Summons (兽王之召) — a random call answered only by those
+  //   whose spirit beast already carries a worthy bloodline.
+  {
+    id: "beastking_start", arc: true, weight: 4, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "beastking") === 0 && c.beast && c.beast.alive && (c.beast.rank || 1) >= 2,
+    text: c => `${c.beast.name} wakes you at midnight, hackles raised, staring east. On the wind comes a roar that shakes the mountains — and a summons that bypasses your ears and speaks straight to the blood: an ancient Beast-King has caught the scent of your companion's lineage, and bids you both come to its domain.`,
+    choices: [
+      { label: "Answer the summons together", result: (c, rng, A) => { arcSet(c, "beastking", 1); A.note(`Set out to answer a Beast-King's summons with ${c.beast.name}.`); return [`You ready yourselves and turn east. ${c.beast.name} presses its great head to your chest once, then leads the way — toward whatever the Beast-King wants of you both.`]; } },
+      { label: "Refuse, and keep your companion close", result: (c, rng, A) => { arcSet(c, "beastking", 99); if (c.beast) c.beast.bond = clampN((c.beast.bond || 50) + 10, 0, 100); A.happy(3); return [`You will not deliver ${c.beast.name} to some old monster's whim. It huffs, content, and curls against you, and the roar in the east goes unanswered and at last falls silent. (your bond deepens)`]; } },
+    ],
+  },
+  {
+    id: "beastking_lost", arc: true, weight: 40, awakened: true, cooldown: 0,
+    cond: c => (arcStage(c, "beastking") === 1 || arcStage(c, "beastking") === 2) && !(c.beast && c.beast.alive),
+    auto: (c, rng, A) => { arcSet(c, "beastking", 99); A.happy(-6); return "The Beast-King's summons fades, unanswerable now — the companion whose blood it called for is gone. Wherever that ancient thing waits, it will wait in vain, and so, in a different way, will you."; },
+  },
+  {
+    id: "beastking_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "beastking") === 1 && arcYears(c, "beastking") >= 2 && c.beast && c.beast.alive,
+    text: c => `You reach the Beast-King's domain — a valley of impossible creatures that bow as ${c.beast.name} passes. The colossus itself regards your companion with ancient eyes. "The blood is true," it rumbles into your bones. "But blood is only a promise. Let it be tested."`,
+    choices: [
+      { label: `Let ${"your beast"} face the trial alone`, result: (c, rng, A) => {
+        const b = c.beast;
+        if (rng.random() < 0.4 + (b.bond || 50) / 200 + (b.rank || 1) / 12) { arcSet(c, "beastking", 2, { trial: "passed" }); b.exp = (b.exp || 0) + 40; b.power *= 1.12; b.bond = clampN((b.bond || 50) + 6, 0, 100); return [`${b.name} steps into the ring of elders alone and does not flinch. Roar answers roar; when the dust clears, your companion still stands, and the Beast-King's eyes narrow with approval. (your beast grows stronger)`]; }
+        b.power *= 0.95; b.bond = clampN((b.bond || 50) + 2, 0, 100); arcSet(c, "beastking", 2, { trial: "scraped" }); return [`${b.name} fights with everything it has and is beaten down — but will not yield, dragging itself up again and again until the Beast-King calls a halt. "Not strong," it muses. "But unbreakable. That, too, is a bloodline." (your beast is battered but proven)`];
+      } },
+      { label: "Stand with your beast against the King's champion", result: (c, rng, A) => {
+        const res = A.fight(["the Beast-King's Champion", A.power() * rng.uniform(1.1, 1.4), (c.realm + 1) * 9, "beast"]);
+        if (c.alive) { arcSet(c, "beastking", 2, { trial: "fought" }); if (c.beast) { c.beast.exp = (c.beast.exp || 0) + 60; c.beast.bond = clampN((c.beast.bond || 50) + 12, 0, 100); } cap(c, "comprehension", 2); res.push(`Side by side, you and ${c.beast ? c.beast.name : "your beast"} weather the champion's fury and break it. The Beast-King rumbles — was that a laugh? "A two-souled beast. Rare." Your bond has never been deeper.`); }
+        return [`You will not let your companion face this alone.`].concat(res);
+      } },
+    ],
+  },
+  {
+    id: "beastking_boon", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "beastking") === 2 && arcYears(c, "beastking") >= 2 && c.beast && c.beast.alive,
+    speaker: () => "The Beast-King",
+    text: c => `The Beast-King lowers its vast head until one eye fills the sky. "Your companion has earned what I keep. Take it — and remember, two-legs, that I gave it freely." A drop of its ancient blood, bright as a fallen star, hangs waiting before ${c.beast.name}.`,
+    choices: [
+      { label: "Let your companion receive the blood-boon", result: (c, rng, A) => {
+        const b = c.beast; arcSet(c, "beastking", 99);
+        const passed = c.arcs.beastking && (c.arcs.beastking.trial === "passed" || c.arcs.beastking.trial === "fought");
+        b.power *= passed ? 1.6 : 1.3; b.bond = clampN((b.bond || 50) + 10, 0, 100); b.exp = (b.exp || 0) + 60;
+        if (passed && (b.rank || 1) < 5) { b.rank = (b.rank || 1) + 1; b.species = D.beastEvolvedName(b.baseSpecies || b.species, b.rank); }
+        A.note(`${b.name} awakened an ancestral bloodline from the Beast-King.`);
+        const line = passed
+          ? `The star-bright blood sinks into ${b.name} and the valley holds its breath. Your companion throws back its head and *roars* — larger, fiercer, its ancestral bloodline blazing awake. It has ascended. The Beast-King dips its head, one sovereign to a worthy heir. (${b.name} grows vastly stronger and rises a rank!)`
+          : `The blood-boon sinks into ${b.name}, and a slow strength uncoils through it — not the full awakening, but a true and lasting gift. Your companion is markedly mightier than before. (${b.name} grows stronger.)`;
+        return [line];
+      } },
+    ],
+  },
 ];
 
 /* ----------------------- eligibility & rolling --------------------------- */

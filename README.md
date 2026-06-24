@@ -44,7 +44,17 @@ his tomb** and one day answer to his vengeful sword-wraith. Take in a starving
 **foundling (孤雏)** and how you raise them across the years — with kindness,
 with iron, or with neglect — decides whether they become your **devoted
 disciple**, a **cold blade**, a stranger who departs, or a **nemesis of your own
-making**. The same choice means different things three years on. Within each year you may perform a few **deeds** — use
+making**. The same choice means different things three years on. Some arcs simply **find
+you** when the time and your standing are right; others are **set in motion by
+your own deeds** — a demonic foe's parting strike may sow a **soul-withering
+poison (蚀魂之毒)**, a years-long race to find a cure before it reaches your heart
+(seek a healer, refine your own antidote, take a devil's shortcut, or burn your
+cultivation to purge it at the last); diligent, gifted **study** may draw a
+**hidden master (名师传业)** who offers a once-in-three-centuries apprenticeship
+that rewards heart and punishes shortcuts; and a spirit beast of worthy
+bloodline may be **summoned by an ancient Beast-King (兽王之召)** to be tested and,
+if proven, awaken an ancestral bloodline. Every arc is gated to a fitting age
+and realm, and triggers where it makes sense — by chance, or by certainty. Within each year you may perform a few **deeds** — use
 the tabs to **Cultivate** (seclusion, breakthroughs, the Dao), tend
 **Relationships** (family, masters, rivals, dao companions, even children of
 your own), pursue **Activities** (train, study, rest, alchemy, adventure), and

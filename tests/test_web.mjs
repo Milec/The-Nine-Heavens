@@ -500,6 +500,78 @@ function testStoryArcs() {
   }
 }
 
+// Action-triggered arcs: deeds arm an opener (at a chance, or with certainty),
+// which then fires gated by age/realm — and each new arc threads to its end.
+function testTriggeredArcs() {
+  // Arm / disarm mechanics.
+  const c = L.bornCharacter(new E.RNG(1), "A", null);
+  assert(!E.arcArmed(c, "x"), "nothing is armed at first");
+  assert(E.armArc(c, "x", new E.RNG(1), 1) === true && E.arcArmed(c, "x"), "armArc with certainty arms the opener");
+  assert(E.armArc(c, "x", new E.RNG(1), 1) === false, "armArc will not double-arm");
+  E.disarmArc(c, "x"); assert(!E.arcArmed(c, "x"), "disarmArc clears it");
+  assert(E.armArc(c, "y", new E.RNG(1), 0) === false, "a zero chance never arms");
+  Ev.arcSet(c, "z", 1); assert(E.armArc(c, "z", null, 1) === false, "an arc already underway cannot be re-armed");
+
+  const mk = seed => {
+    const rng = new E.RNG(seed); const cc = L.bornCharacter(rng, "H" + seed, null);
+    cc.realm = 5; cc.stage = 2; cc.awakened = true; cc.comprehension = cc.soul = cc.constitution = 150; cc.daoHeart = 80; cc.age = 40; cc.spiritStones = 300; cc.herbs = 50; cc.alchemySkill = 60;
+    if (cc.root.key === "none") cc.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Metal"], comprehensionBonus: 0, display: "H" };
+    E.recomputeMaxHp(cc); E.recomputeMaxAge(cc); cc.hp = cc.maxHp; return { c: cc, rng };
+  };
+  const api = (c, rng) => ({ qi: () => {}, happy: () => {}, heal: n => { c.hp = Math.max(1, c.hp + n); }, stones: n => { c.spiritStones = Math.max(0, c.spiritStones + n); }, herbs: n => { c.herbs = Math.max(0, c.herbs + n); }, karma: n => { c.karma = (c.karma || 0) + n; }, note: () => {}, learnTech: () => "M", giveArtifact: g => E.acquireArtifact(c, E.randomArtifact(c, rng, g)), power: () => E.power(c), fight: e => E.fight(c, rng, e), meet: () => ({ name: "n", alive: true }) });
+  const ev = id => EVENTS.find(e => e.id === id);
+  const choose = (c, rng, A, id, i) => { const e = ev(id); const ch = e.choices.filter(x => !x.cond || x.cond(c))[i]; return ch.result(c, rng, A); };
+
+  // Soul-poison: arm → opener auto → demonic remedy ends it at a karmic cost.
+  { const { c, rng } = mk(21); const A = api(c, rng); E.armArc(c, "soulpoison", rng, 1);
+    assert(ev("soulpoison_start").cond(c), "an armed soul-poison opener is eligible");
+    ev("soulpoison_start").auto(c, rng, A);
+    assert(Ev.arcStage(c, "soulpoison") === 1 && !E.arcArmed(c, "soulpoison"), "the opener advances to stage 1 and disarms itself");
+    c.age += 1; assert(ev("soulpoison_seek").cond(c), "the cure-seeking beat is due");
+    const k = c.karma; choose(c, rng, A, "soulpoison_seek", 2);
+    assert(Ev.arcStage(c, "soulpoison") === 99 && c.karma < k, "the demonic remedy cures the poison at a karmic cost");
+  }
+  // Soul-poison deadline: after six uncured years the lethal crisis beat is due.
+  { const { c, rng } = mk(22); E.armArc(c, "soulpoison", rng, 1); ev("soulpoison_start").auto(c, rng, api(c, rng)); c.age += 6;
+    assert(!ev("soulpoison_seek").cond(c) && ev("soulpoison_crisis").cond(c), "past the deadline the crisis supersedes the cure beats");
+  }
+  // Real combat trigger: fighting demonic foes can arm the soul-poison arc.
+  { let armed = false;
+    for (let s = 0; s < 40 && !armed; s++) {
+      const { c, rng } = mk(100 + s);
+      const foe = C.makeEnemy(c, rng, { kind: "rogue", name: "Corpse Refiner", element: "Dark", factor: 1.2 });
+      const B = C.createBattle(c, foe, rng, {}); let g = 0;
+      while (!B.over && g++ < 80) { const a = B.actions().find(x => !x.disabled && x.id !== "flee") || B.actions()[0]; B.act(a.id); }
+      B.finish();
+      if (E.arcArmed(c, "soulpoison") || (c.arcs && c.arcs.soulpoison)) armed = true;
+    }
+    assert(armed, "battling demonic foes can inflict the soul-poison");
+  }
+
+  // Master tutelage: arm → accept → diligent trial → graduation teaches Great Void.
+  { const { c, rng } = mk(23); const A = api(c, rng); E.armArc(c, "tutelage", rng, 1);
+    assert(ev("tutelage_start").cond(c), "an armed master opener is eligible");
+    choose(c, rng, A, "tutelage_start", 0); assert(Ev.arcStage(c, "tutelage") === 1, "accepting begins the apprenticeship");
+    c.age += 2; choose(c, rng, A, "tutelage_trial", 0); assert(Ev.arcStage(c, "tutelage") === 2, "the trial advances to stage 2");
+    c.age += 2; choose(c, rng, A, "tutelage_graduation", 0);
+    assert(Ev.arcStage(c, "tutelage") === 99 && c.techniques.includes("great_void"), "a diligent student inherits the Great Void Immortal Canon");
+  }
+  // Studying with exceptional comprehension certainly draws a hidden master.
+  { const { c, rng } = mk(24); c.comprehension = 140;
+    L.studyScriptures(c, rng);
+    assert(E.arcArmed(c, "tutelage") || (c.arcs && c.arcs.tutelage), "diligent, gifted study arms the master arc");
+  }
+  // Beast-King: a worthy beast makes the opener eligible; the arc empowers it.
+  { const { c, rng } = mk(25); const A = api(c, rng);
+    c.beast = E.normalizeBeast({ name: "Bai", species: "Cloud Leopard", baseSpecies: "Cloud Leopard", element: "Wind", power: E.power(c) * 0.3, bond: 90, rank: 2, exp: 0, fedThisYear: 0, trait: "ferocious", alive: true });
+    assert(ev("beastking_start").cond(c), "a worthy beast makes the Beast-King opener eligible");
+    choose(c, rng, A, "beastking_start", 0); assert(Ev.arcStage(c, "beastking") === 1, "answering the summons begins the arc");
+    c.age += 2; choose(c, rng, A, "beastking_trial", 0); assert(Ev.arcStage(c, "beastking") === 2, "the trial advances the arc");
+    const before = c.beast.power; c.age += 2; choose(c, rng, A, "beastking_boon", 0);
+    assert(Ev.arcStage(c, "beastking") === 99 && c.beast.power > before, "the Beast-King's boon empowers your companion");
+  }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -518,6 +590,7 @@ try {
   test("the Nemesis Reckoning settles a rivalry with spoils", testNemesisReckoning);
   test("branching dialogue events resolve every path to a terminal", testDialogueTrees);
   test("multi-year storyline arcs thread and branch across the years", testStoryArcs);
+  test("action-triggered arcs arm sensibly and thread to their ends", testTriggeredArcs);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

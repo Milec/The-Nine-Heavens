@@ -486,7 +486,11 @@ export function studyScriptures(c, rng) {
   c.age += 1;
   const msgs = ["You bury yourself in the sect library / borrowed scrolls, parsing dense dao theory."];
   if (rng.random() < 0.6) { cap(c, "comprehension", rng.randint(1, 3)); msgs.push("Insight blooms. (+Comprehension)"); }
-  c.happiness = clampN(c.happiness - 1, 0, 100);
+  // Diligent, talented study can draw a hidden master's eye — arming a years-long
+  // tutelage arc (certain once your comprehension is truly exceptional).
+  if (c.age >= D.COMING_OF_AGE && c.realm >= 1 && c.root && c.root.key !== "none"
+      && E.armArc(c, "tutelage", rng, c.comprehension >= 130 ? 1 : 0.04 + c.comprehension / 1600))
+    msgs.push("A stranger has been watching you read, three days running now, and saying nothing.");
   finishYear(c, rng, msgs);
   return msgs;
 }

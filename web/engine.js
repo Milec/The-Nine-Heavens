@@ -307,7 +307,7 @@ function newCharacter() {
     sectKey: null, sectRank: 0, contribution: 0, sectMissions: 0, sectJoinedAge: null, titles: [], epithets: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equipment: {}, refinement: {}, equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
-    daos: [], daoLevels: {}, daoFocus: null, daoInsight: 0, daoHeart: 10, karma: 0, reincarnationCount: 0, arcs: {},
+    daos: [], daoLevels: {}, daoFocus: null, daoInsight: 0, daoHeart: 10, karma: 0, reincarnationCount: 0, arcs: {}, arcTriggers: [],
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
     movementArts: [], moveMastery: {}, customTechs: [],
     mastery: {},
@@ -1349,6 +1349,22 @@ export function daoBattleMods(c) {
   }
   return m;
 }
+
+/* ---------------------- action-triggered story arcs ---------------------- *
+ * Some multi-year arcs (events.js) don't start at random but are "armed" by a
+ * fitting deed — a demonic wound, diligent study, a rare find — at a given
+ * chance (1 = certain). The armed opener then fires, gated by age/realm, on the
+ * next age-up (arc beats are drawn with priority). State is a plain list on the
+ * character, so action code anywhere can arm an arc without importing events. */
+export function armArc(c, id, rng, chance = 1) {
+  if (!c.arcTriggers) c.arcTriggers = [];
+  if (c.arcTriggers.includes(id)) return false;        // already armed
+  if (c.arcs && c.arcs[id]) return false;              // already underway or done
+  if ((rng ? rng.random() : Math.random()) < chance) { c.arcTriggers.push(id); return true; }
+  return false;
+}
+export const arcArmed = (c, id) => (c.arcTriggers || []).includes(id);
+export function disarmArc(c, id) { if (c.arcTriggers) c.arcTriggers = c.arcTriggers.filter(x => x !== id); }
 
 /* ------------------------------- sect ------------------------------------ */
 const talentTier = c => D.ROOT_TIER[c.root.key] || 0;

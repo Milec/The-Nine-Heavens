@@ -522,6 +522,12 @@ function finishBattle(B) {
   const c = B.player.ref, En = B.enemy, rng = B.rng, lines = [];
   const frac = clampN(B.player.hp / B.player.maxHp, 0, 1);
 
+  // A demonic foe's parting strike can leave a soul-withering poison, arming a
+  // multi-year cure-or-die arc (more likely the worse you were mauled).
+  if (!En.tribulation && c.realm >= 2 && (En.element === "Dark" || /demon|corpse|blood|ghost|devil|fiend|abyss|wraith/i.test(En.name || ""))) {
+    if (E.armArc(c, "soulpoison", rng, 0.12 + (1 - frac) * 0.10)) lines.push("☠ A cold rot lingers where the demon's qi touched you. Something is wrong in your meridians...");
+  }
+
   // The Heavenly Tribulation is its own kind of trial.
   if (En.tribulation) {
     if (B.outcome === "win") {
