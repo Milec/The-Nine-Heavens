@@ -780,7 +780,7 @@ function abodeYearly(c, rng, events) {
 
 // Establish a new abode or upgrade your existing one (administrative — no year,
 // no deed; you simply spend the stones). Returns narration lines.
-export function upgradeAbode(c) {
+export function upgradeAbode(c, rng) {
   const next = D.abodeNext(c.abode || 0);
   if (!next) return ["Your abode is already a Cave Heaven — the very pinnacle. There is nothing higher to build."];
   if (!c.abode && !D.oldEnoughFor(c, "abode")) return [`You are too young to stake a claim on a spirit vein. Only at age ${D.ageMin("abode")} may one establish a cave dwelling.`];
@@ -793,7 +793,12 @@ export function upgradeAbode(c) {
   const reg = D.REGION_BY_KEY[abodeRegionKey(c)];
   const here = abodeLocName(c);
   const where = was ? "" : ` at ${here || (reg ? reg[1] : "the wilds")}`;
-  return [`${was ? "You pour resources into the works, and your abode rises into" : "You stake your claim on a spirit vein" + where + " and raise"} the ${next[1]} (${next[2]})! Each year it now yields ${next[5]} spirit herbs and ${next[6]} stones${reg && reg[3] > 1 ? ` (×${reg[3]} for the wild region)` : ""}, and quickens your cultivation by +${Math.round(next[4] * 100)}%.`];
+  const out = [`${was ? "You pour resources into the works, and your abode rises into" : "You stake your claim on a spirit vein" + where + " and raise"} the ${next[1]} (${next[2]})! Each year it now yields ${next[5]} spirit herbs and ${next[6]} stones${reg && reg[3] > 1 ? ` (×${reg[3]} for the wild region)` : ""}, and quickens your cultivation by +${Math.round(next[4] * 100)}%.`];
+  // Hewing a top-tier abode deep into a spirit vein can unearth something old and
+  // watchful sleeping in the stone — arming the Sealed Will arc.
+  if ((c.abode || 0) >= 5 && c.realm >= 3 && E.armArc(c, "sealedwill", rng, 0.3))
+    out.push("Deep in the new-hewn vault, where the spirit-vein runs richest, your workers strike something that should not be there — and that night, something cold and patient settles in behind your eyes.");
+  return out;
 }
 
 // Seclude yourself in your abode for a stronger bout of cultivation (a deed; the

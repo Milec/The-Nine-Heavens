@@ -662,6 +662,26 @@ function testTriggeredArcs() {
     }
     assert(armed, "a Foundation+ marriage can invite a love-tribulation");
   }
+
+  // Grandmaster's Cauldron: armed by a flawless pill → pursue → gather → refine a legend.
+  { const { c, rng } = mk(33); const A = api(c, rng); E.armArc(c, "alchemy", rng, 1);
+    assert(ev("alchemy_start").cond(c), "an armed alchemy opener is eligible");
+    choose(c, rng, A, "alchemy_start", 0); assert(Ev.arcStage(c, "alchemy") === 1, "taking up the formula begins the arc");
+    c.age += 2; choose(c, rng, A, "alchemy_trial", 0); assert(Ev.arcStage(c, "alchemy") === 2, "gathering ingredients advances the arc");
+    const skillBefore = c.alchemySkill || 0; c.age += 2; choose(c, rng, A, "alchemy_climax", 0);
+    assert(Ev.arcStage(c, "alchemy") === 99 && (c.alchemySkill || 0) > skillBefore, "the grand refinement resolves and sharpens your craft");
+  }
+
+  // The Sagas registry & helpers reflect active and resolved storylines.
+  { const c = L.bornCharacter(new E.RNG(40), "Saga", null);
+    assert(Ev.activeSagas(c).length === 0 && Ev.resolvedSagas(c).length === 0, "a fresh life has no sagas");
+    Ev.arcSet(c, "swordtomb", 1); Ev.arcSet(c, "alchemy", 99);
+    const active = Ev.activeSagas(c), resolved = Ev.resolvedSagas(c);
+    assert(active.length === 1 && active[0].id === "swordtomb" && active[0].name && active[0].text, "an in-progress arc shows as an active saga with a status line");
+    assert(resolved.length === 1 && resolved[0].id === "alchemy", "a stage-99 arc shows as a resolved saga");
+    // Every arc that can be active has registry metadata (a name and stage lines).
+    for (const id of Object.keys(Ev.ARC_META)) { const m = Ev.ARC_META[id]; assert(m.name && m.cn && m.stages, `arc ${id} has saga metadata`); }
+  }
 }
 
 /* ------------------------------- runner ---------------------------------- */

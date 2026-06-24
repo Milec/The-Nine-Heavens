@@ -1572,7 +1572,7 @@ export const EVENTS = [
     id: "sealedwill_start", arc: true, weight: 40, minRealm: 3, awakened: true, cooldown: 0,
     cond: c => arcStage(c, "sealedwill") === 0 && E.arcArmed(c, "sealedwill"),
     speaker: () => "A Will Not Your Own",
-    text: () => "The thing that followed you out of the realm stirs in your sea of consciousness — a shard of some long-dead immortal's will, watchful and patient. <Child,> it murmurs, in a voice like dust settling, <I have waited an age for a vessel. Walk with me, and I will give you a thousand years of my knowing.>",
+    text: () => "The thing that lodged in your sea of consciousness stirs — a shard of some long-dead immortal's will, watchful and patient, whether it followed you from a realm's heart or rose from the deep spirit-vein beneath your abode. <Child,> it murmurs, in a voice like dust settling, <I have waited an age for a vessel. Walk with me, and I will give you a thousand years of my knowing.>",
     choices: [
       { label: "Commune with the remnant", result: (c, rng, A) => { E.disarmArc(c, "sealedwill"); arcSet(c, "sealedwill", 1, { path: "commune" }); cap(c, "comprehension", 2); A.note("Began communing with a sealed immortal's will."); return ["You lower your guard, just a little, and let the old will speak. Knowledge older than your sect washes through you — and a cold patience settles in behind your eyes, waiting. (+Comprehension)"]; } },
       { label: "Seal it away behind your dao heart", result: (c, rng, A) => { E.disarmArc(c, "sealedwill"); arcSet(c, "sealedwill", 99); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); cap(c, "soul", 2); return ["You will not share your own skull with a dead thing's ambition. With patient effort you wall the shard behind your dao heart, where it rages, and quiets, and at last goes still. (+Dao Heart, +Soul)"]; } },
@@ -1803,6 +1803,49 @@ export const EVENTS = [
       } },
     ],
   },
+
+  // — The Grandmaster's Cauldron (丹道传承) — armed by refining a Flawless pill;
+  //   a years-long pursuit of a lost pill-sage's legendary formula.
+  {
+    id: "alchemy_start", arc: true, weight: 40, minRealm: 2, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "alchemy") === 0 && E.arcArmed(c, "alchemy"),
+    speaker: () => "A Pill-Sage's Echo",
+    text: () => "Your flawless pill draws something to you: a jade slip, ancient and warm, that you do not remember picking up. When you press your soul to it, a dead grandmaster's voice unfolds — the half of a legendary formula, and a challenge. <Finish what I could not, little cauldron, and my whole art is yours. Fail, and it dies with you as it died with me.>",
+    choices: [
+      { label: "Take up the grandmaster's unfinished work", result: (c, rng, A) => { E.disarmArc(c, "alchemy"); arcSet(c, "alchemy", 1); c.alchemySkill = (c.alchemySkill || 0) + 5; A.note("Took up a dead pill-sage's legendary formula."); return ["You commit the fragment to memory and your furnace will not be cold again for years. The grandmaster's half-formula is a door; you mean to find what lies beyond it. (+Alchemy skill)"]; } },
+      { label: "Set it aside — your road runs elsewhere", result: (c, rng, A) => { E.disarmArc(c, "alchemy"); arcSet(c, "alchemy", 99); c.alchemySkill = (c.alchemySkill || 0) + 2; cap(c, "comprehension", 1); return ["A legendary pill is a lifetime's obsession, and your lifetime is spoken for. You study the slip for what it can teach in an evening, and lay it gently down. (+Alchemy skill, +Comprehension)"]; } },
+    ],
+  },
+  {
+    id: "alchemy_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "alchemy") === 1 && arcYears(c, "alchemy") >= 2,
+    text: () => "The grandmaster's formula calls for ingredients that do not grow in safe places: a flame-heart lotus from the lip of a living volcano, marrow-dew that condenses only in a haunted gorge. You cannot refine what you cannot gather.",
+    choices: [
+      { label: "Brave the deadly herb-fields yourself", result: (c, rng, A) => {
+        if (rng.random() < 0.4 + (c.alchemySkill || 0) / 150 + c.luck / 300) { arcSet(c, "alchemy", 2, { path: "gathered" }); A.herbs(rng.randint(20, 40)); cap(c, "comprehension", 2); A.note("Gathered legendary alchemical ingredients."); return ["You walk into places that kill lesser cultivators and walk out with your arms full of impossible herbs. The grand refinement is within reach now. (++herbs, +Comprehension)"]; }
+        A.heal(-Math.round(c.maxHp * 0.2)); A.herbs(rng.randint(6, 14)); arcSet(c, "alchemy", 2, { path: "scraped" }); return ["You get most of what you came for, but the volcano and the gorge each take their toll in blood and singed flesh. You have enough — barely. (−health, +some herbs)"];
+      } },
+      { label: "Pay a king's ransom to have them brought to you", cond: c => c.spiritStones >= 200, result: (c, rng, A) => { A.stones(-200); arcSet(c, "alchemy", 2, { path: "bought" }); return ["You empty your purse and set the realm's boldest gatherers to the task. Months later the crates arrive, sealed in frost and talisman-paper. Expensive — but you still have all your fingers. (−200 stones)"]; } },
+    ],
+  },
+  {
+    id: "alchemy_climax", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "alchemy") === 2 && arcYears(c, "alchemy") >= 2,
+    text: () => "The hour comes for the grand refinement. The grandmaster's whole art lives or dies in your furnace tonight — a pill out of legend, or a crater where your cauldron used to be.",
+    choices: [
+      { label: "Light the furnace and finish the legend", result: (c, rng, A) => {
+        arcSet(c, "alchemy", 99);
+        if (rng.random() < 0.4 + (c.alchemySkill || 0) / 120 + c.comprehension / 400) {
+          c.alchemySkill = (c.alchemySkill || 0) + 12; c.pills += rng.randint(3, 6); c.breakthroughPills = (c.breakthroughPills || 0) + 2; c.healingPills = (c.healingPills || 0) + 4;
+          c.longevityBonus = (c.longevityBonus || 0) + 60; E.recomputeMaxAge(c); cap(c, "comprehension", 2); A.note("Completed a legendary pill-sage's formula.");
+          return ["For three days and nights you do not sleep, and on the third dawn the furnace sings open on a clutch of pills that glow like small moons. You have finished it — the grandmaster's legend, made real in your hands. Your name will be spoken in pill-halls for a hundred years. (++Alchemy skill, a hoard of supreme pills, +60 years of life)"]
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.55 }));
+        }
+        const salv = Math.floor((c.herbs || 0) * 0.2); c.herbs = Math.max(0, (c.herbs || 0) - salv); c.alchemySkill = (c.alchemySkill || 0) + 4; A.heal(-Math.round(c.maxHp * 0.15)); c.pills += rng.randint(1, 3);
+        return ["The refinement fights you to the last and slips through your fingers at the threshold — the furnace flares, the legendary pill collapses into ordinary medicine, and you are left singed and humbled. Not a failure, quite. But not the legend, either. You learned much in the losing. (+Alchemy skill, a few pills)"];
+      } },
+    ],
+  },
 ];
 
 /* ----------------------- eligibility & rolling --------------------------- */
@@ -1937,4 +1980,33 @@ export function arcSet(c, id, stage, extra) {
 export function arcEnd(c, id) { if (c.arcs && c.arcs[id]) delete c.arcs[id]; }
 // Find a recurring arc NPC (tagged when the arc created it).
 const arcNpc = (c, tag) => (c.relationships || []).find(n => n.arcTag === tag && n.alive) || null;
+
+/* Registry for the Sagas screen: each arc's name and a per-stage status line so
+ * the player can see what storylines they are living through, and where each one
+ * stands. `stages` maps an active stage to its blurb; stage 99 means resolved. */
+export const ARC_META = {
+  swordtomb:  { name: "The Sword-Immortal's Inheritance", cn: "剑冢传承", stages: { 1: "A sword-seed grows in your sea of consciousness.", 2: "The borrowed sword-intent nears mastery.", 11: "A stolen black blade whispers for vengeance." } },
+  foundling:  { name: "The Foundling", cn: "孤雏", stages: { 1: "A ward in your keeping, still a child.", 2: "Raising the foundling toward who they will become." } },
+  soulpoison: { name: "The Soul-Withering Poison", cn: "蚀魂之毒", stages: { 1: "A demonic poison gnaws at your spirit — find a cure before it reaches your heart." } },
+  tutelage:   { name: "The Hidden Master's Tutelage", cn: "名师传业", stages: { 1: "Apprenticed to a hidden master.", 2: "Your tutelage nears its end." } },
+  beastking:  { name: "The Beast-King's Summons", cn: "兽王之召", stages: { 1: "Journeying to answer the Beast-King's call.", 2: "Your companion has been tested; a boon awaits." } },
+  sealedwill: { name: "The Sealed Will", cn: "残识之秘", stages: { 1: "A dead immortal's will shares your sea of consciousness.", 2: "The sealed will tightens its hold." } },
+  schism:     { name: "The Sect Schism", cn: "宗门之变", stages: { 1: "A power-struggle splits your sect; you have taken a side." } },
+  demonpath:  { name: "The Demon Path", cn: "入魔", stages: { 1: "You have set foot on the demonic path.", 2: "The blood-art's hunger grows in you." } },
+  bloodline:  { name: "The Blood-Lineage Awakening", cn: "血脉觉醒", stages: { 1: "An ancestral bloodline stirs in your marrow.", 2: "The blood-trial reforges your flesh." } },
+  tragedy:    { name: "The Star-Crossed Love", cn: "情劫", stages: { 1: "A love-tribulation looms over your marriage." } },
+  alchemy:    { name: "The Grandmaster's Cauldron", cn: "丹道传承", stages: { 1: "Pursuing a lost pill-sage's legendary formula.", 2: "The grand refinement is at hand." } },
+};
+// Active sagas (started, not yet resolved), newest first, with a status line.
+export function activeSagas(c) {
+  const arcs = c.arcs || {};
+  return Object.keys(arcs).filter(id => ARC_META[id] && arcs[id].stage > 0 && arcs[id].stage !== 99)
+    .map(id => { const m = ARC_META[id], a = arcs[id]; return { id, name: m.name, cn: m.cn, stage: a.stage, years: arcYears(c, id), text: (m.stages && m.stages[a.stage]) || "Unfolding across the years..." }; })
+    .sort((a, b) => b.years - a.years);
+}
+// Sagas resolved in this life (for a sense of history).
+export function resolvedSagas(c) {
+  const arcs = c.arcs || {};
+  return Object.keys(arcs).filter(id => ARC_META[id] && arcs[id].stage === 99).map(id => ({ id, name: ARC_META[id].name, cn: ARC_META[id].cn }));
+}
 

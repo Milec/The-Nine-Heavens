@@ -67,9 +67,15 @@ champion** can whisper you onto the **demon path (入魔)**, a slow fall toward
 devilhood — or a hard, scarring turn back; and a **marriage** too deep can invite
 a **love-tribulation (情劫)**, the jealous heavens striking at the one you love,
 to be defied at ruinous cost or grieved and survived (a beloved lost this way may
-yet be reborn alongside you, lifetimes hence). Every arc is gated to a fitting age
-and realm, and triggers where it makes sense — found at random when the time is
-right, or set in motion by your own deeds, by chance or by certainty. Within each year you may perform a few **deeds** — use
+yet be reborn alongside you, lifetimes hence). Refining a **Flawless pill** can draw a dead pill-sage's legacy and a years-long
+hunt for a **legendary formula (丹道传承)**; hewing a top-tier **Cave-Heaven abode**
+into a deep spirit-vein can wake something old sleeping in the stone. Every arc is
+gated to a fitting age and realm, and triggers where it makes sense — found at
+random when the time is right, or set in motion by your own deeds (a breakthrough,
+a marriage, a sect founded, a champion's crown, a flawless pill), by chance or by
+certainty. A **Sagas (机缘)** screen on your character sheet tracks every storyline
+you are living through — where each one stands, how many years you have walked it,
+and the sagas you have already brought to a close. Within each year you may perform a few **deeds** — use
 the tabs to **Cultivate** (seclusion, breakthroughs, the Dao), tend
 **Relationships** (family, masters, rivals, dao companions, even children of
 your own), pursue **Activities** (train, study, rest, alchemy, adventure), and

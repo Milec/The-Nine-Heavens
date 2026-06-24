@@ -5,6 +5,7 @@ import * as L from "./life.js";
 import * as C from "./combat.js";
 import * as meta from "./meta.js";
 import * as W from "./world.js";
+import * as Ev from "./events.js";
 import { icon } from "./icons.js";
 
 /* Plain-language explanations for every stat, shown as tap hints + a glossary. */
@@ -766,6 +767,41 @@ function openDaos() {
   });
 }
 
+// The Sagas screen: the multi-year storylines you are living through, where each
+// stands, and the sagas you have already brought to a close in this life.
+function openSagas() {
+  const c = state.c;
+  openOverlay("Sagas 机缘", body => {
+    const active = Ev.activeSagas(c), resolved = Ev.resolvedSagas(c);
+    body.appendChild(el("p", "note", "The great threads of your fate — sagas that play out over years. Some find you when the time is right; others your own deeds set in motion. Each unfolds beat by beat, and the choices you make turn them."));
+    if (!active.length && !resolved.length) {
+      body.appendChild(el("p", "note", "No saga has yet taken hold of your life. Walk the world, win and lose, love and cultivate — and the threads of fate will find you in time."));
+      return;
+    }
+    if (active.length) {
+      body.appendChild(el("div", "section-h", `Unfolding (${active.length})`));
+      for (const s of active) {
+        const r = el("div", "listrow bound");
+        r.innerHTML = `<div class="lr-ava">机</div><div class="lr-main">
+          <div class="lr-title">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(s.cn)}</span></div>
+          <div class="lr-sub">${escapeHtml(s.text)}</div>
+          <div class="lr-sub" style="opacity:.7">${s.years === 0 ? "begun this year" : `${s.years} year${s.years === 1 ? "" : "s"} along this thread`}</div></div>`;
+        body.appendChild(r);
+      }
+    }
+    if (resolved.length) {
+      body.appendChild(el("div", "section-h", `Resolved (${resolved.length})`));
+      for (const s of resolved) {
+        const r = el("div", "listrow");
+        r.innerHTML = `<div class="lr-ava" style="opacity:.6">✓</div><div class="lr-main">
+          <div class="lr-title" style="opacity:.75">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(s.cn)}</span></div>
+          <div class="lr-sub">A saga brought to its close.</div></div>`;
+        body.appendChild(r);
+      }
+    }
+  });
+}
+
 // Forge an original technique from your element and insight — costly and uncertain.
 function openForgeTech() {
   const c = state.c;
@@ -1056,7 +1092,7 @@ function openAbode() {
       }
       const up = el("button", "mbtn full" + (canAfford && !tooYoung ? " primary" : ""));
       up.innerHTML = `${cur ? "Upgrade to" : "Establish"} ${escapeHtml(next[1])}<small>${tooYoung ? "from age " + AGE_MIN.abode : canAfford ? "free · spend " + next[3] + " stones" : "need " + next[3] + " stones"}</small>`;
-      if (canAfford && !tooYoung) up.onclick = () => runFree(() => L.upgradeAbode(c));
+      if (canAfford && !tooYoung) up.onclick = () => runFree(() => L.upgradeAbode(c, state.rng));
       else up.disabled = true;
       body.appendChild(up);
     } else if (cur) {
@@ -1753,6 +1789,9 @@ function openSheet() {
       ...(c.talismans && Object.values(c.talismans).some(n => n > 0) ? [["Talismans 符箓", D.TALISMAN_ORDER.filter(k => (c.talismans[k] || 0) > 0).map(k => `${D.TALISMANS[k].name.split(" ")[0]}×${c.talismans[k]}`).join(", ")]] : []),
       ["Techniques", [...c.techniques.map(t => D.TECHNIQUES[t][0]), ...(c.customTechs || []).map(ct => ct.name + " ✦")].join(", ")],
     ]));
+    { const nActive = Ev.activeSagas(c).length, sg = el("button", "mbtn full");
+      sg.innerHTML = `机 Sagas 机缘${nActive ? `<small>${nActive} unfolding now</small>` : "<small>your multi-year storylines</small>"}`;
+      sg.onclick = openSagas; body.appendChild(sg); }
     const ach = el("button", "mbtn full"); ach.innerHTML = "✦ Achievements & Legacy";
     ach.onclick = () => openAchievements(openSheet); body.appendChild(ach);
     body.appendChild(el("div", "section-h", "Life Chronicle"));
@@ -2239,6 +2278,9 @@ function applyBrew() {
     const q = B.quality; let grade, mult;
     if (q >= 7) { grade = "Flawless"; mult = 2.2; award("alchemist"); } else if (q >= 4) { grade = "Fine"; mult = 1.4; } else { grade = "Crude"; mult = 0.8; }
     msgs = [`You withdraw a ${grade} ${B.recipe[1]} (quality ${q}/${B.rounds * 2}).`].concat(E.grantPill(c, B.recipe[0], rng, mult));
+    // A Flawless pill from a skilled hand can draw the notice of an old pill-sage's
+    // legacy — arming the Grandmaster's Cauldron alchemy arc.
+    if (grade === "Flawless" && c.realm >= 2 && E.armArc(c, "alchemy", rng, 0.35)) msgs.push("As the flawless pill settles, cool in your palm, you catch the faint scent of a furnace that has not been lit in a thousand years...");
   }
   state.brew = null; closeOverlay(); logMessages(msgs); endActivityYear();
 }
