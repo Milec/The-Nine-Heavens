@@ -71,7 +71,7 @@ export const EVENTS = [
     text: c => `A robed recruiter from a nearby sect hears of your ${c.root.display.split(" (")[0]} and comes knocking.`,
     choices: [
       { label: "Beg to take the entrance trial", result: (c, rng, A) => {
-        const tier = ({ none: 0, waste: 0, quad: 1, triple: 2, dual: 3, heavenly: 4, variant: 5, chaos: 6 })[c.root.key] || 0;
+        const tier = D.ROOT_TIER[c.root.key] || 0;
         if (rng.random() < 0.35 + tier * 0.12) { c._scouted = true; A.happy(12); return "They test your meridians, nod once, and bid you present yourself at the sect gates. A door to the heavens cracks open. (Visit the Sect tab.)"; }
         A.happy(-6); return "They frown at your foundation and move on. Not yet, they say. Not yet.";
       } },
@@ -950,7 +950,7 @@ export const EVENTS = [
     id: "wild_beast_call", weight: 4, awakened: true, cond: c => !c.beast && c.root.key !== "none" && c.realm >= 1,
     text: () => "A wounded spirit-beast cub, abandoned by its pack, creeps to the edge of your camp and watches you with wary, hungry eyes.",
     choices: [
-      { label: "Earn its trust with food and patience", result: (c, rng, A) => { if (rng.random() < 0.45 + c.charm / 250 + c.soul / 400) { const sp = rng.choice(D.SPIRIT_BEASTS); c.beast = E.normalizeBeast({ name: sp.split(" ").slice(-1)[0], species: sp, baseSpecies: sp, element: D.beastElement(sp), power: E.power(c) * rng.uniform(0.25, 0.4), bond: 60, rank: 1, exp: 0, fedThisYear: 0, alive: true }); A.happy(8); A.note(`Befriended a wild ${sp} cub.`); return `Day by day it draws closer, until one dawn it simply will not leave your side. You have a new companion: a ${sp}! (See Treasures & Beast.)`; } A.happy(-2); return "The cub is too skittish; one wrong move and it bolts into the trees, gone for good."; } },
+      { label: "Earn its trust with food and patience", result: (c, rng, A) => { if (rng.random() < 0.45 + c.charm / 250 + c.soul / 400) { const sp = rng.choice(D.SPIRIT_BEASTS); c.beast = E.normalizeBeast({ name: sp.split(" ").slice(-1)[0], species: sp, baseSpecies: sp, element: D.beastElement(sp), power: E.power(c) * rng.uniform(0.25, 0.4), bond: 60, rank: 1, exp: 0, fedThisYear: 0, trait: E.rollBeastTrait(rng), alive: true }); A.happy(8); A.note(`Befriended a wild ${sp} cub.`); return `Day by day it draws closer, until one dawn it simply will not leave your side. You have a new companion: a ${sp}! (See Treasures & Beast.)`; } A.happy(-2); return "The cub is too skittish; one wrong move and it bolts into the trees, gone for good."; } },
       { label: "Leave it to the wild", result: () => "You let nature take its course. The cub watches you go, then turns back to the forest." },
     ],
   },
@@ -1043,7 +1043,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: "qi_deviation", weight: 5, minAge: 14, maxAge: 9000, awakened: true, minRealm: 1, cond: c => c.root.key !== "none",
+    id: "reckless_cultivation", weight: 5, minAge: 14, maxAge: 9000, awakened: true, minRealm: 1, cond: c => c.root.key !== "none",
     text: () => "Greedy for faster progress, you drive a dangerous high-speed cultivation method through the night.",
     choices: [
       { label: "Force on through the danger", result: (c, rng, A) => { if (rng.random() < 0.45 + c.soul / 250) { A.qi(0.7); A.happy(4); return "You ride the surging qi to the very edge and back. A reckless gamble — and this time it pays. (qi surges)"; } A.heal(-18); A.qi(-0.3); A.happy(-6); return "Your meridians rebel; qi tears loose and you cough blood for a week. The dao is no place for greed. (-Health, qi lost)"; } },
@@ -1190,6 +1190,662 @@ export const EVENTS = [
       { label: "Walk on warily", result: (c, rng, A) => { cap(c, "soul", 1); return "Something about that grin sets your spirit on edge. You keep your stones and your distance. (+Soul Sense)"; } },
     ],
   },
+
+  /* ===================== branching dialogue encounters =================== *
+   * These use the multi-step dialogue framework: a choice can open a follow-on
+   * node (with an NPC speaker) instead of ending the card, so the player talks,
+   * bargains and decides their way through a real conversation. */
+  {
+    id: "dlg_hermit", weight: 5, minAge: 12, minRealm: 1, awakened: true, cooldown: 25,
+    speaker: () => "A Reclusive Elder",
+    text: () => "Crossing a misted pass you find an old man in patched grey robes, brewing tea over a thumb-sized fire. He does not look up. \"Sit,\" he says. \"The kettle is near ready, and you have walked a long way to be so tense.\"",
+    choices: [
+      { label: "Sit and share his tea", result: () => ({
+        speaker: "The Elder",
+        text: "He pours two cups without asking. \"A riddle for the tea, then. When the blade falls and the heart is still — which moves first: the hand, or the intent behind it?\"",
+        choices: [
+          { label: "\"The intent. The hand only follows.\"", result: (c, rng, A) => { cap(c, "comprehension", 3); A.qi(0.5); return ["His eyes crease. \"Just so. Few your age see it.\" He traces a character in the ash and a knot in your meridians quietly loosens. (+Comprehension, +qi)"]; } },
+          { label: "\"The hand. Intent is a story we tell after.\"", result: (c, rng, A) => { cap(c, "constitution", 2); cap(c, "soul", 1); return ["He chuckles into his cup. \"A body-cultivator's answer — not wrong, but not whole.\" He raps your wrist with a knuckle and your sinews hum. (+Constitution)"]; } },
+          { label: "\"Neither. They were never two things.\"", result: (c, rng, A) => {
+            if (rng.random() < 0.5 + c.comprehension / 220) {
+              cap(c, "comprehension", 4); cap(c, "soul", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3);
+              const t = A.learnTech(); A.note("A nameless old master left a mark on your dao.");
+              return ["The cup stops at his lips. For a long moment he only looks at you. \"...Go,\" he says at last, softly, \"before I am tempted to keep you.\" He presses a jade slip into your palm.", t ? `  In the slip: a manual — ${t}!` : "  Insight blooms behind your eyes. (+Comprehension, +Soul, +Dao Heart)"];
+            }
+            cap(c, "soul", 1); return ["\"A fine thing to say,\" he murmurs, \"if you understood it.\" He smiles, not unkindly, and pours more tea. (+Soul)"];
+          } },
+        ],
+      }) },
+      { label: "Ask to become his disciple", result: () => ({
+        speaker: "The Elder",
+        text: "\"A master?\" He laughs until he coughs. \"I have nothing to teach that the mountain won't teach you cheaper. But boldness should not go home empty-handed.\"",
+        choices: [
+          { label: "Press him, earnest and unbending", result: (c, rng, A) => { if (rng.random() < 0.25 + c.charm / 300) { A.qi(0.8); cap(c, "comprehension", 2); return ["Something in your eyes gives him pause. \"...One lesson, then. Listen well, for I will not repeat it.\" For an hour he speaks, and the world quietly rearranges itself. (+qi, +Comprehension)"]; } A.herbs(rng.randint(3, 7)); A.happy(-1); return ["\"Persistent. Good. Still no.\" He waves you off — but tucks a bundle of spirit herbs into your sleeve as you turn to go."]; } },
+          { label: "Bow to the ground and accept his refusal", result: (c, rng, A) => { cap(c, "soul", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 2); return ["You bow three times to the earth and leave without another word. \"Mm,\" he grunts, pleased despite himself. Something in you settles. (+Soul, +Dao Heart)"]; } },
+        ],
+      }) },
+      { label: "Bow and continue on your way", result: (c, rng, A) => { cap(c, "soul", 1); return ["You bow and leave the old man to his tea; the mist swallows the little fire behind you. (+Soul)"]; } },
+    ],
+  },
+  {
+    id: "dlg_devil_bargain", weight: 4, minAge: 14, minRealm: 2, awakened: true, cooldown: 22,
+    cond: c => c.root.key !== "none",
+    speaker: () => "A Voice in the Dark",
+    text: () => "Cultivating alone at the dead of night, you feel the lamp gutter. A voice slides into the room like smoke, owning no body. \"Such talent,\" it purrs, \"shackled by such patience. I could spare you a hundred years of crawling. Care to hear my terms?\"",
+    choices: [
+      { label: "\"Speak, then. I am listening.\"", result: () => ({
+        speaker: "The Voice",
+        text: "\"A morsel of forbidden art — blood for qi, the oldest trade. Your cultivation would leap like a struck flame. The cost is small. At first.\"",
+        choices: [
+          { label: "\"And the true cost? Name it.\"", result: () => ({
+            speaker: "The Voice",
+            text: "\"...Your name in a certain ledger. A shadow on your soul the heavens will one day come to collect. A trifle — for power now, while your rivals still crawl.\"",
+            choices: [
+              { label: "Accept the bargain", result: (c, rng, A) => { A.karma(-30); A.qi(1.3); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 8); if (!c.techniques.includes("blood_refine")) c.techniques.push("blood_refine"); A.note("Struck a bargain with a thing in the dark."); return ["You speak the word. Cold power floods your meridians, hungry and sweet, and the art carves itself into your soul. The voice laughs, satisfied, and is gone. The heavens will remember this. (+++qi, −−Karma, −Dao Heart, learned a blood-art)"]; } },
+              { label: "\"No. Get out.\"", result: (c, rng, A) => { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 5); cap(c, "soul", 2); return ["You name the thing for what it is and command it gone. It shrieks, thin and furious, and the lamp flares white. Your dao heart rings like a struck bell. (+Dao Heart, +Soul)"]; } },
+            ],
+          }) },
+          { label: "\"I'll have none of it. Begone.\"", result: (c, rng, A) => { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); cap(c, "soul", 1); return ["You straighten the lamp-wick and recite a calming mantra until the smoke-voice thins to nothing. (+Dao Heart, +Soul)"]; } },
+        ],
+      }) },
+      { label: "\"Begone. I climb on my own.\"", result: (c, rng, A) => { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 4); cap(c, "soul", 2); return ["You do not even turn your head. The voice hisses, affronted, and is snuffed out like a pinched wick. Your resolve hardens against the dark. (+Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "dlg_captured_rogue", weight: 4, minAge: 14, minRealm: 1, awakened: true, cooldown: 14,
+    cond: c => c.root.key !== "none",
+    text: () => "A masked rogue tries to cut your purse on a crowded road — and you catch his wrist like a striking snake. He freezes, his little blade trembling an inch from your robe.",
+    choices: [
+      { label: "Demand an explanation", result: () => ({
+        speaker: "The Thief",
+        text: "\"Mercy, fellow daoist! My sect was razed in the Demon Tide — I've a little sister to feed and not a stone to my name. I wasn't going to take much, I swear it!\"",
+        choices: [
+          { label: "Release him with a warning", result: (c, rng, A) => { A.karma(4); A.happy(2); return ["You let go. He stares, then bows again and again and melts into the crowd. Perhaps he spoke true; perhaps not. Either way you sleep easier tonight. (+Karma)"]; } },
+          { label: "Take his blade as payment for the lesson", result: (c, rng, A) => { A.stones(rng.randint(4, 10)); return ["You pluck the dagger from his fingers and send him running. A decent little blade — you sell it down the road for a few stones."]; } },
+          { label: "\"Prove it. Take me to this sister.\"", result: (c, rng, A) => { if (rng.random() < 0.55 + c.soul / 400) { A.karma(8); A.happy(4); const f = A.meet("friend", { affinity: 22 }); return [`He leads you down crooked alleys to a freezing garret where a thin girl waits, wide-eyed. It was true. You leave them silver enough for a season — and earn a debt of gratitude that may, one day, matter.${f ? ` ${f.name} will not forget this.` : ""} (+Karma)`]; } A.happy(-3); return ["He bolts the instant your grip eases, cackling — there was no sister, only a mark soft enough to believe in one. You've been played for a fool. (−a little face)"]; } },
+          { label: "Cut him down where he stands", result: (c, rng, A) => { A.karma(-12); A.happy(-2); return ["Your palm finds his heart before the lie is finished. He folds into the dust and the crowd recoils from you. Perhaps he deserved it. Perhaps not. The heavens are watching. (−Karma)"]; } },
+        ],
+      }) },
+      { label: "Hand him to the city wardens", result: (c, rng, A) => { c.reputation += 1; A.karma(2); return ["You frog-march the squirming thief to the ward-post and leave him to mortal justice. Orderly, bloodless, forgettable. (+a little Reputation)"]; } },
+    ],
+  },
+  {
+    id: "dlg_merchant_haggle", weight: 5, minAge: 12, awakened: true, cooldown: 12, cond: c => c.spiritStones >= 20,
+    speaker: () => "A Silver-Tongued Merchant",
+    text: () => "A merchant with a cart of oddments waves you over. \"Friend! You've the look of a cultivator of taste. This—\" he lifts a dusty jade gourd that hums faintly \"—a genuine spirit-treasure, and for you, a mere eighty stones!\"",
+    choices: [
+      { label: "Pay the eighty and take it", cond: c => c.spiritStones >= 80, result: (c, rng, A) => { A.stones(-80); return ["He wraps it before you can blink. \"A discerning eye!\""].concat(A.giveArtifact()); } },
+      { label: "Scoff and start to walk", result: () => ({
+        speaker: "The Merchant",
+        text: "\"Wait, wait! For a face like yours — fifty-five. I rob my own children to say it!\"",
+        choices: [
+          { label: "Pay fifty-five", cond: c => c.spiritStones >= 55, result: (c, rng, A) => { A.stones(-55); return ["He sighs as though wounded and hands it over."].concat(A.giveArtifact()); } },
+          { label: "\"Thirty. Final.\"", result: (c, rng, A) => {
+            if (rng.random() < 0.4 + c.charm / 250) { A.stones(-Math.min(c.spiritStones, 30)); return ["He clutches his chest, named a robber — then grins and slaps the gourd into your hands. \"Take it! Take it before my heart gives out!\""].concat(A.giveArtifact()); }
+            A.happy(-1); return ["He throws up his hands. \"You insult the ancestors of this gourd!\" He packs up his cart with wounded dignity and trundles off. The deal is lost."];
+          } },
+          { label: "Walk away for real", result: () => "You leave him calling prices at your back, each one lower than the last. Some games are won by not playing." },
+        ],
+      }) },
+      { label: "Decline politely and move on", result: () => "You smile, shake your head, and walk on. The hum of the gourd fades behind you." },
+    ],
+  },
+
+  /* ==================== multi-year storyline arcs ======================= *
+   * Arcs play out over several years: a choice now sets the arc's stage, and a
+   * later beat (gated on stage + years elapsed) continues it, branching on what
+   * you chose before. Arc-flagged beats are drawn with priority (see
+   * rollYearEvents) so a saga you're living through reliably advances. */
+
+  // — The Dying Sword-Immortal's Inheritance (剑冢传承) — power, virtue, or theft.
+  {
+    id: "swordtomb_start", arc: true, weight: 6, minAge: 14, minRealm: 2, awakened: true, cooldown: 0,
+    cond: c => c.root.key !== "none" && arcStage(c, "swordtomb") === 0,
+    speaker: () => "A Dying Sword-Immortal",
+    text: () => "Deep in a cleft of grey stone you find an ancient man impaled on his own black sword, dying slow across centuries. His eyes snap open. \"You... have the bones for it. Quickly — my sword-heart cannot pass into the dirt. Will you take it, and all the ruin it brings?\"",
+    choices: [
+      { label: "Kneel and accept his final transmission", result: (c, rng, A) => { arcSet(c, "swordtomb", 1); cap(c, "comprehension", 2); A.note("Accepted a dying sword-immortal's transmission."); return ["He presses two fingers to your brow and a seed of cold, singing light buries itself in your sea of consciousness. \"Temper it,\" he breathes, \"or it will temper you.\" Then he is dust. (A sword-seed is planted; the path will unfold over the coming years.)"]; } },
+      { label: "Grant him a clean death and take nothing", result: (c, rng, A) => { arcSet(c, "swordtomb", 99); A.karma(10); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); cap(c, "soul", 2); return ["You ease his blade free and let the old killer go in peace. He smiles, surprised, and crumbles to dust. You leave his tomb unrobbed — and walk away lighter than you came. (+Karma, +Dao Heart, +Soul)"]; } },
+      { label: "Slay him and seize the black sword now", result: (c, rng, A) => { arcSet(c, "swordtomb", 11); A.karma(-18); A.note("Robbed a dying sword-immortal's tomb."); return ["You end him with his own edge and tear the black sword free. Cold power thrums up your arm — and somewhere, something marks the theft. (−Karma)"].concat(E.acquireArtifact(c, E.randomArtifact(c, rng, "Heaven", { slot: "weapon", element: "Dark" }))); } },
+    ],
+  },
+  {
+    id: "swordtomb_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "swordtomb") === 1 && arcYears(c, "swordtomb") >= 2,
+    text: () => "The sword-seed in your sea of consciousness has grown teeth. One night it wakes, and a storm of killing intent not your own howls through your meridians, demanding to be mastered — or to master you.",
+    choices: [
+      { label: "Hurl yourself into the sword-intent", result: (c, rng, A) => {
+        if (rng.random() < 0.35 + c.comprehension / 260 + (c.daoHeart || 0) / 300) { arcSet(c, "swordtomb", 2); A.qi(0.8); cap(c, "comprehension", 3); return ["You meet the storm with your whole soul and ride it down into stillness. The sword-intent bends its neck to you at last. (+Comprehension, +qi — mastery is near.)"]; }
+        A.heal(-Math.round(c.maxHp * 0.25)); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 4); return ["The intent is an ocean and you a stone; it batters you bloody and withdraws, unbroken. You will have to try again, stronger. (−health, −Dao Heart)"];
+      } },
+      { label: "Temper it slowly, a little each year", result: (c, rng, A) => { arcSet(c, "swordtomb", 2); cap(c, "soul", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); return ["You refuse to be rushed. Night after night you sit with the cold light, coaxing it a finger's breadth at a time. Slow — but sure. (+Soul, +Dao Heart)"]; } },
+      { label: "Cast the sword-seed out for good", result: (c, rng, A) => { arcSet(c, "swordtomb", 99); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 5); cap(c, "soul", 1); return ["A borrowed blade is no blade at all, you decide. With a wrenching effort you expel the seed; it gutters out in the dark, and you are only yourself again — and at peace with it. (+Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "swordtomb_master", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "swordtomb") === 2 && arcYears(c, "swordtomb") >= 2,
+    text: () => "The sword-seed is ripe. To take its inheritance whole you must forge it into a sword-heart of your own — and the heavens watch to see whether you are worthy, or merely a thief of a dead man's strength.",
+    choices: [
+      { label: "Forge the sword-heart", result: (c, rng, A) => {
+        arcSet(c, "swordtomb", 99);
+        if ((c.daoHeart || 0) >= 35 || rng.random() < 0.4 + c.comprehension / 300) {
+          if (!c.techniques.includes("heaven_slash")) c.techniques.push("heaven_slash");
+          cap(c, "comprehension", 4); A.note("Forged a sword-immortal's inheritance into a sword-heart.");
+          return ["Steel and soul fuse. The old immortal's centuries pour into you and settle as your own — you understand the sword now, all the way down. You have inherited the Heaven-Splitting Sabre! (+Comprehension)"]
+            .concat(E.acquireArtifact(c, E.randomArtifact(c, rng, "Heaven", { slot: "weapon", element: "Metal" })))
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.5 }));
+        }
+        A.heal(-Math.round(c.maxHp * 0.4)); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); c.stage = Math.max(0, c.stage - 1);
+        if (!c.techniques.includes("sword_rain")) c.techniques.push("sword_rain");
+        return ["Your dao heart cannot yet hold a dead man's centuries. The sword-intent rebels, savaging your meridians before you wrestle it to a sullen truce. You salvage only a fragment of the art — and a scar on your soul. (−health, −Dao Heart, slipped a stage; learned a lesser sword art)"];
+      } },
+    ],
+  },
+  {
+    id: "swordtomb_haunt", arc: true, weight: 18, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "swordtomb") === 11 && arcYears(c, "swordtomb") >= 2,
+    speaker: () => "A Vengeful Sword-Wraith",
+    text: () => "The black sword you stole has been whispering. Tonight the whispers take shape: the murdered immortal's killing intent claws out of the blade, a wraith of grey fire with your theft burning in its eyes. \"THIEF.\"",
+    choices: [
+      { label: "Face the wraith, blade to blade", result: (c, rng, A) => {
+        const res = A.fight(["the Sword-Immortal's Wraith", A.power() * rng.uniform(1.1, 1.45), (c.realm + 1) * 9, "rogue"]);
+        if (c.alive) { arcSet(c, "swordtomb", 99); c.reputation += 6; cap(c, "comprehension", 3); res.push("You shatter the wraith and the black sword falls silent at last — truly yours now, paid for in full. (+Reputation, +Comprehension)"); }
+        return ["Grey fire against your steel."].concat(res);
+      } },
+      { label: "Kneel, repent, and offer the sword back", result: (c, rng, A) => {
+        arcSet(c, "swordtomb", 99);
+        if ((c.karma || 0) >= 0 || (c.daoHeart || 0) >= 30) { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); A.karma(8); return ["You lay the blade down and press your forehead to the cold stone. The wraith studies you a long moment — then sighs and sinks back into the steel, appeased. The sword is yours with its blessing now. (+Karma, +Dao Heart)"]; }
+        A.heal(-Math.round(c.maxHp * 0.3)); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 5); return ["Your repentance rings hollow even to your own ears. The wraith sees the rot in your heart and sinks its grey fire into your soul before it fades — a curse you will carry a long time. (−health, −Dao Heart)"];
+      } },
+    ],
+  },
+
+  // — The Foundling (孤雏) — a ward you raise across the years into a devoted
+  //   disciple, a cold blade, a stranger who departs, or a nemesis of your making.
+  {
+    id: "foundling_start", arc: true, weight: 5, minAge: 18, minRealm: 1, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "foundling") === 0 && !arcNpc(c, "foundling"),
+    text: () => "In a famine-struck town a filthy child plants themselves in your path, eyes too old for their face. \"You're a cultivator,\" they say — not asking. \"Take me. I'll work, I'll—\" The small hands are shaking. Something in them flickers: the faintest spark of a spiritual root.",
+    choices: [
+      { label: "Take the child in as your ward", result: (c, rng, A) => {
+        const n = A.meet("friend", { affinity: 40, realm: 0 });
+        n.arcTag = "foundling"; n.kin = "Foundling Ward";
+        arcSet(c, "foundling", 1, { ward: n.name });
+        A.happy(5); A.note(`Took in a foundling, ${n.name}.`);
+        return [`You hold out a hand. ${n.name} stares at it as though it might vanish, then seizes it with both of theirs. You have a ward now — and the long, uncertain work of raising one. (See them in Relationships.)`];
+      } },
+      { label: "Give them silver and a warm meal", result: (c, rng, A) => { arcSet(c, "foundling", 99); A.karma(6); A.happy(3); A.stones(-Math.min(c.spiritStones, 5)); return ["You press silver and bread into their hands and point them to a temple that takes orphans. It is not nothing. It is not everything. They watch you go with a look you try not to remember. (+Karma)"]; } },
+      { label: "Step around them and walk on", result: (c, rng, A) => { arcSet(c, "foundling", 99); A.happy(-3); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 1); return ["The world is full of dying children and you cannot save them all. You tell yourself this all the way down the road, and most of the way through the night. (−Happiness)"]; } },
+    ],
+  },
+  {
+    id: "foundling_lost", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => (arcStage(c, "foundling") === 1 || arcStage(c, "foundling") === 2) && !arcNpc(c, "foundling"),
+    auto: (c, rng, A) => { arcSet(c, "foundling", 99); A.happy(-12); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 2); return "Word comes that your ward did not survive — the world is hard on small things, and you were not there to shield them. You bury what little there is to bury, and carry the weight of it the rest of your days. (−Happiness)"; },
+  },
+  {
+    id: "foundling_raise", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "foundling") === 1 && arcYears(c, "foundling") >= 3 && !!arcNpc(c, "foundling"),
+    text: c => { const n = arcNpc(c, "foundling"); return `Three years on, ${n ? n.name : "your ward"} has filled out and steadied, and their spark of talent has caught into a flame. How you raise them now will shape who they become.`; },
+    choices: [
+      { label: "Teach with patient kindness", result: (c, rng, A) => { const n = arcNpc(c, "foundling"); if (n) n.affinity = clampN((n.affinity || 40) + 25, -100, 100); arcSet(c, "foundling", 2, { path: "kind" }); A.happy(4); return [`You are gentle where the world was not. ${n ? n.name : "Your ward"} blooms under it, following you like a second shadow, hungry to make you proud.`]; } },
+      { label: "Drill them with harsh discipline", result: (c, rng, A) => { const n = arcNpc(c, "foundling"); if (n) { n.affinity = clampN((n.affinity || 40) - 8, -100, 100); n.power = (n.power || 1) * 1.6; n.realm = Math.min(Math.max(0, c.realm - 2), (n.realm || 0) + 1); } arcSet(c, "foundling", 2, { path: "harsh" }); return [`You are iron with them — cold dawns, bleeding hands, no praise. They grow strong and hard and fast, and learn to read your moods like weather. Whether love or fear drives them, even you cannot always tell.`]; } },
+      { label: "Leave them to fend while you cultivate", result: (c, rng, A) => { const n = arcNpc(c, "foundling"); if (n) n.affinity = clampN((n.affinity || 40) - 24, -100, 100); arcSet(c, "foundling", 2, { path: "neglect" }); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 2); return [`Your dao comes first; it always has. ${n ? n.name : "The child"} is fed and housed and otherwise alone, learning what your silences mean. (−the bond between you)`]; } },
+    ],
+  },
+  {
+    id: "foundling_grown", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "foundling") === 2 && arcYears(c, "foundling") >= 3 && !!arcNpc(c, "foundling"),
+    text: c => { const n = arcNpc(c, "foundling"); return `${n ? n.name : "Your ward"} comes of age — no longer a foundling but a young cultivator in their own right. The shape of what you made of them comes due.`; },
+    choices: [
+      { label: "See what they have become", result: (c, rng, A) => {
+        const n = arcNpc(c, "foundling"); arcSet(c, "foundling", 99);
+        if (!n) return ["But they are already gone, slipped away in the night without a word."];
+        const aff = n.affinity || 0; n.arcTag = null;
+        if (aff >= 55) {
+          n.role = "disciple"; n.kin = "Disciple"; n.resides = true; n.learned = n.learned || []; n.affinity = clampN(aff + 10, -100, 100);
+          A.happy(8); c.reputation += 4; A.note(`${n.name}, once a foundling, became your devoted disciple.`);
+          return [`${n.name} kneels and kowtows three times, then presses a gift into your hands, bought with years of saved coppers. "Everything I am, master, you made." They are yours now, heart and blade, and come to live at your side. (A devoted disciple!)`]
+            .concat(E.acquireArtifact(c, E.randomArtifact(c, rng, null)));
+        }
+        if (aff >= 0) {
+          n.role = "disciple"; n.kin = "Disciple"; n.learned = n.learned || [];
+          return [`${n.name} bows, correct and cool, and takes a place among your disciples. They are strong, and loyal — in the way a well-made blade is loyal. Warmth was never part of the bargain. (A disciple gained.)`];
+        }
+        if (aff <= -25) {
+          n.role = "nemesis"; n.kin = "Nemesis"; n.grudge = "the master who raised them like a tool and called it love"; n.encounters = 0;
+          E.ensureNpcProfile(n, rng, { realm: Math.max(1, c.realm - 2) });
+          A.happy(-8); A.note(`${n.name}, the foundling you failed, became your nemesis.`);
+          return [`${n.name} looks at you with your own coldness reflected back, and it is worse than hatred. "I learned everything from you," they say softly. "Including this." They turn and walk into the world as your sworn enemy. (A nemesis is born of your neglect — settle it in Adventure.)`];
+        }
+        A.happy(-4); n.role = "friend";
+        return [`${n.name} thanks you with stiff formality for "all you did," and takes their leave to walk their own road. You will hear their name now and then, from a distance. They will not visit. (Your ward departs.)`];
+      } },
+    ],
+  },
+
+  // — The Soul-Withering Poison (蚀魂之毒) — armed by a demonic wound in battle;
+  //   a years-long race to find a cure before it reaches your heart.
+  {
+    id: "soulpoison_start", arc: true, weight: 40, minRealm: 2, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "soulpoison") === 0 && E.arcArmed(c, "soulpoison"),
+    auto: (c, rng, A) => {
+      E.disarmArc(c, "soulpoison"); arcSet(c, "soulpoison", 1); cap(c, "soul", 0);
+      c.soul = Math.max(1, c.soul - 2); A.note("A demonic soul-poison took root in your meridians.");
+      return "The rot the demon left has spread. A healer you visit goes pale: a soul-withering poison gnaws at your spirit, and it will not stop on its own. Untreated, in a handful of years it will reach your heart — and end you. You must find a cure.";
+    },
+  },
+  {
+    id: "soulpoison_seek", arc: true, weight: 25, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "soulpoison") === 1 && arcYears(c, "soulpoison") >= 1 && arcYears(c, "soulpoison") < 6,
+    text: c => `The soul-poison deepens; your spirit-sense frays at the edges and cold aches settle in your bones. (${6 - arcYears(c, "soulpoison")} year${6 - arcYears(c, "soulpoison") === 1 ? "" : "s"} before it reaches your heart.)`,
+    choices: [
+      { label: "Seek out a renowned healer (60 stones)", cond: c => c.spiritStones >= 60, result: (c, rng, A) => {
+        A.stones(-60);
+        if (rng.random() < 0.45 + c.reputation / 400 + c.charm / 300) { arcSet(c, "soulpoison", 99); cap(c, "soul", 2); return ["A reclusive divine-healer agrees to see you. Three days of golden needles and bitter draughts later, the cold rot is drawn out at last. You are whole again. (cured — +Soul)"]; }
+        c.soul = Math.max(1, c.soul - 2); return ["The healer you find does what they can, but the poison is stubborn and deep; it buys you time, no more. The rot creeps on. (−Soul)"];
+      } },
+      { label: "Refine the antidote yourself (15 herbs)", cond: c => c.herbs >= 15, result: (c, rng, A) => {
+        A.herbs(-15);
+        if (rng.random() < 0.30 + (c.alchemySkill || 0) / 120 + c.comprehension / 400) { arcSet(c, "soulpoison", 99); cap(c, "comprehension", 2); A.note("Refined a cure for the soul-poison."); return ["Furnace-light and sleepless nights — but you crack the formula and drink down a jade-green antidote of your own making. The poison dissolves. (cured — +Comprehension)"]; }
+        c.soul = Math.max(1, c.soul - 2); A.heal(-Math.round(c.maxHp * 0.08)); return ["Your cauldron yields only a muddy failure that sickens you further. The poison grinds on. (−Soul, −health)"];
+      } },
+      { label: "Take a demonic remedy from a devil-doctor", result: (c, rng, A) => { arcSet(c, "soulpoison", 99); A.karma(-15); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); return ["A blood-robed devil-doctor purges the poison in a single screaming night — by feeding it something darker. You live, cured and clean of body, with a new stain on your soul. (cured — −Karma, −Dao Heart)"]; } },
+      { label: "Grit your teeth and endure another year", result: (c, rng, A) => { c.soul = Math.max(1, c.soul - 3); A.heal(-Math.round(c.maxHp * 0.06)); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 1); return ["You wall the poison off with sheer will and cultivate through the pain. It costs you — but your dao heart hardens in the furnace of it. (−Soul, −health, +Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "soulpoison_crisis", arc: true, weight: 40, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "soulpoison") === 1 && arcYears(c, "soulpoison") >= 6,
+    speaker: () => "The Poison, at Last",
+    text: () => "The soul-poison reaches your heart. Black threads crawl across your vision and your qi convulses — this is the hour you live or die. There is no more time to seek a cure; you have only yourself.",
+    choices: [
+      { label: "Burn your cultivation to purge it", result: (c, rng, A) => { arcSet(c, "soulpoison", 99); c.qi = 0; c.stage = Math.max(0, c.stage - 1); A.heal(-Math.round(c.maxHp * 0.3)); cap(c, "soul", 1); return ["You set your own meridians alight and scour the poison out with raw qi, burning years of progress to ash to do it. You live — diminished, scarred, but alive. (lost cultivation, slipped a stage — cured)"]; } },
+      { label: "Trust your dao heart to weather the storm", result: (c, rng, A) => {
+        arcSet(c, "soulpoison", 99);
+        if (rng.random() < 0.4 + (c.daoHeart || 0) / 160 + c.constitution / 400) { c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 8); A.heal(-Math.round(c.maxHp * 0.2)); cap(c, "soul", 3); return ["You sit unmoving at the heart of the storm and simply refuse to break. Hour by hour the poison spends itself against your unshaken will — and at dawn, it is gone, and you are more than you were. (endured — +Dao Heart, +Soul)"]; }
+        if (rng.random() < c.luck / 280 + (D.physEffect(c).deathSave || 0)) { A.heal(-Math.round(c.maxHp * 0.6)); c.soul = Math.max(1, c.soul - 6); return ["The poison nearly takes you — and would have, but for a sliver of fortune that drags you back from the brink at the last. You crawl out the far side of the night barely alive. (−−health, −Soul)"]; }
+        c.alive = false; c.causeOfDeath = "a demonic soul-poison reaching the heart"; c.hp = 0; c.log.push([c.age, "Died of a soul-withering poison."]); return ["Your will is not enough. The black threads close over your heart, and the long cold finally wins. Your journey ends here, undone by an old wound you could not heal."];
+      } },
+    ],
+  },
+
+  // — The Hidden Master's Tutelage (名师传业) — armed by diligent, talented study;
+  //   a years-long apprenticeship that rewards heart, or punishes shortcuts.
+  {
+    id: "tutelage_start", arc: true, weight: 40, minAge: 16, minRealm: 1, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tutelage") === 0 && E.arcArmed(c, "tutelage"),
+    speaker: () => "A Hidden Master",
+    text: () => "The stranger who has watched you study finally speaks. Beneath a traveler's plain robe you sense an abyss of cultivation — a hidden master, generations beyond you. \"You read as if the words owe you something,\" they say, almost smiling. \"I have not taken a student in three hundred years. I am minded to take one now. Are you worth my centuries?\"",
+    choices: [
+      { label: "Kneel and beg to be taught", result: (c, rng, A) => { E.disarmArc(c, "tutelage"); arcSet(c, "tutelage", 1); cap(c, "comprehension", 2); A.note("A hidden master took you as a private student."); return ["You press your forehead to the dirt. The master snorts, hauls you up by the collar, and begins, then and there, to dismantle everything you thought you knew. The lessons will run for years. (+Comprehension)"]; } },
+      { label: "Decline — your dao is your own to walk", result: (c, rng, A) => { E.disarmArc(c, "tutelage"); arcSet(c, "tutelage", 99); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 5); cap(c, "soul", 2); return ["\"My road is mine to walk, senior, or it is nothing.\" The master studies you a long moment — then laughs, delighted. \"Perhaps that is the lesson.\" They are gone by morning, leaving your resolve the firmer. (+Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "tutelage_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tutelage") === 1 && arcYears(c, "tutelage") >= 2,
+    text: () => "Two years under the hidden master's brutal tutelage have remade you from the meridians out. Now they set you a true trial — a year of relentless, mind-breaking refinement. How you meet it will decide what they pass on.",
+    choices: [
+      { label: "Pour your whole heart into the work", result: (c, rng, A) => { arcSet(c, "tutelage", 2, { path: "diligent" }); A.qi(0.7); cap(c, "comprehension", 3); cap(c, "soul", 2); return ["You give the trial everything — sleep, pride, the skin off your hands — and come out the other side hollowed and gleaming, like a blade ground to its edge. The master nods, once. (+Comprehension, +Soul, +qi)"]; } },
+      { label: "Cut corners to chase quick power", result: (c, rng, A) => { arcSet(c, "tutelage", 2, { path: "lazy" }); A.qi(0.4); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 2); return ["You skim the tedious foundations and lunge for the showy results. It works — after a fashion. But you catch the master watching you with a flicker of disappointment they do not bother to hide. (+qi)"]; } },
+    ],
+  },
+  {
+    id: "tutelage_graduation", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tutelage") === 2 && arcYears(c, "tutelage") >= 2,
+    speaker: () => "Your Master",
+    text: () => "The day comes that the hidden master sets down their tea and says, \"I have nothing left to give you that you cannot now take for yourself.\" The years of tutelage are ending. What they leave you depends on the student you chose to be.",
+    choices: [
+      { label: "Bow, and receive their legacy", result: (c, rng, A) => {
+        const path = (c.arcs.tutelage && c.arcs.tutelage.path) || "diligent"; arcSet(c, "tutelage", 99);
+        if (path === "diligent") {
+          if (!c.techniques.includes("great_void")) c.techniques.push("great_void");
+          cap(c, "comprehension", 4); cap(c, "soul", 3); A.note("Inherited a hidden master's legacy in full.");
+          return ["\"You earned this — all of it.\" They impart the Great Void Immortal Canon, an art said to lead all the way to ascension, and a parting gift besides. Then they walk into the dawn, and you never see them again — but you carry them with you now, always. (Learned the Great Void Immortal Canon! +Comprehension, +Soul)"]
+            .concat(E.acquireArtifact(c, E.randomArtifact(c, rng, "Heaven")))
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.5 }));
+        }
+        cap(c, "comprehension", 2); A.qi(0.5);
+        return ["\"You have talent,\" they say, and the unfinished sentence hangs in the air. They teach you a solid art and a hard truth: that shortcuts compound. Then they are gone, and you are left to wonder what you might have been given, had you been worth more of their centuries. (+Comprehension, +qi)"];
+      } },
+    ],
+  },
+
+  // — The Beast-King's Summons (兽王之召) — a random call answered only by those
+  //   whose spirit beast already carries a worthy bloodline.
+  {
+    id: "beastking_start", arc: true, weight: 4, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "beastking") === 0 && c.beast && c.beast.alive && (c.beast.rank || 1) >= 2,
+    text: c => `${c.beast.name} wakes you at midnight, hackles raised, staring east. On the wind comes a roar that shakes the mountains — and a summons that bypasses your ears and speaks straight to the blood: an ancient Beast-King has caught the scent of your companion's lineage, and bids you both come to its domain.`,
+    choices: [
+      { label: "Answer the summons together", result: (c, rng, A) => { arcSet(c, "beastking", 1); A.note(`Set out to answer a Beast-King's summons with ${c.beast.name}.`); return [`You ready yourselves and turn east. ${c.beast.name} presses its great head to your chest once, then leads the way — toward whatever the Beast-King wants of you both.`]; } },
+      { label: "Refuse, and keep your companion close", result: (c, rng, A) => { arcSet(c, "beastking", 99); if (c.beast) c.beast.bond = clampN((c.beast.bond || 50) + 10, 0, 100); A.happy(3); return [`You will not deliver ${c.beast.name} to some old monster's whim. It huffs, content, and curls against you, and the roar in the east goes unanswered and at last falls silent. (your bond deepens)`]; } },
+    ],
+  },
+  {
+    id: "beastking_lost", arc: true, weight: 40, awakened: true, cooldown: 0,
+    cond: c => (arcStage(c, "beastking") === 1 || arcStage(c, "beastking") === 2) && !(c.beast && c.beast.alive),
+    auto: (c, rng, A) => { arcSet(c, "beastking", 99); A.happy(-6); return "The Beast-King's summons fades, unanswerable now — the companion whose blood it called for is gone. Wherever that ancient thing waits, it will wait in vain, and so, in a different way, will you."; },
+  },
+  {
+    id: "beastking_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "beastking") === 1 && arcYears(c, "beastking") >= 2 && c.beast && c.beast.alive,
+    text: c => `You reach the Beast-King's domain — a valley of impossible creatures that bow as ${c.beast.name} passes. The colossus itself regards your companion with ancient eyes. "The blood is true," it rumbles into your bones. "But blood is only a promise. Let it be tested."`,
+    choices: [
+      { label: `Let ${"your beast"} face the trial alone`, result: (c, rng, A) => {
+        const b = c.beast;
+        if (rng.random() < 0.4 + (b.bond || 50) / 200 + (b.rank || 1) / 12) { arcSet(c, "beastking", 2, { trial: "passed" }); b.exp = (b.exp || 0) + 40; b.power *= 1.12; b.bond = clampN((b.bond || 50) + 6, 0, 100); return [`${b.name} steps into the ring of elders alone and does not flinch. Roar answers roar; when the dust clears, your companion still stands, and the Beast-King's eyes narrow with approval. (your beast grows stronger)`]; }
+        b.power *= 0.95; b.bond = clampN((b.bond || 50) + 2, 0, 100); arcSet(c, "beastking", 2, { trial: "scraped" }); return [`${b.name} fights with everything it has and is beaten down — but will not yield, dragging itself up again and again until the Beast-King calls a halt. "Not strong," it muses. "But unbreakable. That, too, is a bloodline." (your beast is battered but proven)`];
+      } },
+      { label: "Stand with your beast against the King's champion", result: (c, rng, A) => {
+        const res = A.fight(["the Beast-King's Champion", A.power() * rng.uniform(1.1, 1.4), (c.realm + 1) * 9, "beast"]);
+        if (c.alive) { arcSet(c, "beastking", 2, { trial: "fought" }); if (c.beast) { c.beast.exp = (c.beast.exp || 0) + 60; c.beast.bond = clampN((c.beast.bond || 50) + 12, 0, 100); } cap(c, "comprehension", 2); res.push(`Side by side, you and ${c.beast ? c.beast.name : "your beast"} weather the champion's fury and break it. The Beast-King rumbles — was that a laugh? "A two-souled beast. Rare." Your bond has never been deeper.`); }
+        return [`You will not let your companion face this alone.`].concat(res);
+      } },
+    ],
+  },
+  {
+    id: "beastking_boon", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "beastking") === 2 && arcYears(c, "beastking") >= 2 && c.beast && c.beast.alive,
+    speaker: () => "The Beast-King",
+    text: c => `The Beast-King lowers its vast head until one eye fills the sky. "Your companion has earned what I keep. Take it — and remember, two-legs, that I gave it freely." A drop of its ancient blood, bright as a fallen star, hangs waiting before ${c.beast.name}.`,
+    choices: [
+      { label: "Let your companion receive the blood-boon", result: (c, rng, A) => {
+        const b = c.beast; arcSet(c, "beastking", 99);
+        const passed = c.arcs.beastking && (c.arcs.beastking.trial === "passed" || c.arcs.beastking.trial === "fought");
+        b.power *= passed ? 1.6 : 1.3; b.bond = clampN((b.bond || 50) + 10, 0, 100); b.exp = (b.exp || 0) + 60;
+        if (passed && (b.rank || 1) < 5) { b.rank = (b.rank || 1) + 1; b.species = D.beastEvolvedName(b.baseSpecies || b.species, b.rank); }
+        A.note(`${b.name} awakened an ancestral bloodline from the Beast-King.`);
+        const line = passed
+          ? `The star-bright blood sinks into ${b.name} and the valley holds its breath. Your companion throws back its head and *roars* — larger, fiercer, its ancestral bloodline blazing awake. It has ascended. The Beast-King dips its head, one sovereign to a worthy heir. (${b.name} grows vastly stronger and rises a rank!)`
+          : `The blood-boon sinks into ${b.name}, and a slow strength uncoils through it — not the full awakening, but a true and lasting gift. Your companion is markedly mightier than before. (${b.name} grows stronger.)`;
+        return [line];
+      } },
+    ],
+  },
+
+  // — The Sealed Will (残识之秘) — armed by conquering a Secret Realm; a dead
+  //   power's memory-shard that offers knowledge and covets your body.
+  {
+    id: "sealedwill_start", arc: true, weight: 40, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "sealedwill") === 0 && E.arcArmed(c, "sealedwill"),
+    speaker: () => "A Will Not Your Own",
+    text: () => "The thing that lodged in your sea of consciousness stirs — a shard of some long-dead immortal's will, watchful and patient, whether it followed you from a realm's heart or rose from the deep spirit-vein beneath your abode. <Child,> it murmurs, in a voice like dust settling, <I have waited an age for a vessel. Walk with me, and I will give you a thousand years of my knowing.>",
+    choices: [
+      { label: "Commune with the remnant", result: (c, rng, A) => { E.disarmArc(c, "sealedwill"); arcSet(c, "sealedwill", 1, { path: "commune" }); cap(c, "comprehension", 2); A.note("Began communing with a sealed immortal's will."); return ["You lower your guard, just a little, and let the old will speak. Knowledge older than your sect washes through you — and a cold patience settles in behind your eyes, waiting. (+Comprehension)"]; } },
+      { label: "Seal it away behind your dao heart", result: (c, rng, A) => { E.disarmArc(c, "sealedwill"); arcSet(c, "sealedwill", 99); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); cap(c, "soul", 2); return ["You will not share your own skull with a dead thing's ambition. With patient effort you wall the shard behind your dao heart, where it rages, and quiets, and at last goes still. (+Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "sealedwill_pull", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "sealedwill") === 1 && arcYears(c, "sealedwill") >= 2,
+    text: () => "The sealed will has been generous — and each gift binds you a little tighter. Tonight it offers a true treasure of its knowing, and you feel how much of yourself it would cost to take it whole.",
+    choices: [
+      { label: "Take everything it offers", result: (c, rng, A) => { arcSet(c, "sealedwill", 2, { path: "deep" }); A.qi(0.9); cap(c, "comprehension", 4); return ["You open wide and drink it all down. Power and memory not your own flood your meridians — magnificent, intoxicating — and your own thoughts feel, for a moment, like a guest's in someone else's house. (+++Comprehension, +qi)"]; } },
+      { label: "Take only what you can hold — and keep your self", result: (c, rng, A) => { arcSet(c, "sealedwill", 2, { path: "guarded" }); cap(c, "comprehension", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 4); return ["You take a careful sip and no more, holding the line at the edge of your own name. The will is displeased — but you remain wholly, stubbornly yourself. (+Comprehension, +Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "sealedwill_climax", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "sealedwill") === 2 && arcYears(c, "sealedwill") >= 2,
+    speaker: () => "The Will, Unmasked",
+    text: () => "The sealed will makes its move at last, surging up to seize the body it has fed so patiently. <Enough sipping, child. The vessel is ripe — and it was always going to be mine.> Your own hands no longer entirely answer you.",
+    choices: [
+      { label: "Wrestle it for your own soul", result: (c, rng, A) => {
+        const deep = c.arcs.sealedwill && c.arcs.sealedwill.path === "deep"; arcSet(c, "sealedwill", 99);
+        const ward = (c.daoHeart || 0) / 150 + c.soul / 400 - (deep ? 0.18 : -0.05);
+        if (rng.random() < 0.45 + ward) {
+          cap(c, "comprehension", 4); cap(c, "soul", 3); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); A.note("Mastered a sealed immortal's will and made its knowing your own.");
+          return ["You seize the intruding will in your own and *crush* it down, and in crushing it, claim it — its thousand years of knowing dissolve into yours, ownerless now, yours alone. You are wholly yourself, and so much more than you were."]
+            .concat(E.acquireArtifact(c, E.randomArtifact(c, rng, "Heaven")))
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.5 }));
+        }
+        c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); c.soul = Math.max(1, c.soul - 5); c.comprehension = Math.max(1, c.comprehension - 4); A.heal(-Math.round(c.maxHp * 0.3)); cap(c, "constitution", 0);
+        return ["You hold the line — barely — and drive the will back into its shard, but the war leaves you torn. It cost you pieces of yourself you are not sure you will get back, and the shard, beaten, still whispers in the dark. (−Soul, −Comprehension, −Dao Heart, −health)"];
+      } },
+    ],
+  },
+
+  // — Sect Schism (宗门之变) — a power-struggle that finds an established disciple.
+  {
+    id: "schism_start", arc: true, weight: 4, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "schism") === 0 && !!c.sectKey && (c.sectRank || 0) >= 2,
+    speaker: () => "A Conspirator at Your Door",
+    text: c => `A Grand Elder of the ${E.sectName(c)} comes to your quarters by night, unannounced. "The Sect Master grows old and weak, and clutches the seat like a miser," they murmur. "Some of us mean to see the sect led by the strong again. A disciple of your standing must choose a side — tonight. Where do you stand?"`,
+    choices: [
+      { label: "Stand with the Sect Master", result: (c, rng, A) => { arcSet(c, "schism", 1, { path: "loyal" }); return ["You show the conspirator the door. \"The sect is not a prize to be seized.\" They leave with a cold nod — and now both factions know exactly where you stand. The mountain holds its breath."]; } },
+      { label: "Join the rebel faction", result: (c, rng, A) => { arcSet(c, "schism", 1, { path: "rebel" }); A.karma(-4); return ["You clasp the elder's arm. Ambition answers ambition. In shadowed halls the rebels gather strength, and you among them — for a sect led by the strong has a place near its summit for those who helped it rise."]; } },
+      { label: "Stay out of it and watch", result: (c, rng, A) => { arcSet(c, "schism", 1, { path: "neutral" }); cap(c, "soul", 1); return ["\"This is above an inner disciple,\" you demur, and keep your own counsel. Both sides mark you as uncommitted — useful, perhaps, or expendable. You will know soon which. (+Soul)"]; } },
+    ],
+  },
+  {
+    id: "schism_moot", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "schism") === 1 && !c.sectKey,
+    auto: (c, rng, A) => { arcSet(c, "schism", 99); return "Word reaches you that the schism you left behind has run its course without you — masters risen and fallen, the mountain reshaped. It is no longer your concern; you walk a different road now."; },
+  },
+  {
+    id: "schism_resolve", arc: true, weight: 22, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "schism") === 1 && arcYears(c, "schism") >= 2 && !!c.sectKey,
+    text: c => `The long cold war within the ${E.sectName(c)} erupts into open blades. Disciples choose their sides on the duelling terraces, and the matter will be settled in qi and steel by nightfall. Your moment has come.`,
+    choices: [
+      { label: "Throw your strength behind your chosen side", result: (c, rng, A) => {
+        const path = (c.arcs.schism && c.arcs.schism.path) || "neutral"; arcSet(c, "schism", 99);
+        const foeName = path === "rebel" ? "a Loyalist Champion" : path === "loyal" ? "the Rebel Ringleader" : "a Desperate Combatant";
+        const res = A.fight([foeName, A.power() * rng.uniform(1.0, 1.35), (c.realm + 1) * 8, "rogue"]);
+        if (!c.alive) return [`Steel decides the day.`].concat(res);
+        if (path === "loyal") { c.contribution = (c.contribution || 0) + 200; c.reputation += 8; if ((c.sectRank || 0) < 4) c.sectRank = (c.sectRank || 0) + 1; A.note("Defended the Sect Master through the schism."); res.push("The rebellion breaks against the loyalists, and you at the spear-point of it. The grateful Sect Master raises your rank and heaps contribution upon you. (+rank, +contribution, +Reputation)"); }
+        else if (path === "rebel") { c.contribution = (c.contribution || 0) + 160; c.reputation += 4; A.karma(-6); if ((c.sectRank || 0) < 5) c.sectRank = Math.min(5, (c.sectRank || 0) + 2); A.note("Helped overthrow the old Sect Master."); res.push("The old master falls, and a new order rises with you high in its councils — bought with blood and a colder name. (++rank, +contribution, −Karma)"); }
+        else { c.reputation += 3; if (rng.random() < 0.4 + c.charm / 250) { A.karma(6); res.push("As the factions exhaust themselves you step between them and broker a peace no one else could. Both sides owe you now. (+Karma, +Reputation)"); } else { c.contribution = Math.max(0, (c.contribution || 0) - 40); res.push("You survive the chaos but win no glory in it; a sect that remembers your fence-sitting is slow to reward you. (−contribution)"); } }
+        return [`Blades flash across the terraces.`].concat(res);
+      } },
+    ],
+  },
+
+  // — The Reborn Bond (夙世之缘) — a soul you were bound to, returned in this life.
+  {
+    id: "rebornbond_start", arc: true, weight: 40, minAge: 14, awakened: true, cooldown: 0,
+    cond: c => !!c.rebornBond && arcStage(c, "rebornbond") === 0,
+    speaker: () => "A Face You Have Never Seen",
+    text: c => c.rebornBond && c.rebornBond.kind === "love"
+      ? "A stranger passes you in a market lane and the world tilts. You have never seen this face — and yet your heart cracks open with a grief and a tenderness that are not from this life. A name surfaces in you, unbidden, that you should have no way of knowing. The soul you loved most, in a life you do not remember, has been reborn into the turning of the wheel, the same as you."
+      : "A stranger's eyes meet yours across a crowded square and you both go rigid, hackles up, hands drifting toward weapons you have not drawn — for no reason either of you could name. You have never met. And yet every instinct you own is screaming an old, old hatred. A soul you once warred with, lifetimes ago, walks the world again.",
+    choices: [
+      { label: c => c.rebornBond && c.rebornBond.kind === "love" ? "Approach them, and trust the ache" : "Approach the old enemy", cond: () => true, result: (c, rng, A) => {
+        const bond = c.rebornBond; c.rebornBond = null; arcSet(c, "rebornbond", 99);
+        if (bond && bond.kind === "love") {
+          const n = A.meet("companion", { affinity: 45, sex: bond.sex === "female" ? "male" : bond.sex === "male" ? "female" : undefined });
+          A.happy(10); A.note("Met a soul reborn from a past life's love.");
+          return [`You cross the lane on legs not quite your own and simply say their old name. They turn, startled — and something behind their eyes wakes and *knows* you, even if their mind cannot. A bond two lifetimes deep rekindles in an afternoon. (${n ? n.name : "A new love"} — court them, and a dao companion they may again become.)`];
+        }
+        const nem = A.makeNemesis("a war fought and lost across the wheel of two lifetimes");
+        A.happy(-2);
+        return [`You stride up and name them, and the old enemy's lip curls though they cannot say why. "I don't know you," they grind out. "But I am going to enjoy this." The grudge of a forgotten lifetime takes up exactly where it left off. (${nem ? nem.name : "An old foe"} is reborn as your nemesis — settle it in Adventure.)`];
+      } },
+      { label: c => c.rebornBond && c.rebornBond.kind === "love" ? "Let the past rest, and walk on" : "Let the old grudge die unfought", result: (c, rng, A) => {
+        const love = c.rebornBond && c.rebornBond.kind === "love"; c.rebornBond = null; arcSet(c, "rebornbond", 99);
+        c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 5); cap(c, "soul", 2);
+        if (love) { A.happy(-3); return ["You close your hand around the ache and let them pass, a stranger to a stranger. Some loves are meant for one life only; carrying them into the next is a weight no soul should bear. You walk on, lighter and emptier both. (+Dao Heart, +Soul)"]; }
+        A.karma(6); return ["You unclench your fist and let the nameless hatred drain out of you. Whatever was between you belonged to two people who are both long dead. You give the stranger a small nod and walk away, a lifetime's grudge finally laid down. (+Karma, +Dao Heart)"];
+      } },
+    ],
+  },
+
+  // — The Demon-Path Corruption (入魔) — armed by the lure of power (founding a
+  //   sect, a tournament crown); a slow fall toward devilhood, or a hard turn back.
+  {
+    id: "demonpath_start", arc: true, weight: 40, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "demonpath") === 0 && E.arcArmed(c, "demonpath"),
+    speaker: () => "The Whisper of the Shortcut",
+    text: () => "The thought has been with you for months now, and tonight it has a voice. A forbidden manual all but falls into your hands — blood-script that promises in a decade what the orthodox road grudges over centuries. The price is written plainly, and plainly you have stopped caring. Or have you?",
+    choices: [
+      { label: "Open the manual. Embrace the demonic path", result: (c, rng, A) => { E.disarmArc(c, "demonpath"); arcSet(c, "demonpath", 1, { path: "fallen" }); A.karma(-15); A.qi(0.8); if (!c.techniques.includes("blood_refine")) c.techniques.push("blood_refine"); A.note("Began walking the demonic path."); return ["You break the seal and read by your own qi-light until dawn. Cold power answers, swift and sweet and hungry, and the first forbidden art carves itself into your meridians. The road bends downward now — and downward is so much faster. (+qi, learned a blood-art, −Karma)"]; } },
+      { label: "Burn it, and purge the temptation from your heart", result: (c, rng, A) => { E.disarmArc(c, "demonpath"); arcSet(c, "demonpath", 99); A.karma(8); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); cap(c, "soul", 2); return ["You hold the manual over a flame and watch the blood-script writhe and blacken. The hunger in you howls — and then, slowly, quiets. You will walk the long road, the hard road, the only road that was ever truly yours. (+Karma, +Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "demonpath_deepen", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "demonpath") === 1 && arcYears(c, "demonpath") >= 2,
+    text: () => "The blood-art has grown in you, and now it makes its first true demand: it is hungry, and only the qi and blood of others will feed it. A caravan of mortal cultivators camps in the valley below, unguarded. The hunger coils, and waits to see what you are.",
+    choices: [
+      { label: "Feed the hunger — take what it craves", result: (c, rng, A) => { arcSet(c, "demonpath", 2, { path: "deep" }); A.karma(-25); A.qi(1.1); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); c.reputation = Math.max(-200, c.reputation - 6); A.note("Fed the demonic hunger on the innocent."); return ["You descend on the camp like a red wind, and rise from it gorged, your cultivation surging on stolen life. It is monstrous. It is intoxicating. Something in you that used to flinch has stopped flinching. (+++qi, −−Karma, −Dao Heart, infamy)"]; } },
+      { label: "Master the hunger — feed it only your own discipline", result: (c, rng, A) => { arcSet(c, "demonpath", 2, { path: "controlled" }); A.qi(0.4); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 4); cap(c, "soul", 2); return ["You turn from the valley and wrestle the hunger down, feeding it only on your own will and pain. It is slower this way, and it hurts in ways orthodox cultivation never did — but the people in the valley below wake to an ordinary dawn, and never know how close it came. (+qi, +Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "demonpath_climax", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "demonpath") === 2 && arcYears(c, "demonpath") >= 2,
+    speaker: () => "The Devil in the Mirror",
+    text: () => "The demonic art reaches its threshold, and demands you choose what you have become. The power is vast now — vaster than any orthodox peer your age — and it asks only that you let go of the last thing holding you back: the self you were before.",
+    choices: [
+      { label: "Seize it all — become a Demon Sovereign", result: (c, rng, A) => {
+        arcSet(c, "demonpath", 99); A.karma(-30); A.qi(1.4); c.reputation = Math.max(-200, c.reputation - 10);
+        if (!c.techniques.includes("bloodcult_sea")) c.techniques.push("bloodcult_sea");
+        cap(c, "comprehension", 3); A.note("Fell fully to the demonic path and rose a Demon Sovereign.");
+        return ["You let the last of the old you burn away, and what stands when the smoke clears is something the righteous world will learn to fear. Devil-qi crowns you. You have become a Demon Sovereign — terrible, free, and utterly alone at the summit of a red mountain. (+++qi, a supreme blood-art, deep infamy)"]
+          .concat(E.maybeAwardEpithet(c, rng, { base: 0.6 }));
+      } },
+      { label: "Turn back — reclaim your humanity at the last", result: (c, rng, A) => {
+        arcSet(c, "demonpath", 99);
+        const can = (c.daoHeart || 0) >= 30 || (c.arcs.demonpath && c.arcs.demonpath.path === "controlled");
+        if (can || rng.random() < 0.35 + c.soul / 400) { A.karma(15); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 10); cap(c, "comprehension", 2); A.note("Walked the demonic path and walked back out of it again."); return ["At the very threshold you stop, and look at what you are about to lose, and refuse. The turning-back is agony — you tear the demonic art half out of your own soul — but you emerge scarred, lessened, and unmistakably still yourself. Few who walk this road ever walk back. (+Karma, +Dao Heart)"]; }
+        A.heal(-Math.round(c.maxHp * 0.4)); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 8); c.soul = Math.max(1, c.soul - 5); c.stage = Math.max(0, c.stage - 1); return ["You try to turn back — and find the door already locked behind you. The demonic art will not be un-learned, and your half-hearted renunciation only tears you in two. You are neither devil nor the person you were, and the wound of it festers. (−Soul, −Dao Heart, slipped a stage)"];
+      } },
+    ],
+  },
+
+  // — The Blood-Lineage Awakening (血脉觉醒) — armed by a first Foundation
+  //   breakthrough in the strong of body; a path of ancestral flesh.
+  {
+    id: "bloodline_start", arc: true, weight: 40, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "bloodline") === 0 && E.arcArmed(c, "bloodline"),
+    text: () => "Ever since your breakthrough, something has been moving in your marrow — a heat, a pressure, a memory that is not yours. An old physician who reads your pulse goes wide-eyed: somewhere far up your bloodline ran the blood of something mighty, and your foundation has woken it. Left alone it will sleep again. Pursued, it could remake your very flesh.",
+    choices: [
+      { label: "Delve into the sleeping blood", result: (c, rng, A) => { E.disarmArc(c, "bloodline"); arcSet(c, "bloodline", 1); cap(c, "constitution", 3); A.note("Began awakening an ancestral bloodline."); return ["You sink your awareness down into your own marrow, chasing the heat to its source. It is like grasping a sleeping tiger by the tail — but you feel it stir, and answer, and begin, slowly, to wake. (+Constitution)"]; } },
+      { label: "Let the ancient blood lie still", result: (c, rng, A) => { E.disarmArc(c, "bloodline"); arcSet(c, "bloodline", 99); cap(c, "soul", 1); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); return ["Whatever your ancestors were, you will be yourself, by your own road. You let the heat in your marrow bank down to embers and turn back to your cultivation. (+Soul, +Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "bloodline_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "bloodline") === 1 && arcYears(c, "bloodline") >= 2,
+    text: () => "The ancestral blood wakes fully, and with it comes the Blood-Trial: a season of agony as your flesh tears itself apart and reforges in an older, mightier mold. It cannot be rushed without risk — nor refused now without leaving you half-made.",
+    choices: [
+      { label: "Force the awakening through in one burning push", result: (c, rng, A) => {
+        if (rng.random() < 0.35 + c.constitution / 250) { arcSet(c, "bloodline", 2, { path: "forced" }); c.temper = (c.temper || 0) + 60; cap(c, "constitution", 4); A.note("Forced the bloodline awakening."); return ["You drive the awakening through in a single screaming season, flesh and bone remaking in fire. You come out the far side monstrous and magnificent — and far stronger of body than you went in. (++Constitution, your body tempers)"]; }
+        A.heal(-Math.round(c.maxHp * 0.3)); c.constitution = Math.max(1, c.constitution - 2); arcSet(c, "bloodline", 2, { path: "scarred" }); return ["You push too hard, too fast; the reforging cracks where it should have flowed, and you barely hold yourself together. The awakening continues — but it will not be the clean ascension it could have been. (−health, −Constitution)"];
+      } },
+      { label: "Endure the reforging patiently, season by season", result: (c, rng, A) => { arcSet(c, "bloodline", 2, { path: "patient" }); c.temper = (c.temper || 0) + 30; cap(c, "constitution", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); return ["You let the blood reforge you at its own pace, breathing through the agony one day at a time. Slow, sure, and whole. (+Constitution, your body tempers, +Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "bloodline_climax", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "bloodline") === 2 && arcYears(c, "bloodline") >= 2,
+    text: () => "The Blood-Lineage Awakening reaches its crown. Your flesh stands on the threshold of an ancestral physique — what your bloodline was, at its mightiest, you are about to become.",
+    choices: [
+      { label: "Complete the awakening", result: (c, rng, A) => {
+        arcSet(c, "bloodline", 99);
+        const strong = c.constitution >= 80 || (c.arcs.bloodline && c.arcs.bloodline.path !== "scarred");
+        if (strong) {
+          cap(c, "constitution", 8); c.temper = (c.temper || 0) + 80; if (!c.techniques.includes("vajra_body")) c.techniques.push("vajra_body");
+          E.recomputeMaxHp(c); A.note("Fully awakened an ancestral physique.");
+          return ["The last barrier shatters and the ancestral blood claims you wholly — your body remade into something out of legend, dense as a divine metal, deep as an old mountain. You stand in your own awakened flesh and feel, for the first time, what your bloodline was always meant to be. (+++Constitution, a body-art, your body surges)"]
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.5 }));
+        }
+        cap(c, "constitution", 3); c.temper = (c.temper || 0) + 30; E.recomputeMaxHp(c);
+        return ["The awakening completes, but imperfectly — your too-frail foundation could not hold the full inheritance, and much of the ancestral might slips away as it settles. You are stronger of body than you were, if less than you might have been. (+Constitution)"];
+      } },
+    ],
+  },
+
+  // — The Star-Crossed Love (情劫) — armed by marriage; the love-tribulation the
+  //   jealous heavens send against a bond too deep.
+  {
+    id: "tragedy_start", arc: true, weight: 40, minRealm: 2, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tragedy") === 0 && E.arcArmed(c, "tragedy") && (c.relationships || []).some(n => n.married && n.alive),
+    speaker: () => "An Ill Omen",
+    text: c => { const s = (c.relationships || []).find(n => n.married && n.alive); return `A blind fortune-teller seizes your wrist in the street and will not let go. "Your bond with ${s ? s.name : "your beloved"} burns too bright," they hiss, milky eyes rolling. "The heavens are jealous of such a love, and what the heavens envy, they break. A love-tribulation is coming for one of you. Guard your heart — and theirs."`; },
+    choices: [
+      { label: "Vow to shield them with your life", result: (c, rng, A) => { arcSet(c, "tragedy", 1, { path: "devoted" }); const s = (c.relationships || []).find(n => n.married && n.alive); if (s) s.affinity = clampN((s.affinity || 50) + 10, -100, 100); A.happy(3); return [`You go home and hold ${s ? s.name : "them"} a long time without explaining why. Whatever is coming, it will have to come through you first. (your bond deepens)`]; } },
+      { label: "Pull away, to make them a smaller target", result: (c, rng, A) => { arcSet(c, "tragedy", 1, { path: "distant" }); const s = (c.relationships || []).find(n => n.married && n.alive); if (s) s.affinity = clampN((s.affinity || 50) - 8, -100, 100); A.happy(-5); return [`You begin to put distance between you — cold words, long seclusions, a deliberate frost — praying that if the heavens cannot see your love, they cannot strike at it. It is its own kind of grief. (−Happiness, −the warmth between you)`]; } },
+    ],
+  },
+  {
+    id: "tragedy_moot", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tragedy") === 1 && !(c.relationships || []).some(n => n.married && n.alive),
+    auto: (c, rng, A) => { arcSet(c, "tragedy", 99); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); return "The love-tribulation you braced against never falls — for the love it was coming for is already gone, lost to the ordinary cruelties of a cultivator's life before the heavens could even take their due. Some griefs do not wait for prophecy."; },
+  },
+  {
+    id: "tragedy_crisis", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tragedy") === 1 && arcYears(c, "tragedy") >= 2 && (c.relationships || []).some(n => n.married && n.alive),
+    speaker: () => "The Tribulation Falls",
+    text: c => { const s = (c.relationships || []).find(n => n.married && n.alive); return `It comes without warning: ${s ? s.name : "your beloved"} is struck down — a stray bolt of a heavenly tribulation not even meant for them, drawn by the brightness of your shared bond. They are dying in your arms, and you have one desperate chance to defy heaven itself and pull them back.`; },
+    choices: [
+      { label: "Burn everything you are to save them", result: (c, rng, A) => {
+        arcSet(c, "tragedy", 99); const s = (c.relationships || []).find(n => n.married && n.alive);
+        const devoted = c.arcs.tragedy && c.arcs.tragedy.path === "devoted";
+        if (rng.random() < (devoted ? 0.7 : 0.5) + c.daoHeart / 400) {
+          c.qi = 0; c.stage = Math.max(0, c.stage - 1); A.heal(-Math.round(c.maxHp * 0.3)); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 8); A.happy(6);
+          if (s) s.affinity = 100; A.note(`Defied the heavens and saved ${s ? s.name : "your beloved"}.`);
+          return [`You pour your own life and cultivation into them without a heartbeat's hesitation — years of progress, burned to embers to buy back one mortal span. And it works. ${s ? s.name : "Your love"} draws breath. You have spent a fortune of power and would spend it again a thousand times. Some things are worth more than the dao. (−cultivation, slipped a stage — but they live, +Dao Heart)`];
+        }
+        if (s) { s.alive = false; s.affinity = Math.max(s.affinity || 50, 90); }
+        c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 12); A.happy(-20); A.heal(-Math.round(c.maxHp * 0.4));
+        A.note(`${s ? s.name : "Your beloved"} died in the love-tribulation, despite everything.`);
+        return [`You give everything — and it is not enough. ${s ? s.name : "Your love"} goes still in your arms beneath an indifferent sky, and something in you closes like a fist and does not open again. You will carry this the rest of your immortal life. They say the deepest dao hearts are forged in the deepest grief. You would trade every shard of it to have them back. (a beloved lost — −Happiness, ++Dao Heart)`];
+      } },
+      { label: "Let them go, and survive to remember", result: (c, rng, A) => {
+        arcSet(c, "tragedy", 99); const s = (c.relationships || []).find(n => n.married && n.alive);
+        if (s) { s.alive = false; s.affinity = Math.max(s.affinity || 50, 85); }
+        c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); A.happy(-16); cap(c, "soul", 3);
+        A.note(`Lost ${s ? s.name : "a beloved"} to a love-tribulation.`);
+        return [`You cannot burn your whole future on a battle you might lose — and you both know it. ${s ? s.name : "Your love"} presses your hand one last time, and smiles, and forgives you for the choice before you have even finished making it. Then they are gone. You walk on, intact and hollow, the dao a colder thing than it was. (a beloved lost — −Happiness, +Soul, +Dao Heart)`];
+      } },
+    ],
+  },
+
+  // — The Grandmaster's Cauldron (丹道传承) — armed by refining a Flawless pill;
+  //   a years-long pursuit of a lost pill-sage's legendary formula.
+  {
+    id: "alchemy_start", arc: true, weight: 40, minRealm: 2, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "alchemy") === 0 && E.arcArmed(c, "alchemy"),
+    speaker: () => "A Pill-Sage's Echo",
+    text: () => "Your flawless pill draws something to you: a jade slip, ancient and warm, that you do not remember picking up. When you press your soul to it, a dead grandmaster's voice unfolds — the half of a legendary formula, and a challenge. <Finish what I could not, little cauldron, and my whole art is yours. Fail, and it dies with you as it died with me.>",
+    choices: [
+      { label: "Take up the grandmaster's unfinished work", result: (c, rng, A) => { E.disarmArc(c, "alchemy"); arcSet(c, "alchemy", 1); c.alchemySkill = (c.alchemySkill || 0) + 5; A.note("Took up a dead pill-sage's legendary formula."); return ["You commit the fragment to memory and your furnace will not be cold again for years. The grandmaster's half-formula is a door; you mean to find what lies beyond it. (+Alchemy skill)"]; } },
+      { label: "Set it aside — your road runs elsewhere", result: (c, rng, A) => { E.disarmArc(c, "alchemy"); arcSet(c, "alchemy", 99); c.alchemySkill = (c.alchemySkill || 0) + 2; cap(c, "comprehension", 1); return ["A legendary pill is a lifetime's obsession, and your lifetime is spoken for. You study the slip for what it can teach in an evening, and lay it gently down. (+Alchemy skill, +Comprehension)"]; } },
+    ],
+  },
+  {
+    id: "alchemy_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "alchemy") === 1 && arcYears(c, "alchemy") >= 2,
+    text: () => "The grandmaster's formula calls for ingredients that do not grow in safe places: a flame-heart lotus from the lip of a living volcano, marrow-dew that condenses only in a haunted gorge. You cannot refine what you cannot gather.",
+    choices: [
+      { label: "Brave the deadly herb-fields yourself", result: (c, rng, A) => {
+        if (rng.random() < 0.4 + (c.alchemySkill || 0) / 150 + c.luck / 300) { arcSet(c, "alchemy", 2, { path: "gathered" }); A.herbs(rng.randint(20, 40)); cap(c, "comprehension", 2); A.note("Gathered legendary alchemical ingredients."); return ["You walk into places that kill lesser cultivators and walk out with your arms full of impossible herbs. The grand refinement is within reach now. (++herbs, +Comprehension)"]; }
+        A.heal(-Math.round(c.maxHp * 0.2)); A.herbs(rng.randint(6, 14)); arcSet(c, "alchemy", 2, { path: "scraped" }); return ["You get most of what you came for, but the volcano and the gorge each take their toll in blood and singed flesh. You have enough — barely. (−health, +some herbs)"];
+      } },
+      { label: "Pay a king's ransom to have them brought to you", cond: c => c.spiritStones >= 200, result: (c, rng, A) => { A.stones(-200); arcSet(c, "alchemy", 2, { path: "bought" }); return ["You empty your purse and set the realm's boldest gatherers to the task. Months later the crates arrive, sealed in frost and talisman-paper. Expensive — but you still have all your fingers. (−200 stones)"]; } },
+    ],
+  },
+  {
+    id: "alchemy_climax", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "alchemy") === 2 && arcYears(c, "alchemy") >= 2,
+    text: () => "The hour comes for the grand refinement. The grandmaster's whole art lives or dies in your furnace tonight — a pill out of legend, or a crater where your cauldron used to be.",
+    choices: [
+      { label: "Light the furnace and finish the legend", result: (c, rng, A) => {
+        arcSet(c, "alchemy", 99);
+        if (rng.random() < 0.4 + (c.alchemySkill || 0) / 120 + c.comprehension / 400) {
+          c.alchemySkill = (c.alchemySkill || 0) + 12; c.pills += rng.randint(3, 6); c.breakthroughPills = (c.breakthroughPills || 0) + 2; c.healingPills = (c.healingPills || 0) + 4;
+          c.longevityBonus = (c.longevityBonus || 0) + 60; E.recomputeMaxAge(c); cap(c, "comprehension", 2); A.note("Completed a legendary pill-sage's formula.");
+          return ["For three days and nights you do not sleep, and on the third dawn the furnace sings open on a clutch of pills that glow like small moons. You have finished it — the grandmaster's legend, made real in your hands. Your name will be spoken in pill-halls for a hundred years. (++Alchemy skill, a hoard of supreme pills, +60 years of life)"]
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.55 }));
+        }
+        const salv = Math.floor((c.herbs || 0) * 0.2); c.herbs = Math.max(0, (c.herbs || 0) - salv); c.alchemySkill = (c.alchemySkill || 0) + 4; A.heal(-Math.round(c.maxHp * 0.15)); c.pills += rng.randint(1, 3);
+        return ["The refinement fights you to the last and slips through your fingers at the threshold — the furnace flares, the legendary pill collapses into ordinary medicine, and you are left singed and humbled. Not a failure, quite. But not the legend, either. You learned much in the losing. (+Alchemy skill, a few pills)"];
+      } },
+    ],
+  },
 ];
 
 /* ----------------------- eligibility & rolling --------------------------- */
@@ -1213,6 +1869,33 @@ function eligible(c, e) {
   return true;
 }
 
+/* ---------------------- branching dialogue framework --------------------- *
+ * A choice's result(c,rng,A) may return either:
+ *   - terminal narration: a string or string[] (the conversation ends), OR
+ *   - a follow-on dialogue NODE to continue the exchange:
+ *       { speaker?, text, choices:[ { label, cond?, result } ] }
+ * Nodes can nest arbitrarily, so events become real multi-step conversations
+ * with named speakers and player agency at every turn. A node's `speaker`,
+ * `text` and a choice's `label` may each be a plain value or a (c)=>value. A
+ * choice may carry a `cond(c)` to show only when relevant. This is fully
+ * backward compatible: existing results return strings and simply terminate. */
+const isDialogueNode = r => r && typeof r === "object" && !Array.isArray(r) && Array.isArray(r.choices);
+function presentNode(node, c, rng, A) {
+  return {
+    speaker: typeof node.speaker === "function" ? node.speaker(c) : node.speaker,
+    text: typeof node.text === "function" ? node.text(c) : node.text,
+    dialogue: true,
+    choices: node.choices.filter(ch => !ch.cond || ch.cond(c)).map(ch => ({
+      label: typeof ch.label === "function" ? ch.label(c) : ch.label,
+      fn: () => resolveResult(ch.result(c, rng, A), c, rng, A),
+    })),
+  };
+}
+// Normalize a result into either a presentation node or terminal string[].
+function resolveResult(r, c, rng, A) {
+  return isDialogueNode(r) ? presentNode(r, c, rng, A) : (Array.isArray(r) ? r : [r]);
+}
+
 function instantiate(c, rng, A, e) {
   if (!c.firedEvents) c.firedEvents = [];
   if (!c.eventCooldowns) c.eventCooldowns = {};
@@ -1222,9 +1905,10 @@ function instantiate(c, rng, A, e) {
   if (e.choices) {
     return {
       id: e.id, text,
-      choices: e.choices.map(ch => ({
+      speaker: typeof e.speaker === "function" ? e.speaker(c) : e.speaker,
+      choices: e.choices.filter(ch => !ch.cond || ch.cond(c)).map(ch => ({
         label: typeof ch.label === "function" ? ch.label(c) : ch.label,
-        fn: () => ch.result(c, rng, A),
+        fn: () => resolveResult(ch.result(c, rng, A), c, rng, A),
       })),
     };
   }
@@ -1265,15 +1949,64 @@ export function quietYearEvent(c, rng, A) {
 
 export function rollYearEvents(c, rng, A) {
   const out = [];
-  let pool = EVENTS.filter(e => eligible(c, e));
-  if (pool.length) out.push(instantiate(c, rng, A, rng.choices(pool, pool.map(e => e.weight || 1))));
-  // A modest chance of a second, different event in the same year.
-  if (c.alive && rng.random() < 0.3) {
-    pool = EVENTS.filter(e => eligible(c, e) && !out.some(o => o.id === e.id));
-    if (pool.length) out.push(instantiate(c, rng, A, rng.choices(pool, pool.map(e => e.weight || 1))));
-  }
+  const draw = pool => { if (pool.length) out.push(instantiate(c, rng, A, rng.choices(pool, pool.map(e => e.weight || 1)))); };
+  // 1) A due storyline beat takes priority, so multi-year arcs progress reliably
+  //    rather than being lost in the weighted shuffle of ordinary events.
+  draw(EVENTS.filter(e => e.arc && eligible(c, e)));
+  // 2) An ordinary life event (never a second arc beat in the same year).
+  if (c.alive) draw(EVENTS.filter(e => !e.arc && eligible(c, e) && !out.some(o => o.id === e.id)));
+  // 3) A modest chance of one more, different event.
+  if (c.alive && rng.random() < 0.3) draw(EVENTS.filter(e => !e.arc && eligible(c, e) && !out.some(o => o.id === e.id)));
   // No scripted card came due — let a small, mechanically real "quiet year" stand
   // in, so every single year carries a consequence rather than empty flavour.
   if (c.alive && !out.length) out.push({ id: "quiet_" + c.age, auto: true, text: [quietYearEvent(c, rng, A)] });
   return out;
 }
+
+/* ---------------------- multi-year storyline arcs ------------------------ *
+ * Some encounters open a saga that plays out over several years: a choice now
+ * sets an arc's stage, and a later beat (gated on that stage and the years
+ * elapsed) continues it, branching on what you chose before. Arc state lives in
+ * c.arcs[id] = { stage, since, ...flags }. Arc-flagged events (`arc: true`) are
+ * drawn with priority so a storyline you are living through reliably advances. */
+export const arcOf = (c, id) => (c.arcs && c.arcs[id]) || null;
+export const arcStage = (c, id) => { const a = arcOf(c, id); return a ? a.stage : 0; };
+export const arcYears = (c, id) => { const a = arcOf(c, id); return a ? c.age - (a.since != null ? a.since : c.age) : 0; };
+export function arcSet(c, id, stage, extra) {
+  if (!c.arcs) c.arcs = {};
+  c.arcs[id] = Object.assign({}, c.arcs[id], extra || {}, { stage, since: c.age });
+  return c.arcs[id];
+}
+export function arcEnd(c, id) { if (c.arcs && c.arcs[id]) delete c.arcs[id]; }
+// Find a recurring arc NPC (tagged when the arc created it).
+const arcNpc = (c, tag) => (c.relationships || []).find(n => n.arcTag === tag && n.alive) || null;
+
+/* Registry for the Sagas screen: each arc's name and a per-stage status line so
+ * the player can see what storylines they are living through, and where each one
+ * stands. `stages` maps an active stage to its blurb; stage 99 means resolved. */
+export const ARC_META = {
+  swordtomb:  { name: "The Sword-Immortal's Inheritance", cn: "剑冢传承", stages: { 1: "A sword-seed grows in your sea of consciousness.", 2: "The borrowed sword-intent nears mastery.", 11: "A stolen black blade whispers for vengeance." } },
+  foundling:  { name: "The Foundling", cn: "孤雏", stages: { 1: "A ward in your keeping, still a child.", 2: "Raising the foundling toward who they will become." } },
+  soulpoison: { name: "The Soul-Withering Poison", cn: "蚀魂之毒", stages: { 1: "A demonic poison gnaws at your spirit — find a cure before it reaches your heart." } },
+  tutelage:   { name: "The Hidden Master's Tutelage", cn: "名师传业", stages: { 1: "Apprenticed to a hidden master.", 2: "Your tutelage nears its end." } },
+  beastking:  { name: "The Beast-King's Summons", cn: "兽王之召", stages: { 1: "Journeying to answer the Beast-King's call.", 2: "Your companion has been tested; a boon awaits." } },
+  sealedwill: { name: "The Sealed Will", cn: "残识之秘", stages: { 1: "A dead immortal's will shares your sea of consciousness.", 2: "The sealed will tightens its hold." } },
+  schism:     { name: "The Sect Schism", cn: "宗门之变", stages: { 1: "A power-struggle splits your sect; you have taken a side." } },
+  demonpath:  { name: "The Demon Path", cn: "入魔", stages: { 1: "You have set foot on the demonic path.", 2: "The blood-art's hunger grows in you." } },
+  bloodline:  { name: "The Blood-Lineage Awakening", cn: "血脉觉醒", stages: { 1: "An ancestral bloodline stirs in your marrow.", 2: "The blood-trial reforges your flesh." } },
+  tragedy:    { name: "The Star-Crossed Love", cn: "情劫", stages: { 1: "A love-tribulation looms over your marriage." } },
+  alchemy:    { name: "The Grandmaster's Cauldron", cn: "丹道传承", stages: { 1: "Pursuing a lost pill-sage's legendary formula.", 2: "The grand refinement is at hand." } },
+};
+// Active sagas (started, not yet resolved), newest first, with a status line.
+export function activeSagas(c) {
+  const arcs = c.arcs || {};
+  return Object.keys(arcs).filter(id => ARC_META[id] && arcs[id].stage > 0 && arcs[id].stage !== 99)
+    .map(id => { const m = ARC_META[id], a = arcs[id]; return { id, name: m.name, cn: m.cn, stage: a.stage, years: arcYears(c, id), text: (m.stages && m.stages[a.stage]) || "Unfolding across the years..." }; })
+    .sort((a, b) => b.years - a.years);
+}
+// Sagas resolved in this life (for a sense of history).
+export function resolvedSagas(c) {
+  const arcs = c.arcs || {};
+  return Object.keys(arcs).filter(id => ARC_META[id] && arcs[id].stage === 99).map(id => ({ id, name: ARC_META[id].name, cn: ARC_META[id].cn }));
+}
+

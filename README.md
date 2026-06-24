@@ -31,7 +31,51 @@ You are **born into a family** and live your cultivator's life **one year at a
 time**: tap **Age Up** and narrative events unfold — childhood, the **Spiritual
 Root Awakening** at age 6 that reveals your talent, sect recruiters, duels,
 ruins, romance, demonic temptations, betrayals, and loss — many with **choices
-that shape your fate**. Within each year you may perform a few **deeds** — use
+that shape your fate**. Some encounters open into **branching dialogue (对话)**:
+a reclusive elder poses a riddle over tea, a voice in the dark bargains for your
+soul in escalating offers, a cornered thief pleads his case, a silver-tongued
+merchant haggles round by round — **named speakers talk back, and every reply is
+a fork in the road**, so you converse and decide your way through, not merely
+pick once and move on. Others open into **multi-year storylines (机缘)** that
+thread across a life: a dying sword-immortal offers you his inheritance —
+**accept it** and temper a stolen sword-intent over years toward mastery (or be
+overwhelmed by it), **grant him a clean death** for the virtue of it, or **rob
+his tomb** and one day answer to his vengeful sword-wraith. Take in a starving
+**foundling (孤雏)** and how you raise them across the years — with kindness,
+with iron, or with neglect — decides whether they become your **devoted
+disciple**, a **cold blade**, a stranger who departs, or a **nemesis of your own
+making**. The same choice means different things three years on. Some arcs simply **find
+you** when the time and your standing are right; others are **set in motion by
+your own deeds** — a demonic foe's parting strike may sow a **soul-withering
+poison (蚀魂之毒)**, a years-long race to find a cure before it reaches your heart
+(seek a healer, refine your own antidote, take a devil's shortcut, or burn your
+cultivation to purge it at the last); diligent, gifted **study** may draw a
+**hidden master (名师传业)** who offers a once-in-three-centuries apprenticeship
+that rewards heart and punishes shortcuts; and a spirit beast of worthy
+bloodline may be **summoned by an ancient Beast-King (兽王之召)** to be tested and,
+if proven, awaken an ancestral bloodline. Conquering a **Secret Realm** may lodge a dead immortal's **Sealed Will (残识之秘)**
+in your sea of consciousness — knowledge beyond price, and a patient hunger for
+your body that you must one day wrestle for your very soul. Rise to standing in a
+**sect** and a **Sect Schism (宗门之变)** may force you to choose loyalty, ambition,
+or neutrality in a years-long power struggle settled in blood. And the wheel of
+rebirth keeps its own bonds: a soul you loved or warred with most fiercely may be
+**reborn alongside you (夙世之缘)**, a stranger's face that stops you cold with a
+grief or a hatred not from this life — to rekindle, or to lay to rest. And your deeds keep planting seeds that bloom years later: a first **Foundation
+breakthrough** can stir a sleeping **ancestral bloodline (血脉觉醒)** in the strong
+of body, a path of remade flesh; **founding a sect** or being crowned **tournament
+champion** can whisper you onto the **demon path (入魔)**, a slow fall toward
+devilhood — or a hard, scarring turn back; and a **marriage** too deep can invite
+a **love-tribulation (情劫)**, the jealous heavens striking at the one you love,
+to be defied at ruinous cost or grieved and survived (a beloved lost this way may
+yet be reborn alongside you, lifetimes hence). Refining a **Flawless pill** can draw a dead pill-sage's legacy and a years-long
+hunt for a **legendary formula (丹道传承)**; hewing a top-tier **Cave-Heaven abode**
+into a deep spirit-vein can wake something old sleeping in the stone. Every arc is
+gated to a fitting age and realm, and triggers where it makes sense — found at
+random when the time is right, or set in motion by your own deeds (a breakthrough,
+a marriage, a sect founded, a champion's crown, a flawless pill), by chance or by
+certainty. A **Sagas (机缘)** screen on your character sheet tracks every storyline
+you are living through — where each one stands, how many years you have walked it,
+and the sagas you have already brought to a close. Within each year you may perform a few **deeds** — use
 the tabs to **Cultivate** (seclusion, breakthroughs, the Dao), tend
 **Relationships** (family, masters, rivals, dao companions, even children of
 your own), pursue **Activities** (train, study, rest, alchemy, adventure), and
@@ -78,22 +122,41 @@ Your techniques have **mastery** that deepens every time you use them in battle
 (or drill them) — Untrained → Novice → … → Perfected — raising their power, so a
 favoured art grows with you. And early in life a **destined nemesis (宿敌)** is
 born: an arrogant rival who taunts, ambushes and **cultivates in lockstep with
-you** across the years, until you finally hunt them down for a climactic boss
-showdown — the classic xianxia grudge, paid in full.
+you** across the years. When you are ready, **⚔ Settle the Score** from the
+Adventure menu and **hunt them down for an interactive duel to the death** —
+they fight as a **boss-tier peer with their own realm-built arts**, and the
+victor takes the loser's signature treasure, a **slayer's title**, and the
+silence of a grudge finally laid to rest. The classic xianxia rivalry, paid in
+full.
 
 The sect **Grand Tournament** is a four-round gauntlet of **interactive duels**
 against rival disciples, capped by a fight with the **Reigning Champion**, for
 contribution, renown, titles and a shot at catching an admirer's eye. Beyond the
 orthodox arts you can learn techniques with distinct combat mechanics — a
 **multi-hit** sword storm, a **reflecting parry** that turns a blow back on the
-foe, a **binding seal** that weakens and may stun, and a **recoil ultimate** that
-hits like a mountain but leaves you spent.
+foe, a **binding seal** that weakens and may stun, a **recoil ultimate** that
+hits like a mountain but leaves you spent, an **armour-sundering** strike that
+rends a foe's defenses wide open, and an **executing** demonic scythe that falls
+catastrophically on a foe near death. A learned **movement art (轻功)** is no
+longer only for the road, either — its light-body skill lends **real evasion in
+battle**, scaling with the art's tier and your mastery of it.
 
 You can also **delve a Secret Realm (秘境)**: a multi-stage expedition of
 escalating battles and fortune-rooms where **wounds carry between fights**.
-After each cleared stage you choose to **press deeper** for richer spoils or
-**withdraw** with what you hold — and a **Realm Guardian** boss waits at the
-heart for those bold (or greedy) enough to reach it.
+Each delve is one of eight **themed archetypes** — the **Ancient Sword Tomb**,
+**Sunken Naga Palace**, **Demon-Sealing Abyss**, **Frostmere Immortal Cave**,
+**Volcanic Pill-Furnace Ruins**, **Skyhigh Thunder Pagoda**, **Verdant Spirit
+Garden** or **Earthen God-Treasury** — each lending its **element**, the
+**mist-wreathed foes** that haunt it, the **fortune-rooms it favours** (a sword
+tomb hoards treasure, a garden teems with herbs, a furnace caches pills…), and
+a **thematically-named guardian**. Between stages a **signature hazard** may
+strike — a corridor of flying swords, soul-rending miasma (worse for the
+sin-heavy), heaven's judging lightning, collapsing vaults — wounds that carry
+forward but never kill outright (a steady soul and fortune help you slip them,
+and some hide a boon). After each cleared stage you choose to **press deeper**
+for richer spoils or **withdraw** with what you hold — and the realm's
+**Guardian** waits at the heart, hoarding a **guaranteed themed relic** (richer
+the deeper you dared) for those bold or greedy enough to reach it.
 
 Three more systems round out a cultivator's life:
 
@@ -157,7 +220,18 @@ Three more systems round out a cultivator's life:
   needle inside a drifting jade band over several phases to build **pill
   quality** (Crude → Fine → Flawless, scaling the effect) while avoiding the
   instability that blows up your furnace. Soul, comprehension and skill widen
-  your margin for error.
+  your margin for error. The **pill catalogue** runs from the alchemist's
+  bread-and-butter Qi and Healing pills up through body- and soul-tempering
+  pills to rarer arts that permanently sharpen **Comprehension** (悟道丹),
+  **Charm** (驻颜丹), **Fortune** (转运丹) and your **Dao Heart** (定神丹), a
+  breakthrough pill for the crucial leap, and the grandmaster's **Nine-Turn
+  Longevity Pill** — all of them bought at the Market or refined at the furnace.
+- **Dao Heart (道心)** — a cultivator's **resolve**, the will that holds the soul
+  whole. **Still the heart** in meditation to temper it from *Unsteady* up to a
+  *Diamond Heart*; a deep dao heart **wards off the heart demon** at a
+  breakthrough, **shrugs off mind-afflictions** (stun and weaken) in battle, and
+  steels you against illusion and temptation. Adversity hardens it too — survive
+  a heart demon or cross a Heavenly Tribulation and your resolve deepens.
 - **World standing (声望)** — your name climbs from *Unknown* to *Legendary* (or
   sinks to *Notorious*). Fame draws **sect invitations, grand banquets and
   admirers' gifts**; infamy and heavy sin mark you **Wanted**, summoning bounty
@@ -191,12 +265,26 @@ Three more systems round out a cultivator's life:
   ranks** (Mortal → Spirit → Earth → Heaven → **Mythic Beast**) into ever mightier
   forms. Each beast has an **innate element**, so in battle its every-round assist
   lands with Wu Xing advantage — and from the Earth-Beast rank up it inflicts its
-  own **elemental bite** (burn, freeze, bleed…). A beast also **forages at your
-  abode**, better the higher its rank.
+  own **elemental bite** (burn, freeze, bleed…). Every beast is also born with an
+  **innate trait (天赋)** that shapes how it serves you: a **Ferocious** beast
+  savages your foes, a **Vigilant** one throws up a shield to guard you when
+  you're hard-pressed, a **Nimble** one sharpens your own evasion, an
+  **Auspicious** one forages far richer, and a **Devoted** one bonds to you fast
+  and deep. And from the **Heaven-Beast rank**, a deeply-bonded companion can
+  loose a **signature savaging** — a heavy elemental strike beyond its usual
+  assist. A beast also **forages at your abode**, better the higher its rank.
 - **Multi-phase bosses** — boss-tier foes (named cultivators, realm guardians, the
   tournament champion, your nemesis) **enter a second phase at half health** and
   **telegraph a devastating element-themed ultimate** — guard, heal, or be
   shattered when it lands.
+- **The great Daos (大道)** — from Nascent Soul, **meditate** to comprehend the
+  Laws of heaven, then **deepen each through four tiers (初窥·小成·大成·圆满)**,
+  steering your insight toward a favoured Law or out across many. Every tier
+  scales the Law's power and breakthrough bonuses, and **from Great Mastery up a
+  Dao manifests in your fights** — killing intent that cows and bleeds the foe,
+  a void-edge that pierces armour, life-force that swells your battle vigour, a
+  sword-heart that sharpens your crits. A **Daos 道之境界** screen shows each Law's
+  tier, bonuses and battle manifestation, and lets you set your meditation focus.
 - **A living world of cultivators** — every NPC (family, friends, rivals, masters,
   disciples, dao companions) is a **full cultivator** with their own root, physique,
   realm and techniques; they **advance along their own road** (capped by their
@@ -263,18 +351,27 @@ on *Random*, with a live preview and a reroll for the attributes.
 Everything that defines your potential is rolled the instant you are born:
 
 - **Spiritual Root (灵根)** — the single biggest talent factor, from the
-  sneered-at *False Five Root* through the *Heavenly* and *Variant* roots up to
-  the near-mythical *Chaos Root*. It multiplies every scrap of qi you ever
-  absorb. A *Mortal Veins* roll means no spiritual root at all.
+  sneered-at *False Five Root* through the *Heavenly* root and a clutch of
+  **variant roots** — the sword-honed *Sword-Bone Root*, the storm-touched
+  *Heavenly Thunder Root*, the *Profound Ice Root*, the rare *Void Spirit Root* —
+  up to the near-mythical *Chaos Root*. It multiplies every scrap of qi you ever
+  absorb, and a single-element root **attunes** you to that element. A *Mortal
+  Veins* roll means no spiritual root at all.
 - **Physique (体质)** — usually an ordinary body, but rarely a destiny-altering
-  constitution like the *Nine-Yang Divine Body* (faster cultivation, immune to
-  burning, lethal to demons) or the *Innate Dao Embryo* (much faster cultivation
-  and Dao insight, easier breakthroughs). Special physiques grant **lasting
-  bonuses** to cultivation, combat, healing or survival — not just birth stats.
-  Tap any stat (or the **ⓘ Glossary** in your character sheet) to learn what it does.
-- **Birth Standing (出身)** — from *Bond-Slave* and *Gutter Orphan* to *Noble
-  Cultivation Clan* and *Imperial Bloodline*. This sets your starting reputation,
-  spirit stones, and heirloom items.
+  constitution: the *Nine-Yang Divine Body* (faster cultivation, immune to
+  burning, lethal to demons), the *Innate Dao Embryo* (much faster cultivation
+  and Dao insight), the **Vermilion Phoenix Body** (healing and a rebirth from
+  death), the **True Dragon Body** and **Earth-Titan Body** (overwhelming or
+  unbreakable flesh), the **Sword-Heart Body** (a born killer's edge), the
+  **Gale-Spirit Body** (wind-quick evasion), and more. Special physiques grant
+  **lasting bonuses** to cultivation, combat, healing or survival — not just
+  birth stats — and pass down your **bloodline**. Tap any stat (or the **ⓘ
+  Glossary** in your character sheet) to learn what it does.
+- **Birth Standing (出身)** — from *Bond-Slave* and *Gutter Orphan* through a
+  *Fallen Noble*, a *Sea-Raider's Child*, a *Temple Foundling*, a *Physician's
+  Child* (a head start at the furnace) or a *Steppe Nomad*, all the way up to a
+  *Noble Cultivation Clan* and *Imperial Bloodline*. This sets your starting
+  reputation, spirit stones, upbringing, and heirloom items.
 - **Appearance (容貌)** — from *Hideous* through *Comely* and *Peerless Beauty*
   to *Immortal Grace*, rolled at birth and a heavy thumb on the Charm scale.
   A striking face opens doors, sways elders, and draws dao companions.
@@ -377,12 +474,22 @@ your peers instead of being matched away.
 
 - **Dao comprehension (法则·大道, option d)** — from **Nascent Soul** upward,
   meditate to grasp the great Laws — Sword, Flame, Space, Time, Vitality,
-  Slaughter, Karma, the Void — each permanently magnifying your power and
-  smoothing every breakthrough. They are the true road to ascension.
-- **Karma (业力)** — slaying devils and rogues earns merit; demonic paths and
-  cruelty stain your soul. Merit softens the Heavenly Tribulation (the heavens
-  favour the virtuous), while a blood-soaked cultivator must also overcome the
-  **heart demon (心魔)** that rises mid-breakthrough to devour the unprepared.
+  Slaughter, Karma, the Void and more — each permanently magnifying your power and
+  smoothing every breakthrough. A grasped Law is not static: it **deepens through
+  four tiers of insight** — *Glimpsed → Minor Mastery → Great Mastery →
+  Consummation* (初窥·小成·大成·圆满) — and you **choose where to focus your
+  meditation**, racing to deepen a favoured Law or spreading wide to seek new
+  ones. Each tier scales the Law's bonuses, and **from Great Mastery upward it
+  manifests in battle** — the Dao of Slaughter's killing intent cows the foe, the
+  Void's edge pierces armour, Vitality's life-force swells your battle vigour, the
+  Sword's heart sharpens your crits. They are the true road to ascension.
+- **Karma (业力) & the Dao Heart (道心)** — slaying devils and rogues earns merit;
+  demonic paths and cruelty stain your soul. Merit softens the Heavenly
+  Tribulation (the heavens favour the virtuous), while a blood-soaked cultivator
+  must also overcome the **heart demon (心魔)** that rises mid-breakthrough to
+  devour the unprepared. Your defence against it is your **Dao Heart** — the
+  resolve you temper by **stilling the heart**, which wards the demon, shrugs off
+  mind-afflictions in battle, and hardens further each time you survive an ordeal.
 
 ## Reincarnation (转世重生)
 

@@ -52,6 +52,9 @@ export const SKILLS = {
   mountain_seal: { id: "mountain_seal", tech: "mountain_seal", name: "Mountain-Bearing Seal", qi: 22, dmg: 0.60, element: "Earth", target: { type: "stun", turns: 1, value: 0, chance: 0.35 }, desc: "Drop a mountain's weight on the foe — heavy Earth damage that may pin them." },
   heaven_slash: { id: "heaven_slash", tech: "heaven_slash", name: "Heaven-Splitting Slash", qi: 32, dmg: 0.95, pierce: 0.4, element: "Metal", self: { type: "weaken", turns: 1, value: 0.30 }, desc: "A colossal cut — but it leaves you spent (weakened) next turn." },
   samsara_palm: { id: "samsara_palm", tech: "samsara_palm", name: "Samsara Heaven-Turning Palm", qi: 30, dmg: 0.72, element: "Void", lifesteal: 0.35, desc: "Turn the wheel of life and death: heavy void damage that mends you." },
+  mountain_render: { id: "mountain_render", tech: "mountain_render", name: "Mountain-Splitting Sunder", qi: 22, dmg: 0.50, element: "Earth", sunder: { turns: 2, value: 0.12 }, desc: "Heavy Earth damage that shatters the foe's guard — rends their defense for 2 turns." },
+  flowing_light: { id: "flowing_light", tech: "flowing_light", name: "Flowing-Light Sword", qi: 20, dmg: 0.22, hits: 2, element: "Metal", sunder: { turns: 2, value: 0.07 }, desc: "Two quicksilver sword-passes that score the foe's armour, rending their defense." },
+  soul_reap: { id: "soul_reap", tech: "soul_reap", name: "Soul-Reaping Scythe", qi: 26, dmg: 0.46, element: "Dark", execute: 2.4, lifesteal: 0.3, karma: -1, desc: "A demonic reap — devastating to a foe below 30% HP. Heals you; stains your karma." },
   // — sect-exclusive signature arts —
   cloudmist_veil: { id: "mist_veil", tech: "cloudmist_veil", name: "Cloud-Mist Veil", qi: 16, type: "defend", shield: 0.18, self: { type: "regen", turns: 3, value: 0.05 }, qiRestore: 0.12, desc: "Vanish into mist: a shield, steady regeneration, and restored qi." },
   fiveelem_cycle: { id: "elem_cycle", tech: "fiveelem_cycle", name: "Five Elements Rotation", qi: 24, dmg: 0.30, hits: 2, pierce: 0.3, desc: "Strike twice through the cycle of the five phases, piercing defences." },
@@ -216,7 +219,7 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)),
     atk: P - E.beastPower(c),
     mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + (eq.def || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.8),
-    crit: clampN(c.luck / 400 + 0.05 + (eq.crit || 0), 0, 0.7),
+    crit: clampN(c.luck / 400 + 0.05 + (eq.crit || 0) + (ph.crit || 0), 0, 0.7),
     dodge: clampN(c.luck / 600 + c.soul / 900 + (eq.dodge || 0) + (ph.dodge || 0), 0, 0.6),
     equipLifesteal: eq.life || 0,
     healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,
@@ -226,8 +229,30 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     beastElement: (c.beast && c.beast.alive) ? (c.beast.element || null) : null,
     beastBond: (c.beast && c.beast.alive) ? (c.beast.bond != null ? c.beast.bond : 50) : 0,
     beastRank: (c.beast && c.beast.alive) ? (c.beast.rank || 1) : 0,
+    beastTrait: (c.beast && c.beast.alive) ? E.beastTraitOf(c.beast) : null,
+    beastName: (c.beast && c.beast.alive) ? c.beast.name : null,
     ally: bondedAlly(c, enemyDef),
   };
+  // A deeply-comprehended Dao (Great Mastery+) manifests in the fight: keener
+  // crits, blurred footwork, void-piercing strikes, killing intent and the like.
+  const dm = E.daoBattleMods(c);
+  if (dm.hp) {
+    player.maxHp *= (1 + dm.hp);
+    player.hp = player.maxHp * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1);
+  }
+  player.crit = clampN(player.crit + dm.crit, 0, 0.85);
+  player.dodge = clampN(player.dodge + dm.dodge, 0, 0.7);
+  player.equipLifesteal = (player.equipLifesteal || 0) + dm.lifesteal;
+  player.daoPierce = dm.pierce || 0;
+  if (dm.shield) player.shield += player.maxHp * dm.shield;
+  if (dm.regen) player.statuses.push({ type: "regen", turns: 99, value: dm.regen });
+  // A tempered Dao Heart shrugs off mind-afflictions (stun/weaken) in battle.
+  player.mentalResist = E.mentalResist(c);
+  // A Nimble spirit beast lends you its quicksilver footwork.
+  if (player.beastTrait === "nimble") player.dodge = clampN(player.dodge + 0.05, 0, 0.7);
+  // A trained movement art (轻功) lends real evasion in battle, not just on the road.
+  player.dodge = clampN(player.dodge + E.movementDodge(c), 0, 0.7);
+
   const ep = enemyDef.power;
   const hpMult = enemyDef.hpMult || 2.3;
   const enemy = {
@@ -240,6 +265,11 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     boss: !!enemyDef.boss, tribulation: !!enemyDef.tribulation, _enraged: false,
     phase: 1, ultName: enemyDef.ultName, ultElement: enemyDef.ultElement, _charging: false,
   };
+  // The Dao of Slaughter's killing intent cows the foe: it opens weakened, its
+  // crits blunted, and (at Consummation) already bleeding.
+  if (dm.enemyWeaken) enemy.statuses.push({ type: "weaken", turns: 99, value: clampN(dm.enemyWeaken, 0, 0.4) });
+  if (dm.enemyCritDown) enemy.crit = clampN(enemy.crit - dm.enemyCritDown, 0, 1);
+  if (dm.enemyBleed && !enemyDef.tribulation) enemy.statuses.push({ type: "bleed", turns: 4, value: dm.enemyBleed });
   const B = {
     player, enemy, rng, def: enemyDef, opts, turn: 1, over: false, outcome: null,
     actions: () => listActions(B),
@@ -272,6 +302,8 @@ function statusAtkMult(u) {
   return Math.max(0.4, m);
 }
 function hasStatus(u, t) { return u.statuses.some(s => s.type === t); }
+// Total armour-sunder on a unit (each stack drops its mitigation by its value).
+function sunderAmt(u) { return u.statuses.reduce((a, s) => a + (s.type === "sunder" ? s.value : 0), 0); }
 function addStatus(u, type, turns, value) { u.statuses.push({ type, turns, value }); }
 function tickStart(B, u, lines) {
   // Damage-over-time and regen apply at the start of the unit's turn.
@@ -323,18 +355,23 @@ function resolveSkill(B, att, def, skill, lines) {
     const skEl = skill.element || att.element;
     const attuned = skEl && att.rootElements && att.rootElements.includes(skEl);   // your art rides your root's element
     let base = att.atk * skill.dmg * statusAtkMult(att) * mm * demonBonus * (attuned ? 1 + att.attune : 1);
+    // Execute: a reaping art falls catastrophically on a foe near death.
+    const exec = skill.execute && def.hp <= def.maxHp * 0.30;
+    if (exec) base *= skill.execute;
     let mult = elementMult(skEl, def.element);
     const crit = rng.random() < att.crit;
     if (crit) mult *= 2;
     base *= mult * rng.uniform(0.9, 1.1);
     if (rng.random() < def.dodge) { lines.push(`${icon(def)} ${def.name} evades${hits > 1 ? ` hit ${h + 1}` : ""} — dodged!`); continue; }
-    let dmg = base * (1 - def.mitig * (1 - (skill.pierce || 0)));
+    // Sunder debuffs the foe's mitigation; pierce ignores a fraction of what's left.
+    const effMitig = Math.max(0, def.mitig - sunderAmt(def));
+    let dmg = base * (1 - effMitig * (1 - clampN((skill.pierce || 0) + (att.daoPierce || 0), 0, 0.9)));
     // The defender's own root element resonates against an attack of that element.
     if (skEl && def.rootElements && def.rootElements.includes(skEl)) dmg *= (1 - (def.attune || 0) * 0.5);
     if (def.shield > 0) { const a = Math.min(def.shield, dmg); def.shield -= a; dmg -= a; }
     dmg = Math.max(0, Math.round(dmg));
     def.hp -= dmg;
-    lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${attuned ? " 🜂" : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${attuned ? " (attuned)" : ""}${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
+    lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${attuned ? " 🜂" : ""}${exec ? " ☠EXECUTE" : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${attuned ? " (attuned)" : ""}${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
     const lifeFrac = (skill.lifesteal || 0) + (att.equipLifesteal || 0);
     if (lifeFrac && dmg > 0) { const hh = dmg * lifeFrac; att.hp = Math.min(att.maxHp, att.hp + hh); lines.push(`   ${att.name} drains ${Math.round(hh)} HP.`); }
     // Counter / reflect: a defender in a reflecting stance turns force back.
@@ -342,9 +379,19 @@ function resolveSkill(B, att, def, skill, lines) {
     if (cs && dmg > 0) { const refl = Math.round(dmg * cs.value); att.hp -= refl; def.statuses = def.statuses.filter(s => s !== cs); lines.push(`   ✦ ${def.name} reflects ${refl} damage back!`); }
   }
   // Status afflictions (applied once, if the foe still stands).
-  const applyTarget = t => { if (t && def.hp > 0 && !(t.type === "burn" && def.burnImmune) && (t.chance == null || rng.random() < t.chance)) { addStatus(def, t.type, t.turns + 1, t.value); lines.push(`   ${def.name} is afflicted: ${t.type}!`); } };
+  const applyTarget = t => {
+    if (!t || def.hp <= 0 || (t.type === "burn" && def.burnImmune)) return;
+    if (t.chance != null && rng.random() >= t.chance) return;
+    // A steady Dao Heart wards the mind against stun and weaken.
+    if (def.isPlayer && (t.type === "stun" || t.type === "weaken") && rng.random() < (def.mentalResist || 0)) {
+      lines.push(`   Your dao heart holds — you shrug off the ${t.type}!`); return;
+    }
+    addStatus(def, t.type, t.turns + 1, t.value); lines.push(`   ${def.name} is afflicted: ${t.type}!`);
+  };
   applyTarget(skill.target);
   applyTarget(skill.target2);
+  // Sunder rends the foe's defense for a few turns (stacks with other sunders).
+  if (skill.sunder && def.hp > 0) { addStatus(def, "sunder", skill.sunder.turns + 1, skill.sunder.value); lines.push(`   ${def.name}'s defense is rent — armour sundered!`); }
 }
 
 function enemyChoose(B) {
@@ -403,11 +450,23 @@ function takeRound(B, actionId) {
   if (P.beast > 0 && En.hp > 0 && actionId !== "flee") {
     const bondMult = 0.7 + (P.beastBond / 100) * 0.6;            // 0.7 .. 1.3
     const em = elementMult(P.beastElement, En.element);
-    const bd = Math.round(P.beast * 0.22 * bondMult * B.rng.uniform(0.8, 1.2) * em);
-    En.hp -= bd; lines.push(`🐾 ${c.beast.name} lunges in for ${bd} dmg${em > 1.05 ? " 🔆" : ""}.`);
+    const ferocity = P.beastTrait === "ferocious" ? 1.35 : 1;   // a Ferocious beast hits far harder
+    const bd = Math.round(P.beast * 0.22 * bondMult * ferocity * B.rng.uniform(0.8, 1.2) * em);
+    En.hp -= bd; lines.push(`🐾 ${c.beast.name} lunges in for ${bd} dmg${em > 1.05 ? " 🔆" : ""}${ferocity > 1 ? " 🩸" : ""}.`);
     if (P.beastRank >= 3 && P.beastElement && En.hp > 0 && B.rng.random() < 0.25) {
       const fx = BEAST_BITE[P.beastElement];
       if (fx && !(fx[0] === "burn" && En.burnImmune)) { addStatus(En, fx[0], fx[1] + 1, fx[2]); lines.push(`   ${En.name} suffers the beast's ${fx[0]}!`); }
+    }
+    // A Vigilant beast guards you, raising a qi shield when you most need it.
+    if (P.beastTrait === "vigilant" && P.hp < P.maxHp * 0.6 && B.rng.random() < 0.30) {
+      const sh = Math.round(P.maxHp * 0.10); P.shield += sh;
+      lines.push(`   🛡 ${c.beast.name} wheels to guard you (+${sh} shield).`);
+    }
+    // From the Heaven-Beast rank, a deeply-bonded beast can loose a signature
+    // savaging — a heavy elemental strike beyond its usual assist.
+    if (P.beastRank >= 4 && P.beastBond >= 70 && En.hp > 0 && B.rng.random() < 0.18) {
+      const sd = Math.round(P.beast * 0.55 * bondMult * ferocity * B.rng.uniform(0.9, 1.2) * em);
+      En.hp -= sd; lines.push(`   ✦ ${c.beast.name} unleashes a ${P.beastElement || "primal"} savaging — ${sd} dmg!`);
     }
   }
 
@@ -463,11 +522,18 @@ function finishBattle(B) {
   const c = B.player.ref, En = B.enemy, rng = B.rng, lines = [];
   const frac = clampN(B.player.hp / B.player.maxHp, 0, 1);
 
+  // A demonic foe's parting strike can leave a soul-withering poison, arming a
+  // multi-year cure-or-die arc (more likely the worse you were mauled).
+  if (!En.tribulation && c.realm >= 2 && (En.element === "Dark" || /demon|corpse|blood|ghost|devil|fiend|abyss|wraith/i.test(En.name || ""))) {
+    if (E.armArc(c, "soulpoison", rng, 0.12 + (1 - frac) * 0.10)) lines.push("☠ A cold rot lingers where the demon's qi touched you. Something is wrong in your meridians...");
+  }
+
   // The Heavenly Tribulation is its own kind of trial.
   if (En.tribulation) {
     if (B.outcome === "win") {
       c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac));
       c.qi += E.qiToNext(c) * 0.3;
+      c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + rng.randint(2, 5));   // crossing the heavens steels the heart
       lines.push("⚡ You weather the Heavenly Tribulation! The clouds disperse and your new realm settles, unshakable.");
     } else {
       if (rng.random() < c.luck / 320 + (D.physEffect(c).deathSave || 0)) { c.hp = c.maxHp * 0.1; lines.push("⚡ The final bolt should have ended you — but your undying flesh drags you back from oblivion!"); }

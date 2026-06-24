@@ -175,8 +175,10 @@ export function refineTreasure(c, key, rng) {
 export const artifactOf = c => c.equippedArtifact ? D.ARTIFACT_BY_KEY[c.equippedArtifact] : null;
 const artifactAtkPct = c => equipmentEffects(c).atk;
 const artifactQiBonus = c => equipmentEffects(c).qi;
-export const daoPowerBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][2] : 0), 0);
-export const daoBreakthroughBonus = c => c.daos.reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][3] : 0), 0);
+// A held Dao's tier of comprehension (1..4); deeper tiers scale its bonuses.
+export const daoTierOf = (c, k) => (c.daoLevels && c.daoLevels[k]) || 1;
+export const daoPowerBonus = c => (c.daos || []).reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][2] * D.daoTierFactor(daoTierOf(c, d)) : 0), 0);
+export const daoBreakthroughBonus = c => (c.daos || []).reduce((a, d) => a + (D.DAO_BY_KEY[d] ? D.DAO_BY_KEY[d][3] * D.daoTierFactor(daoTierOf(c, d)) : 0), 0);
 export const beastPower = c => (c.beast && c.beast.alive) ? c.beast.power : 0;
 export const abodeQiBonus = c => { const a = D.abodeAt(c.abode || 0); return a ? a[4] : 0; };
 // A proper pill room appears at the Spirit-Gathering Abode (tier 3) and up,
@@ -193,7 +195,7 @@ export function cultivationSpeed(c) {
   const rootMult = c.root ? c.root.multiplier : 0.1;
   const comp = 0.55 + c.comprehension / 70.0;
   const realmFactor = Math.pow(D.REALMS[c.realm][4], 0.5);
-  const timeDao = c.daos.includes("time") ? 0.25 : 0.0;
+  const timeDao = c.daos.includes("time") ? 0.25 * D.daoTierFactor(daoTierOf(c, "time")) : 0.0;
   const phys = D.physEffect(c).cultivate || 0;
   return rootMult * comp * (1 + techQiBonus(c)) * realmFactor * 1.8 *
     (1 + sectSpeedBonus(c) + artifactQiBonus(c) + timeDao + phys + abodeQiBonus(c) + ownSectSpeedBonus(c)) *
@@ -259,6 +261,8 @@ export function beastTier(b) {
   return D.beastRankName(r);
 }
 // Back-fill the progression fields on a beast (older saves / freshly-tamed).
+export const rollBeastTrait = rng => weightedChoice(rng, D.BEAST_TRAITS, 4)[0];
+export const beastTraitOf = b => (b && b.trait && D.BEAST_TRAIT_BY_KEY[b.trait]) ? b.trait : null;
 export function normalizeBeast(b) {
   if (!b) return b;
   if (b.rank == null) b.rank = (b.power < 200 ? 1 : b.power < 2000 ? 2 : b.power < 20000 ? 3 : b.power < 200000 ? 4 : 5);
@@ -285,6 +289,10 @@ function rollRoot(rng, forcedKey) {
   else if (key === "triple") elements = rng.sample(D.ELEMENTS, 3);
   else if (key === "dual") elements = rng.sample(D.ELEMENTS, 2);
   else if (key === "heavenly") elements = [rng.choice(D.ELEMENTS)];
+  else if (key === "swordroot") elements = ["Metal"];
+  else if (key === "thunderroot") elements = ["Lightning"];
+  else if (key === "iceroot") elements = ["Ice"];
+  else if (key === "voidroot") elements = ["Void"];
   else if (key === "variant") elements = [rng.choice(D.VARIANT_ELEMENTS)];
   else if (key === "chaos") elements = ["Chaos"];
   const mult = Math.round(mult0 * rng.uniform(0.9, 1.12) * 1000) / 1000;
@@ -303,7 +311,7 @@ function newCharacter() {
     sectKey: null, sectRank: 0, contribution: 0, sectMissions: 0, sectJoinedAge: null, titles: [], epithets: [], relationships: [],
     herbs: 0, healingPills: 0, breakthroughPills: 0, alchemySkill: 0, talismans: {},
     artifacts: [], equipment: {}, refinement: {}, equippedArtifact: null, beast: null, abode: 0, abodeRegion: null, ownSect: null, legacySect: null,
-    daos: [], daoInsight: 0, karma: 0, reincarnationCount: 0,
+    daos: [], daoLevels: {}, daoFocus: null, daoInsight: 0, daoHeart: 10, karma: 0, reincarnationCount: 0, arcs: {}, arcTriggers: [], rebornBond: null,
     world: null, location: 0, abodeLocation: null, priceMult: 1, journeyTo: null,
     movementArts: [], moveMastery: {}, customTechs: [],
     mastery: {},
@@ -346,8 +354,12 @@ export function generateCharacter(rng, name, opts = {}) {
     scholar: ["comprehension", 8], noble: ["comprehension", 6], royal: ["luck", 10],
     martial: ["constitution", 10], hermit: ["comprehension", 12], demon: ["soul", 8],
     slave: ["constitution", -6], beggar: ["luck", -4],
+    temple: ["comprehension", 8], corsair: ["constitution", 6], nomad: ["constitution", 8],
+    physician: ["comprehension", 4], fallen: ["charm", 4],
   };
   if (nurture[bk]) { const [a, d] = nurture[bk]; c[a] += d; }
+  // A physician's child grows up with a real head start at the furnace.
+  if (bk === "physician") c.alchemySkill = (c.alchemySkill || 0) + 10;
   for (const a of ["comprehension", "constitution", "soul", "luck", "charm"])
     c[a] = clamp(c[a], 1, 160);
 
@@ -362,7 +374,7 @@ export function generateCharacter(rng, name, opts = {}) {
 /* ------------------------------- genetics -------------------------------- */
 // Children inherit a blend of BOTH parents: spiritual-root tier (with mutation),
 // special physiques that can run in a bloodline, looks, and core attributes.
-const GENO_SPECIALS = ["sturdy", "spirit", "yin", "yang", "dao", "immortal"];
+const GENO_SPECIALS = ["sturdy", "spirit", "yin", "yang", "dao", "phoenix", "gale", "swordheart", "titan", "dragon", "immortal"];
 const apprIdx = key => { const i = D.APPEARANCES.findIndex(a => a[0] === key); return i < 0 ? 2 : i; };
 const genomeShape = (rootKey, physiqueKey, appearanceKey, comp, con, soul, luck, charm) =>
   ({ rootKey, physiqueKey, appearanceKey, comprehension: comp, constitution: con, soul, luck, charm });
@@ -623,6 +635,10 @@ export function attemptBreakthrough(c, rng, opts = {}) {
     c.realm += 1; c.stage = 0; recomputeMaxAge(c); recomputeMaxHp(c); c.hp = c.maxHp;
     msgs.push(`☯ BREAKTHROUGH! You have ascended to ${realmLabel(c)}!`);
     note(c, `Broke through to ${realmName(c)}.`);
+    // Reaching Foundation can stir a latent ancestral bloodline in the strong of
+    // body — arming the Blood-Lineage Awakening arc (likelier the sturdier you are).
+    if (c.realm === 3 && armArc(c, "bloodline", rng, 0.18 + c.constitution / 400))
+      msgs.push("  Something deep in your marrow answers the breakthrough — an old, sleeping blood, stirring.");
     pushAll(msgs, maybeAwardEpithet(c, rng, { base: 0.3 }));
     pushAll(msgs, heartDemon(c, rng));
     // From Golden Core up, the heavens send a Tribulation. The web UI can run
@@ -650,16 +666,54 @@ export function attemptBreakthrough(c, rng, opts = {}) {
 function heartDemon(c, rng) {
   if (c.karma >= -30) return [];
   const peril = Math.min(0.6, (-c.karma - 30) / 220.0);
-  const ward = c.soul / 300.0 + c.daos.length * 0.04 + c.comprehension / 600.0;
+  const ward = daoHeartWard(c);
   const msgs = ["", "👁 A heart demon rises from your karma to devour your dao heart..."];
   if (rng.random() < peril - ward) {
     c.hp = Math.max(1.0, c.hp - c.maxHp * rng.uniform(0.3, 0.6));
     c.stage = Math.max(0, c.stage - 1);
-    msgs.push("   The inner demon savages your mind; you slip a stage, shaken.");
+    c.daoHeart = Math.max(0, (c.daoHeart || 0) - rng.randint(2, 5));   // the demon scars your resolve
+    msgs.push("   The inner demon savages your mind; you slip a stage, shaken, your dao heart cracked.");
   } else {
-    msgs.push("   Your dao heart holds firm and the demon dissolves.");
+    c.daoHeart = clamp((c.daoHeart || 0) + rng.randint(2, 4), 0, 100);  // adversity tempers resolve
+    msgs.push("   Your dao heart holds firm and the demon dissolves — your resolve hardens for the trial.");
   }
   return msgs;
+}
+
+/* Dao Heart (道心): a cultivator's resolve — the will that holds the soul whole
+ * against heart demons, illusion and temptation. It is tempered by stilling the
+ * heart in meditation and by surviving the demons it wards against. */
+export const DAO_HEART_MAX = 100;
+export function daoHeartLabel(v) {
+  v = v || 0;
+  if (v < 12) return "Unsteady";
+  if (v < 28) return "Settling";
+  if (v < 45) return "Steady";
+  if (v < 64) return "Tempered";
+  if (v < 82) return "Unshakable";
+  return "Diamond Heart";
+}
+// Defense a heart demon (and like ordeals) must overcome.
+export const daoHeartWard = c =>
+  (c.daoHeart || 0) / 170.0 + c.soul / 320.0 + (c.daos || []).length * 0.035 + c.comprehension / 600.0;
+// In battle, resolve lets you shrug off mind-afflictions (stun/weaken).
+export const mentalResist = c => clamp((c.daoHeart || 0) / 240.0 + c.soul / 700.0, 0, 0.6);
+
+// Temper the Dao Heart through stillness — diminishing returns as it deepens,
+// quicker for the soul-keen and the serene.
+export function stillHeart(c, rng) {
+  if (!c.alive) return ["You are dead."];
+  if (c.daoHeart == null) c.daoHeart = 10;
+  const room = DAO_HEART_MAX - c.daoHeart;
+  if (room <= 0) return ["Your dao heart is already a flawless diamond — nothing more can be added by stillness alone."];
+  const gain = Math.max(1, Math.round((1.6 + c.soul / 50 + c.comprehension / 80) * (0.4 + room / DAO_HEART_MAX) * rng.uniform(0.8, 1.2)));
+  c.daoHeart = clamp(c.daoHeart + gain, 0, DAO_HEART_MAX);
+  if (typeof c.happiness === "number") c.happiness = clamp(c.happiness + 2, 0, 100);
+  const flash = rng.random() < 0.12 + c.comprehension / 1200
+    ? "  In the silence the world falls away, and for a heartbeat you simply are." : "";
+  const lines = [`You sit in stillness and temper your dao heart. (+${gain} — ${daoHeartLabel(c.daoHeart)})`];
+  if (flash) lines.push(flash);
+  return lines;
 }
 
 function tribulation(c, rng) {
@@ -977,7 +1031,7 @@ function tameChance(c, beastPow, rng) {
 export function tryTame(c, species, beastPow, rng) {
   if (c.beast !== null) return [];
   if (rng.random() < tameChance(c, beastPow, rng)) {
-    c.beast = normalizeBeast({ name: beastName(species, rng), species, baseSpecies: species, element: D.beastElement(species), power: beastPow * rng.uniform(0.6, 0.9), bond: 50, rank: 1, exp: 0, fedThisYear: 0, alive: true });
+    c.beast = normalizeBeast({ name: beastName(species, rng), species, baseSpecies: species, element: D.beastElement(species), power: beastPow * rng.uniform(0.6, 0.9), bond: 50, rank: 1, exp: 0, fedThisYear: 0, trait: rollBeastTrait(rng), alive: true });
     const el = c.beast.element ? ` Its nature runs to ${c.beast.element}.` : "";
     note(c, `Tamed a ${species} as a spirit beast companion.`);
     return [`  ✦ You subdue the ${species} and bind it as a spirit beast companion! (${c.beast.name}, ${beastTier(c.beast)})${el}`];
@@ -1007,13 +1061,14 @@ export function feedBeast(c, rng, usePill = false) {
   const b = c.beast; if (!b || !b.alive) return ["You have no spirit beast to feed."];
   normalizeBeast(b);
   if (b.fedThisYear >= 3) return [`${b.name} is sated for now — it will take more food next year.`];
+  const devoted = beastTraitOf(b) === "devoted" ? 1.5 : 1;   // a devoted beast bonds faster
   if (usePill) {
     if (c.pills <= 0) return ["You have no pills to feed it."];
-    c.pills -= 1; b.exp += 28; b.bond = clamp(b.bond + 12, 0, 100); b.power *= 1.04; b.fedThisYear += 1;
+    c.pills -= 1; b.exp += 28; b.bond = clamp(b.bond + 12 * devoted, 0, 100); b.power *= 1.04; b.fedThisYear += 1;
     return [`You feed ${b.name} a spirit pill. Its eyes blaze; it grows visibly stronger and nuzzles you. (bond ${Math.round(b.bond)}/100)`];
   }
   if (c.herbs < 2) return ["You need at least 2 spirit herbs to feed your beast."];
-  c.herbs -= 2; b.exp += 10; b.bond = clamp(b.bond + 5, 0, 100); b.power += power(c) * 0.012; b.fedThisYear += 1;
+  c.herbs -= 2; b.exp += 10; b.bond = clamp(b.bond + 5 * devoted, 0, 100); b.power += power(c) * 0.012; b.fedThisYear += 1;
   return [`You feed ${b.name} a bundle of spirit herbs. It chuffs contentedly. (bond ${Math.round(b.bond)}/100, exp ${b.exp}/${D.BEAST_EXP_REQ[b.rank] || "—"})`];
 }
 
@@ -1058,6 +1113,10 @@ export function grantPill(c, key, rng, mult = 1) {
   if (key === "breakthrough") { const n = scale(1); c.breakthroughPills += n; return [`  You refine ${n} ${name}(s) -- save for a breakthrough.`]; }
   if (key === "body") { const g = scale(rng.randint(1, 3)); c.constitution = Math.min(160, c.constitution + g); recomputeMaxHp(c); return [`  The ${name} tempers your body. (+${g} Constitution)`]; }
   if (key === "soul") { const g = scale(rng.randint(1, 3)); c.soul = Math.min(160, c.soul + g); return [`  The ${name} refines your spirit. (+${g} Soul Sense)`]; }
+  if (key === "comprehension") { const g = scale(rng.randint(1, 3)); c.comprehension = Math.min(160, c.comprehension + g); return [`  The ${name} clears your mind. (+${g} Comprehension)`]; }
+  if (key === "charm") { const g = scale(rng.randint(1, 3)); c.charm = Math.min(160, c.charm + g); return [`  The ${name} refines your features. (+${g} Charm)`]; }
+  if (key === "fortune") { const g = scale(rng.randint(1, 2)); c.luck = Math.min(160, c.luck + g); return [`  The ${name} stirs the threads of fate. (+${g} Fortune)`]; }
+  if (key === "daoheart") { const g = scale(rng.randint(2, 4)); c.daoHeart = clamp((c.daoHeart || 0) + g, 0, DAO_HEART_MAX); return [`  The ${name} stills your heart. (+${g} Dao Heart — ${daoHeartLabel(c.daoHeart)})`]; }
   if (key === "longevity") { const g = Math.round((Math.floor(c.maxAge * rng.uniform(0.05, 0.11)) + 20) * mult); c.longevityBonus = (c.longevityBonus || 0) + g; recomputeMaxAge(c); note(c, `Refined a ${name}, +${g} years of life.`); return [`  ✦ The ${name} adds ${g} years to your lifespan!`]; }
   return ["  Success!"];
 }
@@ -1109,6 +1168,13 @@ export const hopsPerDeed = c => Math.max(1, Math.floor(travelSpeed(c)));
 // Travel deeds (rounded up) to reach a place, given your speed.
 export function travelDeeds(c, toId) { return Math.max(1, Math.ceil(World.travelHops(c, toId) / hopsPerDeed(c))); }
 // The art you lean on most — the one giving the greatest effective speed now.
+// A trained movement art (轻功) is not only for the road: its light-body skill
+// lends real evasion in battle, scaling with the art's tier and your mastery.
+export function movementDodge(c) {
+  const k = bestMovementArt(c); if (!k) return 0;
+  const m = D.MOVEMENT_BY_KEY[k]; if (!m) return 0;
+  return clamp((0.02 + m[3] * 0.018) * (0.4 + 0.6 * moveFraction(c, k)), 0, 0.13);
+}
 export function bestMovementArt(c) {
   let best = null, bs = -1;
   for (const k of (c.movementArts || [])) { const m = D.MOVEMENT_BY_KEY[k]; if (!m) continue; const eff = m[4] * moveFraction(c, k); if (eff > bs) { bs = eff; best = k; } }
@@ -1193,23 +1259,58 @@ export function sellSpareHerbs(c, n = 5) {
 /* -------------------------------- dao ------------------------------------ */
 export const DAO_MIN_REALM = 5;
 export const daoInsightThreshold = c => 100.0 * (1 + c.daos.length * 0.85);
-export const canComprehend = c => c.realm >= DAO_MIN_REALM && c.daos.length < D.DAOS.length;
+// Deepening a Dao you already hold costs more the deeper it already runs.
+export const daoDeepenThreshold = (c, k) => 90.0 * (1 + daoTierOf(c, k) * 1.15) * (1 + c.daos.length * 0.18);
+export const canComprehend = c => c.realm >= DAO_MIN_REALM && (c.daos || []).length < D.DAOS.length;
+export const canDeepen = (c, k) => c.realm >= DAO_MIN_REALM && (c.daos || []).includes(k) && daoTierOf(c, k) < D.DAO_MAX_TIER;
+// You may meditate while any new Dao remains, or any held Dao is short of 圆满.
+export const canMeditate = c => c.realm >= DAO_MIN_REALM && (canComprehend(c) || (c.daos || []).some(k => daoTierOf(c, k) < D.DAO_MAX_TIER));
+
+// Backfill / repair the tiered-Dao fields on older saves and reincarnated souls.
+export function ensureDaos(c) {
+  if (!Array.isArray(c.daos)) c.daos = [];
+  if (!c.daoLevels || typeof c.daoLevels !== "object") c.daoLevels = {};
+  for (const k of c.daos) if (!(c.daoLevels[k] >= 1)) c.daoLevels[k] = 1;
+  for (const k of Object.keys(c.daoLevels)) if (!c.daos.includes(k)) delete c.daoLevels[k];
+  if (c.daoFocus && !c.daos.includes(c.daoFocus)) c.daoFocus = null;
+  return c.daoLevels;
+}
+
+// What this year's meditation works toward: deepen a chosen/held Dao, or seek a
+// new one. An explicit c.daoFocus wins; otherwise seek new, falling back to
+// deepening the shallowest law once every Dao is known.
+export function meditationTarget(c) {
+  if (c.daoFocus && canDeepen(c, c.daoFocus)) return { mode: "deepen", key: c.daoFocus };
+  if (canComprehend(c)) return { mode: "new" };
+  const deepenable = (c.daos || []).filter(k => daoTierOf(c, k) < D.DAO_MAX_TIER)
+    .sort((a, b) => daoTierOf(c, a) - daoTierOf(c, b));
+  return deepenable.length ? { mode: "deepen", key: deepenable[0] } : null;
+}
+const meditationThreshold = (c, t) => t.mode === "deepen" ? daoDeepenThreshold(c, t.key) : daoInsightThreshold(c);
 
 export function meditate(c, rng, years = 1) {
   if (!c.alive) return ["You are dead."];
   if (c.realm < DAO_MIN_REALM) return [`Your soul is too unrefined to perceive the Daos. (requires ${D.REALMS[DAO_MIN_REALM][0]})`];
-  if (c.daos.length >= D.DAOS.length) return ["You have already comprehended every Dao under heaven."];
+  ensureDaos(c);
+  if (!meditationTarget(c)) return ["You have mastered every Dao under heaven to consummation — there is nothing left to seek."];
   const msgs = [];
   for (let i = 0; i < years; i++) {
     if (!c.alive) break;
+    const target = meditationTarget(c);
+    if (!target) break;
     let gain = (c.comprehension + c.soul) / 18.0 * rng.uniform(0.7, 1.3) * (1 + c.luck / 300.0) * (1 + (D.physEffect(c).dao || 0));
     if (c.daos.includes("karma")) gain *= 1.15;
     if (rng.random() < c.comprehension / 2500.0) { gain *= rng.uniform(2.0, 4.0); msgs.push("✦ The veil thins -- a flash of profound enlightenment!"); }
     c.daoInsight += gain; c.age += 1;
-    if (c.daoInsight >= daoInsightThreshold(c)) pushAll(msgs, comprehendNewDao(c, rng));
+    if (c.daoInsight >= meditationThreshold(c, target))
+      pushAll(msgs, target.mode === "deepen" ? deepenDao(c, target.key) : comprehendNewDao(c, rng));
     if (c.age > c.maxAge) { c.alive = false; c.causeOfDeath = "old age deep in Dao meditation"; msgs.push(`☠ Your lifespan ends at ${c.age}, mid-revelation.`); break; }
   }
-  if (msgs.length === 0) msgs.push(`You meditate on the nature of the Dao. (insight ${Math.floor(c.daoInsight)}/${Math.floor(daoInsightThreshold(c))})`);
+  if (msgs.length === 0) {
+    const t = meditationTarget(c);
+    const what = t && t.mode === "deepen" ? `deepening the ${D.DAO_BY_KEY[t.key][1]}` : "seeking a new Dao";
+    msgs.push(`You meditate on the Dao — ${what}. (insight ${Math.floor(c.daoInsight)}/${Math.floor(meditationThreshold(c, t))})`);
+  }
   return msgs;
 }
 function comprehendNewDao(c, rng) {
@@ -1218,9 +1319,64 @@ function comprehendNewDao(c, rng) {
   if (unknown.length === 0) return [];
   const weights = unknown.map(d => { let w = 1.0; if (d[0] === "slaughter" && c.karma < -30) w = 3.0; if (d[0] === "karma" && c.karma > 60) w = 2.5; return w; });
   const dao = rng.choices(unknown, weights);
-  c.daos.push(dao[0]); note(c, `Comprehended the ${dao[1]}.`);
-  return ["", `☯ You comprehend the ${dao[1]}!`, `  ${dao[4]}`, ""];
+  c.daos.push(dao[0]); c.daoLevels[dao[0]] = 1; note(c, `Comprehended the ${dao[1]}.`);
+  return ["", `☯ You comprehend the ${dao[1]}! (${D.daoTierLabel(1)})`, `  ${dao[4]}`, ""];
 }
+function deepenDao(c, key) {
+  c.daoInsight = 0.0;
+  const lvl = Math.min(D.DAO_MAX_TIER, daoTierOf(c, key) + 1);
+  c.daoLevels[key] = lvl;
+  const dao = D.DAO_BY_KEY[key], label = D.daoTierLabel(lvl);
+  note(c, `Deepened the ${dao[1]} to ${label}.`);
+  const lines = ["", `☯ Your ${dao[1]} deepens to ${label}!`];
+  if (lvl === 3 && D.DAO_MANIFEST[key]) lines.push(`  ✦ The law now manifests in battle — ${D.DAO_MANIFEST[key]}`);
+  if (lvl >= D.DAO_MAX_TIER) lines.push("  Consummation — your grasp of this law wants for nothing.");
+  lines.push("");
+  return lines;
+}
+
+/* Battle manifestations of a deeply-comprehended Dao (Great Mastery, tier 3+).
+ * Returns one aggregate of small modifiers combat reads when a fight opens, so
+ * all Dao→combat scaling lives here. s = 1 at 大成, 2 at 圆满. */
+export function daoBattleMods(c) {
+  ensureDaos(c);
+  const m = { crit: 0, dodge: 0, hp: 0, lifesteal: 0, pierce: 0, shield: 0, regen: 0, enemyWeaken: 0, enemyCritDown: 0, enemyBleed: 0 };
+  for (const k of (c.daos || [])) {
+    const lvl = daoTierOf(c, k);
+    if (lvl < 3) continue;                  // manifests only from Great Mastery up
+    const s = lvl - 2;                       // 1 at 大成, 2 at 圆满
+    switch (k) {
+      case "sword":     m.crit += 0.06 * s; break;
+      case "flame":     m.crit += 0.04 * s; break;
+      case "thunder":   m.crit += 0.03 * s; m.pierce += 0.06 * s; break;
+      case "space":     m.dodge += 0.06 * s; break;
+      case "dream":     m.dodge += 0.05 * s; break;
+      case "time":      m.dodge += 0.04 * s; break;
+      case "vitality":  m.hp += 0.10 * s; m.regen = Math.max(m.regen, 0.03 * s); break;
+      case "void":      m.pierce += 0.10 * s; break;
+      case "devour":    m.lifesteal += 0.08 * s; break;
+      case "karma":     m.shield += 0.08 * s; break;
+      case "slaughter": m.enemyWeaken += 0.10 * s; m.enemyCritDown += 0.05 * s; m.enemyBleed = Math.max(m.enemyBleed, 0.03 * s); break;
+    }
+  }
+  return m;
+}
+
+/* ---------------------- action-triggered story arcs ---------------------- *
+ * Some multi-year arcs (events.js) don't start at random but are "armed" by a
+ * fitting deed — a demonic wound, diligent study, a rare find — at a given
+ * chance (1 = certain). The armed opener then fires, gated by age/realm, on the
+ * next age-up (arc beats are drawn with priority). State is a plain list on the
+ * character, so action code anywhere can arm an arc without importing events. */
+export function armArc(c, id, rng, chance = 1) {
+  if (!c.arcTriggers) c.arcTriggers = [];
+  if (c.arcTriggers.includes(id)) return false;        // already armed
+  if (c.arcs && c.arcs[id]) return false;              // already underway or done
+  if ((rng ? rng.random() : Math.random()) < chance) { c.arcTriggers.push(id); return true; }
+  return false;
+}
+export const arcArmed = (c, id) => (c.arcTriggers || []).includes(id);
+export function disarmArc(c, id) { if (c.arcTriggers) c.arcTriggers = c.arcTriggers.filter(x => x !== id); }
 
 /* ------------------------------- sect ------------------------------------ */
 const talentTier = c => D.ROOT_TIER[c.root.key] || 0;
@@ -1786,6 +1942,24 @@ export function maybeAwardEpithet(c, rng, opts = {}) {
   c.epithets.push({ id: e.id, text, tier: e.tier });
   note(c, `Became known across the world as 「${text}」.`);
   return [`✦ A new name spreads through the cultivation world — they have taken to calling you 「${text}」.`];
+}
+
+/* The reckoning: settle a lifelong rivalry. Called after winning a nemesis duel.
+ * The fallen rival yields their signature treasure (themed to their element),
+ * a slayer's title, renown — and the long grudge is finally laid to rest. */
+export function defeatNemesis(c, nem, rng) {
+  if (!nem) return [];
+  nem.alive = false; nem.role = "nemesis";
+  const lines = [`✦ ${nem.name} falls at last. The grudge of a lifetime — ${nem.grudge || "an old slight"} — is settled in blood and silence.`];
+  c.reputation += 12;
+  const title = `Nemesis Slain: ${nem.name}`;
+  if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, `Slew their sworn nemesis, ${nem.name}.`]); }
+  // The fallen rival's own treasure, themed to the element they fought with.
+  pushAll(lines, acquireArtifact(c, randomArtifact(c, rng, rng.random() < 0.45 ? "Heaven" : null, { element: nem.element || null })));
+  c.spiritStones += (c.realm + 2) * rng.randint(12, 24);
+  pushAll(lines, maybeAwardEpithet(c, rng, { base: 0.45 }));
+  lines.push("  The weight you have carried for so long lifts. The road ahead is your own.");
+  return lines;
 }
 
 /* ---------------------------- sparring reward ---------------------------- *

@@ -12,6 +12,9 @@
 import * as E from "../web/engine.js";
 import * as L from "../web/life.js";
 import * as D from "../web/data.js";
+import * as C from "../web/combat.js";
+import * as Ev from "../web/events.js";
+const { EVENTS } = Ev;
 
 /* --------------------------- tiny test harness --------------------------- */
 let passed = 0;
@@ -185,6 +188,550 @@ function testReincarnationCarriesLegacy() {
   assert(next.comprehension >= 1, "legacy never produces an invalid attribute");
 }
 
+// 道之境界: a comprehended Dao deepens through tiers, scaling its bonuses and —
+// from Great Mastery — manifesting in battle. Legacy saves must migrate cleanly.
+function testDaoTiers() {
+  // (1) Legacy save (daos but no daoLevels) migrates to tier 1 each.
+  const legacy = { daos: ["sword", "void"], daoFocus: "ghost" };
+  E.ensureDaos(legacy);
+  assert(E.daoTierOf(legacy, "sword") === 1 && E.daoTierOf(legacy, "void") === 1, "migrated Daos default to Glimpsed");
+  assert(legacy.daoFocus === null, "a focus on an unheld Dao is cleared on migration");
+
+  // (2) Deeper tiers scale a Dao's power bonus monotonically upward.
+  const c = L.bornCharacter(new E.RNG(7), "Sage", null);
+  c.realm = E.DAO_MIN_REALM; c.comprehension = c.soul = c.luck = 150;
+  c.daos = ["sword"]; c.daoLevels = { sword: 1 }; c.daoFocus = "sword";
+  const bonusAt = lvl => { c.daoLevels.sword = lvl; return E.daoPowerBonus(c); };
+  assert(bonusAt(2) > bonusAt(1) && bonusAt(3) > bonusAt(2) && bonusAt(4) > bonusAt(3),
+    "each Dao tier must raise the power bonus");
+
+  // (3) Focused meditation actually deepens the focused Dao (and never past 圆满).
+  c.daoLevels.sword = 1;
+  const rng = new E.RNG(3);
+  for (let i = 0; i < 400 && E.daoTierOf(c, "sword") < D.DAO_MAX_TIER && c.alive; i++) {
+    c.age = 30; c.maxAge = 9999;     // keep the soul alive through the long meditation
+    E.meditate(c, rng, 1);
+  }
+  assert(E.daoTierOf(c, "sword") === D.DAO_MAX_TIER, "focused meditation reaches Consummation");
+  c.daoLevels.sword = D.DAO_MAX_TIER + 5;  // even a corrupt level is clamped in scoring
+  assert(D.daoTierFactor(c.daoLevels.sword) === D.daoTierFactor(D.DAO_MAX_TIER), "tier factor clamps to the max tier");
+
+  // (4) Battle manifestations only switch on at Great Mastery (tier 3+).
+  const lo = (() => { const x = { daos: ["void", "slaughter"], daoLevels: { void: 2, slaughter: 2 } }; return E.daoBattleMods(x); })();
+  const hi = (() => { const x = { daos: ["void", "slaughter"], daoLevels: { void: 4, slaughter: 4 } }; return E.daoBattleMods(x); })();
+  assert(lo.pierce === 0 && lo.enemyWeaken === 0, "no battle manifestation below Great Mastery");
+  assert(hi.pierce > 0 && hi.enemyWeaken > 0, "Great Mastery+ Daos manifest in battle");
+}
+
+// Themed Secret Realms (秘境): each archetype must be well-formed, and the
+// engine pieces a delve leans on — themed foes, a named guardian and a themed
+// treasure drop — must all resolve to valid, realm-attuned objects.
+function testSecretRealmThemes() {
+  assert(D.SECRET_REALMS.length >= 6, "expected a spread of themed realms");
+  const rng = new E.RNG(99);
+  const c = L.bornCharacter(rng, "Delver", null);
+  c.realm = 5; c.stage = 2; c.comprehension = c.soul = c.constitution = 140; c.awakened = true;
+  E.recomputeMaxHp(c); c.hp = c.maxHp;
+  const seen = new Set();
+  for (const t of D.SECRET_REALMS) {
+    assert(t.key && t.name && t.cn && t.element, `theme well-formed: ${t.key}`);
+    assert(!seen.has(t.key), `theme keys must be unique (${t.key})`); seen.add(t.key);
+    assert(Array.isArray(t.foes) && t.foes.length >= 2, `theme lists foes: ${t.key}`);
+    assert(D.SECRET_REALM_BY_KEY[t.key] === t, `theme index resolves: ${t.key}`);
+    // A themed stage foe is well-formed and carries the realm's element.
+    const foe = C.makeEnemy(c, rng, { kind: t.kind || undefined, name: rng.choice(t.foes), element: t.element, factor: 1.0 });
+    assert(foe.power > 0 && foe.element === t.element && t.foes.includes(foe.name), `themed foe carries realm element: ${t.key}`);
+    // The named guardian is a proper boss.
+    const g = C.makeBoss(c, rng, { name: t.guardian, element: t.element, factor: 1.4 });
+    assert(g.boss && g.power > 0 && g.name === t.guardian, `themed guardian resolves: ${t.key}`);
+    // A themed drop always resolves to a real treasure (element/slot themed, with fallback).
+    const art = E.randomArtifact(c, rng, null, { element: t.element, slot: t.rewardSlot || null });
+    assert(D.ARTIFACT_BY_KEY[art], `themed drop is a real treasure: ${t.key}`);
+  }
+}
+
+// Dao Heart (道心): resolve strengthens the heart-demon ward and battle
+// mind-resistance, is tempered by stillness with diminishing returns, and caps.
+function testDaoHeartResolve() {
+  const rng = new E.RNG(4);
+  const c = L.bornCharacter(rng, "Monk", null);
+  c.soul = 80; c.comprehension = 80; c.daoHeart = 10;
+  const w0 = E.daoHeartWard(c), r0 = E.mentalResist(c);
+  c.daoHeart = 90;
+  assert(E.daoHeartWard(c) > w0 && E.mentalResist(c) > r0, "Dao Heart strengthens ward and mental resist");
+  assert(E.mentalResist(c) <= 0.6, "mental resist stays capped");
+  // Stilling raises it toward the cap; a real gain at low resolve.
+  c.daoHeart = 10; E.stillHeart(c, rng);
+  assert(c.daoHeart - 10 >= 1, "stilling at low resolve yields a real gain");
+  c.daoHeart = 95; const before = c.daoHeart; E.stillHeart(c, rng);
+  assert(c.daoHeart > before && c.daoHeart <= E.DAO_HEART_MAX, "stilling raises Dao Heart but never past the max");
+  c.daoHeart = E.DAO_HEART_MAX; E.stillHeart(c, rng);
+  assert(c.daoHeart === E.DAO_HEART_MAX, "a flawless Dao Heart stays at the max");
+}
+
+// New alchemy pills permanently raise their attribute, within the usual caps.
+function testAlchemyPills() {
+  const rng = new E.RNG(6);
+  const c = L.bornCharacter(rng, "Alchemist", null);
+  c.comprehension = c.charm = c.luck = 50; c.daoHeart = 10;
+  for (const key of ["comprehension", "charm", "fortune", "daoheart"]) {
+    assert(D.PILL_BY_KEY[key], `new pill recipe exists: ${key}`);
+    assert(E.pricePill(c, key) > 0, `pill carries a price: ${key}`);
+  }
+  const b = { comprehension: c.comprehension, charm: c.charm, luck: c.luck, daoHeart: c.daoHeart };
+  E.grantPill(c, "comprehension", rng, 1); E.grantPill(c, "charm", rng, 1);
+  E.grantPill(c, "fortune", rng, 1); E.grantPill(c, "daoheart", rng, 1);
+  assert(c.comprehension > b.comprehension && c.charm > b.charm && c.luck > b.luck && c.daoHeart > b.daoHeart,
+    "attribute pills raise their attribute");
+  c.comprehension = 159; E.grantPill(c, "comprehension", rng, 4);
+  assert(c.comprehension <= 160, "an attribute pill respects the cap");
+}
+
+// Spirit-beast traits: every tamed beast carries a valid innate trait, Devoted
+// beasts bond faster, and a trait-bearing high-rank beast fights without error.
+function testBeastTraits() {
+  assert(D.BEAST_TRAITS.length >= 4, "expected several beast traits");
+  const seen = new Set();
+  for (let s = 0; s < 60; s++) {
+    const r = new E.RNG(s);
+    const c = L.bornCharacter(r, "Tamer" + s, null);
+    c.beast = null; c.soul = c.charm = c.comprehension = 120;
+    E.tryTame(c, "Iron-Fang Wolf", E.power(c) * 0.15, r);
+    if (c.beast) { assert(D.BEAST_TRAIT_BY_KEY[c.beast.trait], "a tamed beast carries a valid trait"); seen.add(c.beast.trait); }
+  }
+  assert(seen.size >= 2, "innate traits vary across tames");
+  const bondAfterFeed = trait => {
+    const r = new E.RNG(9); const c = L.bornCharacter(r, "B", null); c.herbs = 100;
+    c.beast = E.normalizeBeast({ name: "X", species: "Wolf", baseSpecies: "Wolf", element: "Metal", power: 50, bond: 50, rank: 1, exp: 0, fedThisYear: 0, trait, alive: true });
+    E.feedBeast(c, r, false); return c.beast.bond;
+  };
+  assert(bondAfterFeed("devoted") > bondAfterFeed("ferocious"), "a Devoted beast gains more bond per feed");
+  const r = new E.RNG(3); const c = L.bornCharacter(r, "Rider", null);
+  c.realm = 6; c.stage = 2; c.comprehension = c.soul = c.constitution = 140; c.awakened = true;
+  c.root = { key: "heavenly", name: "Heavenly Root", multiplier: 2.6, purity: 1, elements: ["Fire"] };
+  E.recomputeMaxHp(c); c.hp = c.maxHp;
+  c.beast = E.normalizeBeast({ name: "Bai", species: "Mythic Wolf", baseSpecies: "Wolf", element: "Metal", power: E.power(c) * 0.3, bond: 90, rank: 4, exp: 0, fedThisYear: 0, trait: "ferocious", alive: true });
+  const B = C.createBattle(c, C.makeEnemy(c, r, {}), r, {});
+  assert(B.player.beastTrait === "ferocious", "combat captures the beast trait");
+  let guard = 0;
+  while (!B.over && guard++ < 100) { const a = B.actions().find(x => !x.disabled && x.id !== "flee") || B.actions()[0]; B.act(a.id); }
+  assert(B.over, "a trait-bearing beast-assisted battle resolves cleanly");
+}
+
+// New combat verbs (sunder armour-break, execute) and Movement Arts (轻功)
+// manifesting as real battle evasion.
+function testCombatVerbsAndMovement() {
+  // The three new techniques exist as skills with their new verbs.
+  const byTech = t => Object.values(C.SKILLS).find(x => x.tech === t);
+  assert(byTech("mountain_render") && byTech("mountain_render").sunder, "Mountain-Splitting Sunder carries the sunder verb");
+  assert(byTech("flowing_light") && byTech("flowing_light").sunder && byTech("flowing_light").hits === 2, "Flowing-Light is a multi-hit sunder");
+  assert(byTech("soul_reap") && byTech("soul_reap").execute > 1, "Soul-Reaping Scythe carries the execute verb");
+  for (const t of ["mountain_render", "flowing_light", "soul_reap"]) assert(D.TECHNIQUES[t], `technique is in the catalogue: ${t}`);
+
+  // Movement dodge scales with tier and mastery, and stays capped.
+  const c = L.bornCharacter(new E.RNG(1), "Runner", null);
+  assert(E.movementDodge(c) === 0, "no movement art means no battle dodge");
+  c.movementArts = ["void_rift"]; c.moveMastery = { void_rift: 0 };
+  const untrained = E.movementDodge(c);
+  c.moveMastery = { void_rift: 99999 };
+  const perfected = E.movementDodge(c);
+  assert(perfected > untrained && perfected <= 0.13, "movement dodge rises with mastery and stays capped");
+
+  // Execute lands catastrophically on a foe near death.
+  const r = new E.RNG(2); const p = L.bornCharacter(r, "Reaper", null);
+  p.realm = 6; p.stage = 2; p.comprehension = p.soul = p.constitution = 140; p.awakened = true;
+  p.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Dark"] };
+  p.techniques = ["basic_breathing", "soul_reap"]; E.recomputeMaxHp(p); p.hp = p.maxHp;
+  const B = C.createBattle(p, C.makeEnemy(p, r, { factor: 3.0 }), r, {});
+  B.enemy.hp = B.enemy.maxHp * 0.25; B.enemy.dodge = 0;   // ensure the reaping blow lands
+  const res = B.act("soul_reap");
+  assert(res.lines.some(l => /EXECUTE/.test(l)), "execute fires against a foe below the HP threshold");
+
+  // Sunder rends a foe's armour (a debuff appears on the enemy).
+  const r2 = new E.RNG(5); const p2 = L.bornCharacter(r2, "Render", null);
+  p2.realm = 6; p2.stage = 2; p2.comprehension = p2.soul = p2.constitution = 140; p2.awakened = true;
+  p2.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Earth"] };
+  p2.techniques = ["basic_breathing", "mountain_render"]; E.recomputeMaxHp(p2); p2.hp = p2.maxHp;
+  const B2 = C.createBattle(p2, C.makeEnemy(p2, r2, { factor: 4.0 }), r2, {});
+  B2.act("mountain_render");
+  assert(B2.enemy.statuses.some(s => s.type === "sunder"), "sunder applies an armour-break debuff to the foe");
+}
+
+// The Nemesis Reckoning: a spawned nemesis is a fightable peer, and settling the
+// grudge slays them, yields a slayer's title and spoils, and lays the rivalry down.
+function testNemesisReckoning() {
+  const rng = new E.RNG(11);
+  const c = L.bornCharacter(rng, "Avenger", null);
+  c.realm = 5; c.stage = 2; c.comprehension = c.soul = c.constitution = 130; c.awakened = true;
+  c.root = { key: "heavenly", name: "Heavenly Root", multiplier: 2.6, purity: 1, elements: ["Fire"] };
+  E.recomputeMaxHp(c); c.hp = c.maxHp;
+  // A nemesis appears via the same path the events use.
+  L.makeNemesis ? L.makeNemesis(c, rng, "a stolen inheritance") : null;
+  let nem = L.getNemesis(c);
+  if (!nem) {  // makeNemesis is module-private; spawn via the event API surface instead
+    c.relationships.push({ name: "Gu Hanzhi", role: "nemesis", kin: "Nemesis", affinity: -45, alive: true, element: "Metal", grudge: "a stolen inheritance", encounters: 0, realm: 5 });
+    nem = L.getNemesis(c);
+  }
+  assert(nem && nem.alive, "a nemesis exists and lives");
+  // They build into a real boss-tier foe from their own profile.
+  const foe = C.makeEnemyFromNpc(c, nem, rng, { boss: true });
+  assert(foe.boss && foe.power > 0 && foe.name === nem.name, "the nemesis fights as a boss-tier peer");
+  // Settling the score slays them and grants the slayer's title + spoils.
+  const titlesBefore = c.titles.length, repBefore = c.reputation;
+  const lines = E.defeatNemesis(c, nem, rng);
+  assert(!nem.alive, "a defeated nemesis is slain");
+  assert(c.titles.some(t => t.startsWith("Nemesis Slain")), "slaying a nemesis grants the slayer's title");
+  assert(c.reputation > repBefore && lines.length > 0, "the reckoning yields renown and a narrative");
+  assert(L.getNemesis(c) === null, "no living nemesis remains after the reckoning");
+}
+
+// Branching dialogue: the authored multi-step conversations must unfold into
+// follow-on speaker nodes and resolve every branch to terminal narration —
+// no dead ends, no crashes, however the player chooses.
+function testDialogueTrees() {
+  const isNode = r => r && typeof r === "object" && !Array.isArray(r) && Array.isArray(r.choices);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const mockApi = c => ({
+    qi: () => { c.qi = (c.qi || 0) + 1; }, happy: n => { c.happiness = clamp((c.happiness || 50) + n, 0, 100); },
+    heal: n => { c.hp = Math.max(1, (c.hp || 1) + n); }, stones: n => { c.spiritStones = Math.max(0, (c.spiritStones || 0) + n); },
+    herbs: n => { c.herbs = Math.max(0, (c.herbs || 0) + n); }, karma: n => { c.karma = (c.karma || 0) + n; },
+    note: t => c.log.push([c.age, t]), learnTech: () => "Test Manual",
+    meet: (role) => ({ name: "Stranger", role, alive: true }), giveArtifact: () => ["  You obtain a treasure: Test!"],
+  });
+  // Recursively drive every choice of a node (and its sub-nodes) to a terminal.
+  const drive = (node, c, rng, A, depth) => {
+    assert(depth < 12, "dialogue tree must terminate");
+    assert(node.text != null && node.choices.length >= 1, "a node has text and at least one choice");
+    for (const ch of node.choices) {
+      if (ch.cond && !ch.cond(c)) continue;
+      assert(ch.label != null, "every choice is labelled");
+      const r = ch.result(c, rng, A);
+      if (isNode(r)) drive(r, c, rng, A, depth + 1);
+      else assert(typeof r === "string" || Array.isArray(r), "a leaf is terminal narration");
+    }
+  };
+  const ids = ["dlg_hermit", "dlg_devil_bargain", "dlg_captured_rogue", "dlg_merchant_haggle"];
+  for (const id of ids) {
+    const e = EVENTS.find(x => x.id === id);
+    assert(e && e.choices, `dialogue event exists: ${id}`);
+    let sawNode = false;
+    for (let seed = 0; seed < 8; seed++) {
+      const rng = new E.RNG(seed * 17 + 3);
+      const c = L.bornCharacter(rng, "Talker", null);
+      c.realm = 3; c.awakened = true; c.spiritStones = 200; c.daoHeart = 20;
+      const A = mockApi(c);
+      for (const ch of e.choices) {
+        if (ch.cond && !ch.cond(c)) continue;
+        const r = ch.result(c, rng, A);
+        if (isNode(r)) { sawNode = true; drive(r, c, rng, A, 1); }
+        else assert(typeof r === "string" || Array.isArray(r), "top-level leaf is terminal");
+      }
+    }
+    assert(sawNode, `${id} opens at least one follow-on dialogue node`);
+  }
+}
+
+// Multi-year storyline arcs: a choice now sets an arc's stage; later beats gate
+// on that stage and the years elapsed and branch on what came before, threading
+// a coherent saga across a life — with genuinely divergent outcomes.
+function testStoryArcs() {
+  // Arc-state helpers.
+  const h = L.bornCharacter(new E.RNG(1), "Arc", null);
+  assert(Ev.arcStage(h, "x") === 0, "an unknown arc reads as stage 0");
+  Ev.arcSet(h, "x", 1); assert(Ev.arcStage(h, "x") === 1, "arcSet records the stage");
+  h.age += 4; assert(Ev.arcYears(h, "x") === 4, "arcYears tracks elapsed years");
+  Ev.arcEnd(h, "x"); assert(Ev.arcStage(h, "x") === 0, "arcEnd clears the arc");
+
+  const mkChar = seed => {
+    const rng = new E.RNG(seed); const c = L.bornCharacter(rng, "Hero" + seed, null);
+    c.realm = 4; c.stage = 2; c.awakened = true; c.comprehension = c.soul = 140; c.daoHeart = 60; c.age = 30; c.spiritStones = 100;
+    if (c.root.key === "none") c.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Metal"], comprehensionBonus: 0, display: "H" };
+    E.recomputeMaxHp(c); E.recomputeMaxAge(c); c.hp = c.maxHp; return { c, rng };
+  };
+  const api = (c, rng) => ({
+    qi: () => { c.qi = (c.qi || 0) + 1; }, happy: n => { c.happiness = Math.max(0, Math.min(100, (c.happiness || 50) + n)); },
+    heal: n => { c.hp = Math.max(1, (c.hp || 1) + n); }, stones: n => { c.spiritStones = Math.max(0, (c.spiritStones || 0) + n); },
+    herbs: n => { c.herbs = Math.max(0, (c.herbs || 0) + n); }, karma: n => { c.karma = (c.karma || 0) + n; }, note: t => c.log.push([c.age, t]),
+    learnTech: () => "Test Manual", giveArtifact: g => E.acquireArtifact(c, E.randomArtifact(c, rng, g)),
+    power: () => E.power(c), fight: e => E.fight(c, rng, e),
+    meet: (role, opts = {}) => { const n = { name: "NPC" + c.relationships.length, role, affinity: opts.affinity != null ? opts.affinity : 20, alive: true, power: 0 }; E.ensureNpcProfile(n, rng, { realm: opts.realm != null ? opts.realm : 0 }); c.relationships.push(n); return n; },
+  });
+  const ev = id => EVENTS.find(e => e.id === id);
+  const choose = (c, rng, A, id, i) => { const e = ev(id); const ch = e.choices.filter(x => !x.cond || x.cond(c))[i]; return ch.result(c, rng, A); };
+
+  // Sword-tomb arc, heir path: accept → temper → forge → mastery (a sword art).
+  { const { c, rng } = mkChar(11); const A = api(c, rng);
+    assert(ev("swordtomb_start").cond(c), "the sword-tomb opener is eligible");
+    choose(c, rng, A, "swordtomb_start", 0); assert(Ev.arcStage(c, "swordtomb") === 1, "accepting the transmission advances to stage 1");
+    c.age += 3; assert(ev("swordtomb_trial").cond(c), "the trial beat comes due after the years pass");
+    choose(c, rng, A, "swordtomb_trial", 1); assert(Ev.arcStage(c, "swordtomb") === 2, "tempering advances to stage 2");
+    c.age += 3; assert(ev("swordtomb_master").cond(c), "the mastery beat comes due");
+    const before = c.techniques.length; choose(c, rng, A, "swordtomb_master", 0);
+    assert(Ev.arcStage(c, "swordtomb") === 99, "the sword-tomb arc resolves");
+    assert(c.techniques.length > before, "mastering the inheritance teaches a sword art");
+  }
+  // Virtuous fork ends the arc at once and differently (karma, not a technique).
+  { const { c, rng } = mkChar(12); const A = api(c, rng); const k = c.karma;
+    choose(c, rng, A, "swordtomb_start", 1);
+    assert(Ev.arcStage(c, "swordtomb") === 99 && c.karma > k, "the clean-death fork ends the arc with merit");
+  }
+  // Foundling arc: take in → neglect → a bitter ward becomes a nemesis.
+  { const { c, rng } = mkChar(13); const A = api(c, rng);
+    choose(c, rng, A, "foundling_start", 0);
+    assert(Ev.arcStage(c, "foundling") === 1, "taking in the ward advances to stage 1");
+    const ward = c.relationships.find(n => n.arcTag === "foundling"); assert(ward, "the ward is created and tagged for later beats");
+    c.age += 3; choose(c, rng, A, "foundling_raise", 2);
+    assert(ward.affinity < 40, "neglect erodes the ward's affinity");
+    ward.affinity = -40;
+    c.age += 3; choose(c, rng, A, "foundling_grown", 0);
+    assert(Ev.arcStage(c, "foundling") === 99 && ward.role === "nemesis", "a neglected ward can grow into a nemesis");
+  }
+  // Foundling arc, kind path: a treasured ward becomes a devoted disciple.
+  { const { c, rng } = mkChar(14); const A = api(c, rng);
+    choose(c, rng, A, "foundling_start", 0); const ward = c.relationships.find(n => n.arcTag === "foundling");
+    c.age += 3; choose(c, rng, A, "foundling_raise", 0);
+    c.age += 3; choose(c, rng, A, "foundling_grown", 0);
+    assert(ward.role === "disciple", "a kindly-raised ward becomes a disciple");
+  }
+  // A due storyline beat is drawn with priority by the year-roller.
+  { const { c, rng } = mkChar(15); const A = api(c, rng); Ev.arcSet(c, "swordtomb", 1); c.age += 3;
+    const out = Ev.rollYearEvents(c, rng, A);
+    assert(out.some(o => { const e = ev(o.id); return e && e.arc; }), "a due arc beat is prioritised in the yearly roll");
+  }
+}
+
+// Action-triggered arcs: deeds arm an opener (at a chance, or with certainty),
+// which then fires gated by age/realm — and each new arc threads to its end.
+function testTriggeredArcs() {
+  // Arm / disarm mechanics.
+  const c = L.bornCharacter(new E.RNG(1), "A", null);
+  assert(!E.arcArmed(c, "x"), "nothing is armed at first");
+  assert(E.armArc(c, "x", new E.RNG(1), 1) === true && E.arcArmed(c, "x"), "armArc with certainty arms the opener");
+  assert(E.armArc(c, "x", new E.RNG(1), 1) === false, "armArc will not double-arm");
+  E.disarmArc(c, "x"); assert(!E.arcArmed(c, "x"), "disarmArc clears it");
+  assert(E.armArc(c, "y", new E.RNG(1), 0) === false, "a zero chance never arms");
+  Ev.arcSet(c, "z", 1); assert(E.armArc(c, "z", null, 1) === false, "an arc already underway cannot be re-armed");
+
+  const mk = seed => {
+    const rng = new E.RNG(seed); const cc = L.bornCharacter(rng, "H" + seed, null);
+    cc.realm = 5; cc.stage = 2; cc.awakened = true; cc.comprehension = cc.soul = cc.constitution = 150; cc.daoHeart = 80; cc.age = 40; cc.spiritStones = 300; cc.herbs = 50; cc.alchemySkill = 60;
+    if (cc.root.key === "none") cc.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Metal"], comprehensionBonus: 0, display: "H" };
+    E.recomputeMaxHp(cc); E.recomputeMaxAge(cc); cc.hp = cc.maxHp; return { c: cc, rng };
+  };
+  const api = (c, rng) => ({ qi: () => {}, happy: () => {}, heal: n => { c.hp = Math.max(1, c.hp + n); }, stones: n => { c.spiritStones = Math.max(0, c.spiritStones + n); }, herbs: n => { c.herbs = Math.max(0, c.herbs + n); }, karma: n => { c.karma = (c.karma || 0) + n; }, note: () => {}, learnTech: () => "M", giveArtifact: g => E.acquireArtifact(c, E.randomArtifact(c, rng, g)), power: () => E.power(c), fight: e => E.fight(c, rng, e),
+    meet: (role, opts = {}) => { const n = { name: "NPC" + c.relationships.length, role, affinity: opts.affinity != null ? opts.affinity : 20, alive: true, power: 0 }; c.relationships.push(n); return n; },
+    makeNemesis: g => { const n = { name: "Foe", role: "nemesis", kin: "Nemesis", grudge: g, affinity: -45, alive: true, power: 1, element: "Dark" }; c.relationships.push(n); return n; } });
+  const ev = id => EVENTS.find(e => e.id === id);
+  const choose = (c, rng, A, id, i) => { const e = ev(id); const ch = e.choices.filter(x => !x.cond || x.cond(c))[i]; return ch.result(c, rng, A); };
+
+  // Soul-poison: arm → opener auto → demonic remedy ends it at a karmic cost.
+  { const { c, rng } = mk(21); const A = api(c, rng); E.armArc(c, "soulpoison", rng, 1);
+    assert(ev("soulpoison_start").cond(c), "an armed soul-poison opener is eligible");
+    ev("soulpoison_start").auto(c, rng, A);
+    assert(Ev.arcStage(c, "soulpoison") === 1 && !E.arcArmed(c, "soulpoison"), "the opener advances to stage 1 and disarms itself");
+    c.age += 1; assert(ev("soulpoison_seek").cond(c), "the cure-seeking beat is due");
+    const k = c.karma; choose(c, rng, A, "soulpoison_seek", 2);
+    assert(Ev.arcStage(c, "soulpoison") === 99 && c.karma < k, "the demonic remedy cures the poison at a karmic cost");
+  }
+  // Soul-poison deadline: after six uncured years the lethal crisis beat is due.
+  { const { c, rng } = mk(22); E.armArc(c, "soulpoison", rng, 1); ev("soulpoison_start").auto(c, rng, api(c, rng)); c.age += 6;
+    assert(!ev("soulpoison_seek").cond(c) && ev("soulpoison_crisis").cond(c), "past the deadline the crisis supersedes the cure beats");
+  }
+  // Real combat trigger: fighting demonic foes can arm the soul-poison arc.
+  { let armed = false;
+    for (let s = 0; s < 40 && !armed; s++) {
+      const { c, rng } = mk(100 + s);
+      const foe = C.makeEnemy(c, rng, { kind: "rogue", name: "Corpse Refiner", element: "Dark", factor: 1.2 });
+      const B = C.createBattle(c, foe, rng, {}); let g = 0;
+      while (!B.over && g++ < 80) { const a = B.actions().find(x => !x.disabled && x.id !== "flee") || B.actions()[0]; B.act(a.id); }
+      B.finish();
+      if (E.arcArmed(c, "soulpoison") || (c.arcs && c.arcs.soulpoison)) armed = true;
+    }
+    assert(armed, "battling demonic foes can inflict the soul-poison");
+  }
+
+  // Master tutelage: arm → accept → diligent trial → graduation teaches Great Void.
+  { const { c, rng } = mk(23); const A = api(c, rng); E.armArc(c, "tutelage", rng, 1);
+    assert(ev("tutelage_start").cond(c), "an armed master opener is eligible");
+    choose(c, rng, A, "tutelage_start", 0); assert(Ev.arcStage(c, "tutelage") === 1, "accepting begins the apprenticeship");
+    c.age += 2; choose(c, rng, A, "tutelage_trial", 0); assert(Ev.arcStage(c, "tutelage") === 2, "the trial advances to stage 2");
+    c.age += 2; choose(c, rng, A, "tutelage_graduation", 0);
+    assert(Ev.arcStage(c, "tutelage") === 99 && c.techniques.includes("great_void"), "a diligent student inherits the Great Void Immortal Canon");
+  }
+  // Studying with exceptional comprehension certainly draws a hidden master.
+  { const { c, rng } = mk(24); c.comprehension = 140;
+    L.studyScriptures(c, rng);
+    assert(E.arcArmed(c, "tutelage") || (c.arcs && c.arcs.tutelage), "diligent, gifted study arms the master arc");
+  }
+  // Beast-King: a worthy beast makes the opener eligible; the arc empowers it.
+  { const { c, rng } = mk(25); const A = api(c, rng);
+    c.beast = E.normalizeBeast({ name: "Bai", species: "Cloud Leopard", baseSpecies: "Cloud Leopard", element: "Wind", power: E.power(c) * 0.3, bond: 90, rank: 2, exp: 0, fedThisYear: 0, trait: "ferocious", alive: true });
+    assert(ev("beastking_start").cond(c), "a worthy beast makes the Beast-King opener eligible");
+    choose(c, rng, A, "beastking_start", 0); assert(Ev.arcStage(c, "beastking") === 1, "answering the summons begins the arc");
+    c.age += 2; choose(c, rng, A, "beastking_trial", 0); assert(Ev.arcStage(c, "beastking") === 2, "the trial advances the arc");
+    const before = c.beast.power; c.age += 2; choose(c, rng, A, "beastking_boon", 0);
+    assert(Ev.arcStage(c, "beastking") === 99 && c.beast.power > before, "the Beast-King's boon empowers your companion");
+  }
+
+  // Sealed Will: realm-armed → commune → take all → climax resolves the arc.
+  { const { c, rng } = mk(26); const A = api(c, rng); E.armArc(c, "sealedwill", rng, 1);
+    assert(ev("sealedwill_start").cond(c), "an armed Sealed-Will opener is eligible");
+    choose(c, rng, A, "sealedwill_start", 0); assert(Ev.arcStage(c, "sealedwill") === 1, "communing begins the arc");
+    c.age += 2; choose(c, rng, A, "sealedwill_pull", 0); assert(Ev.arcStage(c, "sealedwill") === 2, "the pull deepens to stage 2");
+    c.age += 2; choose(c, rng, A, "sealedwill_climax", 0); assert(Ev.arcStage(c, "sealedwill") === 99, "the Sealed-Will arc resolves at its climax");
+  }
+  // Sect Schism: a ranked disciple is drawn in; loyalty, fought through, rewarded.
+  { const { c, rng } = mk(27); const A = api(c, rng); c.sectKey = "azure"; c.sectRank = 2;
+    assert(ev("schism_start").cond(c), "a ranked disciple in a sect can be drawn into a schism");
+    choose(c, rng, A, "schism_start", 0); assert(Ev.arcStage(c, "schism") === 1, "taking a side begins the schism arc");
+    c.age += 2; const rankBefore = c.sectRank; choose(c, rng, A, "schism_resolve", 0);
+    assert(Ev.arcStage(c, "schism") === 99, "the schism resolves");
+    assert(c.alive ? (c.sectRank >= rankBefore) : true, "surviving a loyal stand does not cost you rank");
+  }
+  // Reborn Bond (love): a reincarnation seed surfaces a soul reborn from a past love.
+  { const { c, rng } = mk(28); const A = api(c, rng); c.rebornBond = { name: "Yun'er", kind: "love", sex: "female" };
+    assert(ev("rebornbond_start").cond(c), "a reincarnation bond makes the Reborn-Bond opener eligible");
+    const before = c.relationships.length; choose(c, rng, A, "rebornbond_start", 0);
+    assert(Ev.arcStage(c, "rebornbond") === 99 && !c.rebornBond, "the arc resolves and consumes the bond seed");
+    assert(c.relationships.length > before && c.relationships.some(n => n.role === "companion"), "approaching a reborn love kindles a new companion");
+  }
+  // Reborn Bond (foe): approaching a reborn enemy rekindles a nemesis.
+  { const { c, rng } = mk(29); const A = api(c, rng); c.rebornBond = { name: "Mo Han", kind: "foe", element: "Dark" };
+    choose(c, rng, A, "rebornbond_start", 0);
+    assert(c.relationships.some(n => n.role === "nemesis"), "approaching a reborn enemy rekindles a nemesis");
+  }
+  // Reincarnation seeds a reborn bond from a past life's deepest tie.
+  { let seeded = false;
+    for (let s = 0; s < 30 && !seeded; s++) {
+      const rng = new E.RNG(700 + s);
+      const old = L.bornCharacter(rng, "Past", null); old.realm = 6;
+      old.relationships.push({ name: "Beloved", role: "companion", affinity: 95, alive: false, sex: "female", power: 0 });
+      const next = L.reincarnateLife(old, rng, "Reborn");
+      if (next.rebornBond) seeded = true;
+    }
+    assert(seeded, "a past life's deepest bond can be reborn into the next life");
+  }
+
+  // Demon-Path: armed by the lure of power → embrace → feed → become a Demon Sovereign.
+  { const { c, rng } = mk(30); const A = api(c, rng); E.armArc(c, "demonpath", rng, 1); c.karma = -20;
+    assert(ev("demonpath_start").cond(c), "an armed Demon-Path opener is eligible");
+    choose(c, rng, A, "demonpath_start", 0); assert(Ev.arcStage(c, "demonpath") === 1, "embracing the demonic path begins the fall");
+    c.age += 2; const k = c.karma; choose(c, rng, A, "demonpath_deepen", 0); assert(Ev.arcStage(c, "demonpath") === 2 && c.karma < k, "feeding the hunger deepens the corruption");
+    c.age += 2; choose(c, rng, A, "demonpath_climax", 0);
+    assert(Ev.arcStage(c, "demonpath") === 99 && c.techniques.includes("bloodcult_sea"), "a full fall makes you a Demon Sovereign");
+  }
+  // Blood-Lineage: armed by a first Foundation breakthrough → awaken an ancestral physique.
+  { const { c, rng } = mk(31); const A = api(c, rng); c.constitution = 120; E.armArc(c, "bloodline", rng, 1);
+    assert(ev("bloodline_start").cond(c), "an armed Blood-Lineage opener is eligible");
+    choose(c, rng, A, "bloodline_start", 0); assert(Ev.arcStage(c, "bloodline") === 1, "delving the blood begins the awakening");
+    c.age += 2; choose(c, rng, A, "bloodline_trial", 1); assert(Ev.arcStage(c, "bloodline") === 2, "the blood-trial advances the arc");
+    const conBefore = c.constitution; c.age += 2; choose(c, rng, A, "bloodline_climax", 0);
+    assert(Ev.arcStage(c, "bloodline") === 99 && c.constitution > conBefore, "the awakening reforges a mightier body");
+  }
+  // A first Foundation breakthrough can arm the Blood-Lineage arc.
+  { let armed = false;
+    for (let s = 0; s < 30 && !armed; s++) {
+      const rng = new E.RNG(800 + s); const c = L.bornCharacter(rng, "B", null);
+      c.realm = 2; c.stage = D.REALMS[2][2] - 1; c.awakened = true; c.constitution = 140;
+      c.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Earth"], comprehensionBonus: 0, display: "H" };
+      c.qi = E.qiToNext(c) * 2; E.attemptBreakthrough(c, rng, { deferTribulation: true });
+      if (E.arcArmed(c, "bloodline") || (c.arcs && c.arcs.bloodline)) armed = true;
+    }
+    assert(armed, "a first Foundation breakthrough can stir an ancestral bloodline");
+  }
+  // Star-Crossed Love: armed by marriage → the love-tribulation can take a beloved.
+  { const { c, rng } = mk(32); const A = api(c, rng);
+    const spouse = { name: "Yun", role: "companion", kin: "Wife", married: true, affinity: 90, alive: true, sex: "female", power: 1 };
+    c.relationships.push(spouse); E.armArc(c, "tragedy", rng, 1);
+    assert(ev("tragedy_start").cond(c), "marriage + an armed omen makes the love-tribulation eligible");
+    choose(c, rng, A, "tragedy_start", 0); assert(Ev.arcStage(c, "tragedy") === 1, "vowing to protect begins the arc");
+    c.age += 2; assert(ev("tragedy_crisis").cond(c), "the crisis comes due while the spouse lives");
+    choose(c, rng, A, "tragedy_crisis", 1);   // let them go
+    assert(Ev.arcStage(c, "tragedy") === 99 && !spouse.alive, "letting go costs the beloved their life");
+    // A lost, deeply-loved spouse can be reborn next life (arcs interlink).
+    c.realm = 6; const next = L.reincarnateLife(c, rng, "Next");
+    assert(next.rebornBond === null || next.rebornBond.kind === "love" || next.rebornBond.kind === "foe", "a tragic loss feeds the reborn-bond system cleanly");
+  }
+  // Marriage at Foundation+ can arm the love-tribulation.
+  { let armed = false;
+    for (let s = 0; s < 30 && !armed; s++) {
+      const rng = new E.RNG(900 + s); const c = L.bornCharacter(rng, "M", null); c.realm = 3; c.awakened = true;
+      const sp = { name: "Lei", role: "companion", affinity: 80, alive: true, sex: "male", power: 1 };
+      c.relationships.push(sp); L.marry(c, sp, rng);
+      if (E.arcArmed(c, "tragedy")) armed = true;
+    }
+    assert(armed, "a Foundation+ marriage can invite a love-tribulation");
+  }
+
+  // Grandmaster's Cauldron: armed by a flawless pill → pursue → gather → refine a legend.
+  { const { c, rng } = mk(33); const A = api(c, rng); E.armArc(c, "alchemy", rng, 1);
+    assert(ev("alchemy_start").cond(c), "an armed alchemy opener is eligible");
+    choose(c, rng, A, "alchemy_start", 0); assert(Ev.arcStage(c, "alchemy") === 1, "taking up the formula begins the arc");
+    c.age += 2; choose(c, rng, A, "alchemy_trial", 0); assert(Ev.arcStage(c, "alchemy") === 2, "gathering ingredients advances the arc");
+    const skillBefore = c.alchemySkill || 0; c.age += 2; choose(c, rng, A, "alchemy_climax", 0);
+    assert(Ev.arcStage(c, "alchemy") === 99 && (c.alchemySkill || 0) > skillBefore, "the grand refinement resolves and sharpens your craft");
+  }
+
+  // The Sagas registry & helpers reflect active and resolved storylines.
+  { const c = L.bornCharacter(new E.RNG(40), "Saga", null);
+    assert(Ev.activeSagas(c).length === 0 && Ev.resolvedSagas(c).length === 0, "a fresh life has no sagas");
+    Ev.arcSet(c, "swordtomb", 1); Ev.arcSet(c, "alchemy", 99);
+    const active = Ev.activeSagas(c), resolved = Ev.resolvedSagas(c);
+    assert(active.length === 1 && active[0].id === "swordtomb" && active[0].name && active[0].text, "an in-progress arc shows as an active saga with a status line");
+    assert(resolved.length === 1 && resolved[0].id === "alchemy", "a stage-99 arc shows as a resolved saga");
+    // Every arc that can be active has registry metadata (a name and stage lines).
+    for (const id of Object.keys(Ev.ARC_META)) { const m = Ev.ARC_META[id]; assert(m.name && m.cn && m.stages, `arc ${id} has saga metadata`); }
+  }
+}
+
+// Birth options: every root, physique, background, appearance and omen must be
+// well-formed and fully integrated — and hand-picking any of them at creation
+// must produce a valid, matching soul.
+function testBirthOptions() {
+  assert(D.ROOT_TYPES.length >= 12 && D.PHYSIQUES.length >= 12, "the birth catalogue has grown");
+  // Every root has a tier and (where it cultivates) a concrete element on roll.
+  for (const r of D.ROOT_TYPES) {
+    const key = r[0];
+    assert(D.ROOT_TIER[key] != null, `root ${key} has a talent tier`);
+    const c = L.bornCharacter(new E.RNG(5), "Root", null, { rootKey: key });
+    assert(c.root.key === key, `create-soul honours the chosen root ${key}`);
+    if (key !== "none") assert(c.root.elements.length >= 1, `cultivating root ${key} rolls a concrete element`);
+  }
+  // New specific-element roots attune correctly.
+  for (const [key, el] of [["swordroot", "Metal"], ["thunderroot", "Lightning"], ["iceroot", "Ice"], ["voidroot", "Void"]]) {
+    const c = L.bornCharacter(new E.RNG(6), "R", null, { rootKey: key });
+    assert(c.root.elements.includes(el), `${key} attunes to ${el}`);
+  }
+  // Every physique has a lasting-effect entry and a valid hand-picked soul.
+  for (const p of D.PHYSIQUES) {
+    const key = p[0];
+    assert(D.PHYSIQUE_EFFECTS[key] && D.PHYSIQUE_EFFECTS[key].desc, `physique ${key} has a lasting effect`);
+    const c = L.bornCharacter(new E.RNG(7), "Phys", null, { physiqueKey: key });
+    assert(c.physiqueKey === key && c.constitution >= 1 && c.constitution <= 160, `create-soul honours physique ${key} within caps`);
+  }
+  // Every background and appearance produces a valid, matching soul.
+  for (const b of D.BACKGROUNDS) {
+    const c = L.bornCharacter(new E.RNG(8), "Bg", null, { backgroundKey: b[0] });
+    assert(c.backgroundKey === b[0] && c.spiritStones >= 0, `background ${b[0]} is well-formed`);
+  }
+  for (const a of D.APPEARANCES) {
+    const c = L.bornCharacter(new E.RNG(9), "Ap", null, { appearanceKey: a[0] });
+    assert(c.appearanceKey === a[0] && c.charm >= 1 && c.charm <= 160, `appearance ${a[0]} stays within caps`);
+  }
+  // A physician's child starts with a real head-start at the furnace.
+  assert((L.bornCharacter(new E.RNG(10), "Doc", null, { backgroundKey: "physician" }).alchemySkill || 0) > 0, "a physician's child begins skilled at alchemy");
+  // Every omen is well-formed (text + four numeric nudges) and pickable.
+  for (let i = 0; i < D.BIRTH_OMENS.length; i++) {
+    const o = D.BIRTH_OMENS[i];
+    assert(typeof o[0] === "string" && o.length >= 6, `omen ${i} is well-formed`);
+    const c = L.bornCharacter(new E.RNG(11), "Om", null, { omenIndex: i });
+    assert(c.omen === o[0], `create-soul honours omen ${i}`);
+  }
+  // New special physiques can be inherited (are part of the genome's special set).
+  { const c = L.bornCharacter(new E.RNG(12), "Drag", null, { physiqueKey: "dragon" });
+    const g = E.playerGenome(c); assert(g && g.physiqueKey === "dragon", "a special physique enters the heritable genome"); }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -194,6 +741,17 @@ try {
   test("age-appropriate gating holds at the model layer", testAgeGatingHolds);
   test("large systems interlock without crashing", testSystemsInterlock);
   test("reincarnation carries a legacy", testReincarnationCarriesLegacy);
+  test("Daos deepen through tiers and manifest in battle", testDaoTiers);
+  test("Secret Realms are themed and their pieces resolve", testSecretRealmThemes);
+  test("Dao Heart tempers resolve, ward and battle nerve", testDaoHeartResolve);
+  test("new alchemy pills raise their attributes within caps", testAlchemyPills);
+  test("spirit beasts carry traits that shape feeding and battle", testBeastTraits);
+  test("new combat verbs (sunder, execute) and movement-art evasion", testCombatVerbsAndMovement);
+  test("the Nemesis Reckoning settles a rivalry with spoils", testNemesisReckoning);
+  test("branching dialogue events resolve every path to a terminal", testDialogueTrees);
+  test("multi-year storyline arcs thread and branch across the years", testStoryArcs);
+  test("action-triggered arcs arm sensibly and thread to their ends", testTriggeredArcs);
+  test("new birth options are well-formed and fully integrated", testBirthOptions);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

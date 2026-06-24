@@ -68,6 +68,13 @@ export function reincarnateLife(old, rng, name) {
   carryLegacySect(c, old, rng);
   c.era = old.era; c.eraYears = old.eraYears;   // the world keeps turning across rebirth
   if (old.rankboard) c.rankboard = old.rankboard;
+  // A soul you were bound to most fiercely may be reborn into this turning of the
+  // wheel too — a lost dao companion or a sworn nemesis. Seeds the Reborn Bond arc.
+  const lostLove = (old.relationships || []).filter(n => n.role === "companion" && !n.alive && (n.affinity || 0) >= 70)
+    .sort((a, b) => (b.affinity || 0) - (a.affinity || 0))[0];
+  const oldNemesis = (old.relationships || []).filter(n => n.role === "nemesis").sort((a, b) => (b.power || 0) - (a.power || 0))[0];
+  if (lostLove && rng.random() < 0.5) c.rebornBond = { name: lostLove.name, kind: "love", sex: lostLove.sex };
+  else if (oldNemesis && rng.random() < 0.5) c.rebornBond = { name: oldNemesis.name, kind: "foe", element: oldNemesis.element };
   return c;
 }
 
@@ -220,7 +227,12 @@ export function marry(c, npc, rng) {
   if (n >= 3) { c.titles = c.titles.filter(t => !/^Harem of/.test(t)); c.titles.push(`Harem of ${n}`); }
   note(c, `Wed ${npc.name}${n > 1 ? ` (now ${n} dao companions)` : ""}.`);
   const others = n > 1 ? ` Your other ${n - 1} dao companion${n - 1 > 1 ? "s" : ""} look on — some glowing with joy, some with a flicker of jealousy.` : "";
-  return [`✦ Beneath a blood-red moon, you and ${npc.name} pledge to walk the long road to immortality together — wed at last, ${npc.kin.toLowerCase()} and spouse.${others}`];
+  const out = [`✦ Beneath a blood-red moon, you and ${npc.name} pledge to walk the long road to immortality together — wed at last, ${npc.kin.toLowerCase()} and spouse.${others}`];
+  // The heavens are jealous of a love too deep; a great bond can invite a love
+  // tribulation. Arms the Star-Crossed Love arc (only from Foundation up).
+  if (c.realm >= 2 && E.armArc(c, "tragedy", rng, 0.25))
+    out.push("As you pledge your hearts, a chill crosses the moon, and for an instant the whole world seems to hold its breath — as though something vast had taken notice of your happiness.");
+  return out;
 }
 
 // Grown children who could carry on the bloodline if you die.
@@ -486,7 +498,11 @@ export function studyScriptures(c, rng) {
   c.age += 1;
   const msgs = ["You bury yourself in the sect library / borrowed scrolls, parsing dense dao theory."];
   if (rng.random() < 0.6) { cap(c, "comprehension", rng.randint(1, 3)); msgs.push("Insight blooms. (+Comprehension)"); }
-  c.happiness = clampN(c.happiness - 1, 0, 100);
+  // Diligent, talented study can draw a hidden master's eye — arming a years-long
+  // tutelage arc (certain once your comprehension is truly exceptional).
+  if (c.age >= D.COMING_OF_AGE && c.realm >= 1 && c.root && c.root.key !== "none"
+      && E.armArc(c, "tutelage", rng, c.comprehension >= 130 ? 1 : 0.04 + c.comprehension / 1600))
+    msgs.push("A stranger has been watching you read, three days running now, and saying nothing.");
   finishYear(c, rng, msgs);
   return msgs;
 }
@@ -750,7 +766,10 @@ function abodeYearly(c, rng, events) {
   const residents = abodeResidents(c);
   const tenders = residents.filter(n => n.role === "disciple").length;
   if (tenders) herbs += tenders * Math.max(1, Math.round(abode[5] * 0.3));   // disciples tend the herb fields
-  if (c.beast && c.beast.alive) { herbs += (c.beast.rank || 1) + Math.floor((c.abode || 0) / 2); stones += Math.floor(c.abode || 0); }  // beast forages (better the higher its rank)
+  if (c.beast && c.beast.alive) {  // beast forages (better the higher its rank; an Auspicious beast richer still)
+    const aus = E.beastTraitOf(c.beast) === "auspicious" ? 2 : 1;
+    herbs += ((c.beast.rank || 1) + Math.floor((c.abode || 0) / 2)) * aus; stones += Math.floor(c.abode || 0) * aus;
+  }
   c.herbs += Math.round(herbs * danger);
   c.spiritStones += Math.round(stones * danger);
   // Living among your own spirit vein steadies the heart; resident disciples
@@ -761,7 +780,7 @@ function abodeYearly(c, rng, events) {
 
 // Establish a new abode or upgrade your existing one (administrative — no year,
 // no deed; you simply spend the stones). Returns narration lines.
-export function upgradeAbode(c) {
+export function upgradeAbode(c, rng) {
   const next = D.abodeNext(c.abode || 0);
   if (!next) return ["Your abode is already a Cave Heaven — the very pinnacle. There is nothing higher to build."];
   if (!c.abode && !D.oldEnoughFor(c, "abode")) return [`You are too young to stake a claim on a spirit vein. Only at age ${D.ageMin("abode")} may one establish a cave dwelling.`];
@@ -774,7 +793,12 @@ export function upgradeAbode(c) {
   const reg = D.REGION_BY_KEY[abodeRegionKey(c)];
   const here = abodeLocName(c);
   const where = was ? "" : ` at ${here || (reg ? reg[1] : "the wilds")}`;
-  return [`${was ? "You pour resources into the works, and your abode rises into" : "You stake your claim on a spirit vein" + where + " and raise"} the ${next[1]} (${next[2]})! Each year it now yields ${next[5]} spirit herbs and ${next[6]} stones${reg && reg[3] > 1 ? ` (×${reg[3]} for the wild region)` : ""}, and quickens your cultivation by +${Math.round(next[4] * 100)}%.`];
+  const out = [`${was ? "You pour resources into the works, and your abode rises into" : "You stake your claim on a spirit vein" + where + " and raise"} the ${next[1]} (${next[2]})! Each year it now yields ${next[5]} spirit herbs and ${next[6]} stones${reg && reg[3] > 1 ? ` (×${reg[3]} for the wild region)` : ""}, and quickens your cultivation by +${Math.round(next[4] * 100)}%.`];
+  // Hewing a top-tier abode deep into a spirit vein can unearth something old and
+  // watchful sleeping in the stone — arming the Sealed Will arc.
+  if ((c.abode || 0) >= 5 && c.realm >= 3 && E.armArc(c, "sealedwill", rng, 0.3))
+    out.push("Deep in the new-hewn vault, where the spirit-vein runs richest, your workers strike something that should not be there — and that night, something cold and patient settles in behind your eyes.");
+  return out;
 }
 
 // Seclude yourself in your abode for a stronger bout of cultivation (a deed; the
@@ -825,7 +849,12 @@ export function foundSect(c, rng, name) {
   c.reputation += 10;
   if (!c.titles.includes("Founder")) c.titles.push("Founder");
   note(c, `Founded the ${sectName} (${alignment}), seated at your abode.`);
-  return [`✦ You raise your banner and found the ${sectName}! Your cave abode becomes its mountain seat. Disciples will gather to your name — the sect will rise, or fall, with you.`];
+  const out = [`✦ You raise your banner and found the ${sectName}! Your cave abode becomes its mountain seat. Disciples will gather to your name — the sect will rise, or fall, with you.`];
+  // The weight of leading a power tempts even the upright toward forbidden
+  // shortcuts — and a demonic banner all the more. Arms the Demon-Path arc.
+  if (E.armArc(c, "demonpath", rng, alignment === "demonic" ? 0.6 : 0.12 - c.karma / 600))
+    out.push("That first night beneath your own banner, a cold thought visits you unbidden: how much faster the sect would rise, if you were willing to pay in blood...");
+  return out;
 }
 
 // The sect's quiet year: it recruits toward its seat's capacity, gains prestige

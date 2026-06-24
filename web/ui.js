@@ -5,6 +5,7 @@ import * as L from "./life.js";
 import * as C from "./combat.js";
 import * as meta from "./meta.js";
 import * as W from "./world.js";
+import * as Ev from "./events.js";
 import { icon } from "./icons.js";
 
 /* Plain-language explanations for every stat, shown as tap hints + a glossary. */
@@ -78,6 +79,7 @@ function checkAchievements() {
   if (c.karma <= -120) award("devil");
   if (c.karma >= 120) award("saint");
   if (c.daos && c.daos.length) award("daoist");
+  if (c.daoLevels && Object.values(c.daoLevels).some(l => l >= D.DAO_MAX_TIER)) award("dao_master");
   if (c.beast) award("tamer");
   const spouses = c.relationships.filter(n => n.role === "companion" && n.married && n.alive).length;
   if (spouses >= 1) award("companion");
@@ -103,6 +105,7 @@ const $ = id => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const escapeHtml = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const clampPct = (a, b) => b <= 0 ? 0 : Math.max(0, Math.min(100, (a / b) * 100));
+const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /* ----------------------------- persistence ------------------------------- */
 function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ c: state.c, s: state.rng.s })); } catch (e) {} }
@@ -388,17 +391,26 @@ function processQueue(q) {
   if (ev.choices) showEventModal(ev, q);
   else { logMessages(ev.text); processQueue(q); }
 }
+// Renders an event card or any follow-on dialogue node. A choice's fn() returns
+// either terminal narration (string[]) or another node to continue the exchange,
+// so a single event can unfold into a multi-step conversation with NPC speakers.
 function showEventModal(ev, q) {
-  openOverlay("An Event", body => {
+  openOverlay(ev.dialogue || ev.speaker ? "Dialogue 对话" : "An Event", body => {
     const g = eventGlyph(ev);
-    const card = el("div", "event-card");
+    const card = el("div", "event-card" + (ev.speaker ? " ev-dialogue" : ""));
     card.appendChild(el("div", "ev-emblem " + g.tint, icon(g.name, { size: 30 })));
-    card.appendChild(el("div", "ev-text", escapeHtml(ev.text)));
+    if (ev.speaker) card.appendChild(el("div", "ev-speaker", escapeHtml(ev.speaker)));
+    card.appendChild(el("div", "ev-text" + (ev.speaker ? " ev-quote" : ""), escapeHtml(ev.text)));
     card.appendChild(el("span", "chop"));
     body.appendChild(card);
     for (const ch of ev.choices) {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(ch.label);
-      b.onclick = () => { const res = ch.fn(); closeOverlay(); logMessages(res); processQueue(q); };
+      b.onclick = () => {
+        const res = ch.fn();
+        closeOverlay();
+        if (res && res.choices) showEventModal(res, q);     // the conversation continues
+        else { logMessages(res); processQueue(q); }          // terminal — narrate and move on
+      };
       body.appendChild(b);
     }
   }, false);
@@ -443,7 +455,14 @@ function openCultivate() {
         addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
       addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult"));
       addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult"), { disabled: c.pills <= 0 });
-      addBtn(g, "Comprehend the Dao", E.canComprehend(c) ? "meditate on the Laws" : "needs Nascent Soul", () => runTimed(() => E.meditate(c, state.rng, 1), "cult"), { disabled: !E.canComprehend(c) });
+      {
+        const tgt = E.canMeditate(c) ? E.meditationTarget(c) : null;
+        const sub = !E.canMeditate(c) ? "needs Nascent Soul"
+          : tgt && tgt.mode === "deepen" ? `deepen the ${D.DAO_BY_KEY[tgt.key][1].split(" (")[0]}`
+          : "seek a new Law";
+        addBtn(g, "Comprehend the Dao", sub, () => runTimed(() => E.meditate(c, state.rng, 1), "cult"), { disabled: !E.canMeditate(c) });
+      }
+      if (c.realm >= E.DAO_MIN_REALM) addBtn(g, "The Daos 道之境界", c.daos.length ? `${c.daos.length} comprehended` : "the Laws of heaven", openDaos);
       body.appendChild(g);
     } else {
       body.appendChild(el("p", "note", "The heavens have shut the gate of qi to you — but the road of the body remains open. Temper your flesh until even immortals must take notice."));
@@ -465,6 +484,14 @@ function openCultivate() {
     body.appendChild(bg);
 
     // ---- shared ----
+    body.appendChild(el("div", "section-h", "Dao Heart 道心"));
+    body.appendChild(infoRows([["Resolve", `${E.daoHeartLabel(c.daoHeart || 0)} (${Math.round(c.daoHeart || 0)}/${E.DAO_HEART_MAX})`]]));
+    progress(body, "Dao Heart", c.daoHeart || 0, E.DAO_HEART_MAX, "dao");
+    body.appendChild(el("p", "note", "Your resolve wards the soul against heart demons, illusion and temptation, and shrugs off mind-afflictions in battle. Stillness tempers it."));
+    const hg = el("div", "menu-grid");
+    addBtn(hg, "Still the Heart 静心", "a deed · temper your resolve", () => runTimed(() => E.stillHeart(c, state.rng), "cult"), { full: true });
+    body.appendChild(hg);
+
     const sg = el("div", "menu-grid");
     addBtn(sg, "Techniques & Mastery", "drill your learned arts", openTechniques, { full: true });
     { const [ok] = E.canForgeTech(c); addBtn(sg, "Forge Your Own Art 创功", ok ? "weave a new technique from your dao" : "needs Foundation, 80 Comp, 70 Soul", openForgeTech, { full: true, disabled: !ok }); }
@@ -698,6 +725,83 @@ function openTechniques() {
     }
   });
 }
+// The Daos: review each comprehended Law, its tier of insight and battle
+// manifestation, and choose where to focus your meditation.
+function openDaos() {
+  const c = state.c;
+  openOverlay("The Daos 道之境界", body => {
+    E.ensureDaos(c);
+    body.appendChild(el("p", "note", "A comprehended Dao deepens through four tiers — 初窥 → 小成 → 大成 → 圆满 — each scaling its bonuses, and from Great Mastery (大成) manifesting in battle. Choose where to focus your meditation; tap “Comprehend the Dao” to spend a year."));
+    const target = E.meditationTarget(c);
+    const thr = target ? (target.mode === "deepen" ? E.daoDeepenThreshold(c, target.key) : E.daoInsightThreshold(c)) : 1;
+    if (target) progress(body, target.mode === "deepen" ? `Deepening the ${D.DAO_BY_KEY[target.key][1].split(" (")[0]}` : "Seeking a new Dao", c.daoInsight || 0, thr, "dao");
+
+    // A row to focus on seeking an entirely new Dao.
+    const newFocused = !c.daoFocus && E.canComprehend(c);
+    if (E.canComprehend(c)) {
+      const r = el("div", "listrow" + (newFocused ? " bound" : ""));
+      r.innerHTML = `<div class="lr-ava">☯</div><div class="lr-main">
+        <div class="lr-title">Seek a New Dao${newFocused ? " · focused" : ""}</div>
+        <div class="lr-sub">${D.DAOS.length - c.daos.length} Law${D.DAOS.length - c.daos.length === 1 ? "" : "s"} yet unknown to you</div></div>`;
+      r.onclick = () => { c.daoFocus = null; save(); openDaos(); };
+      body.appendChild(r);
+    }
+
+    if (!c.daos.length) { body.appendChild(el("p", "note", "You have comprehended no Dao yet. Meditate to glimpse your first Law.")); return; }
+    for (const k of c.daos) {
+      const dao = D.DAO_BY_KEY[k], lvl = E.daoTierOf(c, k);
+      const focused = c.daoFocus === k;
+      const atMax = lvl >= D.DAO_MAX_TIER;
+      const pBon = Math.round(dao[2] * D.daoTierFactor(lvl) * 100);
+      const bBon = Math.round(dao[3] * D.daoTierFactor(lvl) * 100);
+      const manifest = lvl >= 3 && D.DAO_MANIFEST[k] ? D.DAO_MANIFEST[k] : (D.DAO_MANIFEST[k] ? `Manifests in battle at Great Mastery — ${D.DAO_MANIFEST[k]}` : "");
+      const r = el("div", "listrow" + (focused ? " bound" : ""));
+      r.innerHTML = `<div class="lr-ava">☯</div><div class="lr-main">
+        <div class="lr-title">${escapeHtml(dao[1])} <span class="lr-sub" style="display:inline">· ${D.daoTierLabel(lvl)}</span></div>
+        <div class="lr-sub">+${pBon}% power · +${bBon}% breakthrough${atMax ? " · 圆满" : focused ? " · focused" : ""}</div>
+        ${manifest ? `<div class="lr-sub" style="opacity:.85">${escapeHtml(manifest)}</div>` : ""}
+        <div class="affbar"><div style="width:${(lvl / D.DAO_MAX_TIER) * 100}%;background:var(--gold2)"></div></div></div>`;
+      if (!atMax) r.onclick = () => { c.daoFocus = k; save(); openDaos(); };
+      body.appendChild(r);
+    }
+  });
+}
+
+// The Sagas screen: the multi-year storylines you are living through, where each
+// stands, and the sagas you have already brought to a close in this life.
+function openSagas() {
+  const c = state.c;
+  openOverlay("Sagas 机缘", body => {
+    const active = Ev.activeSagas(c), resolved = Ev.resolvedSagas(c);
+    body.appendChild(el("p", "note", "The great threads of your fate — sagas that play out over years. Some find you when the time is right; others your own deeds set in motion. Each unfolds beat by beat, and the choices you make turn them."));
+    if (!active.length && !resolved.length) {
+      body.appendChild(el("p", "note", "No saga has yet taken hold of your life. Walk the world, win and lose, love and cultivate — and the threads of fate will find you in time."));
+      return;
+    }
+    if (active.length) {
+      body.appendChild(el("div", "section-h", `Unfolding (${active.length})`));
+      for (const s of active) {
+        const r = el("div", "listrow bound");
+        r.innerHTML = `<div class="lr-ava">机</div><div class="lr-main">
+          <div class="lr-title">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(s.cn)}</span></div>
+          <div class="lr-sub">${escapeHtml(s.text)}</div>
+          <div class="lr-sub" style="opacity:.7">${s.years === 0 ? "begun this year" : `${s.years} year${s.years === 1 ? "" : "s"} along this thread`}</div></div>`;
+        body.appendChild(r);
+      }
+    }
+    if (resolved.length) {
+      body.appendChild(el("div", "section-h", `Resolved (${resolved.length})`));
+      for (const s of resolved) {
+        const r = el("div", "listrow");
+        r.innerHTML = `<div class="lr-ava" style="opacity:.6">✓</div><div class="lr-main">
+          <div class="lr-title" style="opacity:.75">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(s.cn)}</span></div>
+          <div class="lr-sub">A saga brought to its close.</div></div>`;
+        body.appendChild(r);
+      }
+    }
+  });
+}
+
 // Forge an original technique from your element and insight — costly and uncertain.
 function openForgeTech() {
   const c = state.c;
@@ -819,6 +923,7 @@ function actAdventure() {
     g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
     g.mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
     g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
+    { const nem = L.getNemesis(c); if (nem) g.mk("⚔ Settle the Score 宿敌", canHunt ? `duel ${nem.name} to the death` : "needs cultivation", doNemesisReckoning, { full: true, disabled: !canHunt }); }
     backBtn(body, openActivities);
   });
 }
@@ -987,7 +1092,7 @@ function openAbode() {
       }
       const up = el("button", "mbtn full" + (canAfford && !tooYoung ? " primary" : ""));
       up.innerHTML = `${cur ? "Upgrade to" : "Establish"} ${escapeHtml(next[1])}<small>${tooYoung ? "from age " + AGE_MIN.abode : canAfford ? "free · spend " + next[3] + " stones" : "need " + next[3] + " stones"}</small>`;
-      if (canAfford && !tooYoung) up.onclick = () => runFree(() => L.upgradeAbode(c));
+      if (canAfford && !tooYoung) up.onclick = () => runFree(() => L.upgradeAbode(c, state.rng));
       else up.disabled = true;
       body.appendChild(up);
     } else if (cur) {
@@ -1036,8 +1141,8 @@ function openWorldMap() {
   if (!c.world) W.ensureWorld(c, state.rng);
   openOverlay("The Realm 寰宇", body => {
     const locs = c.world.locations, here = W.currentLoc(c);
-    const art = E.bestMovementArt(c), perDeed = E.hopsPerDeed(c);
-    const speedTxt = `You cover <b>${perDeed} stage${perDeed > 1 ? "s" : ""}</b> of road per travel deed${art ? ` — ${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : ""}.`;
+    const art = E.bestMovementArt(c), perDeed = E.hopsPerDeed(c), bd = Math.round(E.movementDodge(c) * 100);
+    const speedTxt = `You cover <b>${perDeed} stage${perDeed > 1 ? "s" : ""}</b> of road per travel deed${art ? ` — ${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : ""}.${bd > 0 ? ` Your light-body skill also lends <b>+${bd}% dodge</b> in battle.` : ""}`;
     body.appendChild(el("p", "note", `You stand at <b>${escapeHtml(here ? here.name : "—")}</b>${here && here.cn ? ` (${escapeHtml(here.cn)})` : ""} — ${W.typeOf(here).label}. ${speedTxt} Distant places take more than a year's travel — you rest at waystations along the road.`));
 
     // A journey already underway: offer to ride on toward the remembered goal.
@@ -1196,8 +1301,10 @@ function openBeast() {
       ["Species", b.species],
       ["Rank", `${E.beastTier(b)} (${b.rank}/5)`],
       ["Element", b.element || "—"],
+      ["Trait 天赋", E.beastTraitOf(b) ? D.beastTraitName(b.trait) : "—"],
       ["Power", Math.floor(b.power)],
     ]));
+    if (E.beastTraitOf(b)) body.appendChild(el("p", "note", D.BEAST_TRAIT_BY_KEY[b.trait][3]));
     progress(body, "Bond", b.bond, 100, "bond", `${Math.round(b.bond)} / 100`);
     if (b.rank < 5) progress(body, `Experience → rank ${b.rank + 1}`, b.exp, req, "exp", b.bond >= 55 && b.exp >= req ? `<b class="pb-ready">ready to evolve</b>` : `${b.exp} / ${req}`);
     body.appendChild(el("p", "note", `In battle ${b.name} strikes each round for a share of its power, with its element's advantage and — from Earth Beast rank — a chance to inflict its elemental bite. Feeding raises its bond and experience; fed and battle-hardened, it can evolve into a mightier form. (Fed ${b.fedThisYear}/3 this year.)`));
@@ -1669,8 +1776,9 @@ function openSheet() {
       ["Equipment", E.equipmentSummary(c)]];
     if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
     if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
-    if (c.daos.length) rows.push(["Daos", c.daos.map(d => D.DAO_BY_KEY[d][1]).join(", ")]);
-    { const art = E.bestMovementArt(c); rows.push(["Movement 轻功", `${art ? `${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : "—"} · ${E.hopsPerDeed(c)} stage${E.hopsPerDeed(c) > 1 ? "s" : ""}/deed`]); }
+    if (c.daos.length) rows.push(["Daos", c.daos.map(d => `${D.DAO_BY_KEY[d][1].split(" (")[0]} · ${D.daoTierName(E.daoTierOf(c, d))}`).join(", ")]);
+    rows.push(["Dao Heart 道心", `${E.daoHeartLabel(c.daoHeart || 0)} (${Math.round(c.daoHeart || 0)}/${E.DAO_HEART_MAX})`]);
+    { const art = E.bestMovementArt(c), bd = Math.round(E.movementDodge(c) * 100); rows.push(["Movement 轻功", `${art ? `${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : "—"} · ${E.hopsPerDeed(c)} stage${E.hopsPerDeed(c) > 1 ? "s" : ""}/deed${bd > 0 ? ` · +${bd}% battle dodge` : ""}`]); }
     if ((c.epithets || []).length) rows.push(["Monikers 名号", c.epithets.map(e => `「${e.text}」`).join(" "), "monikers"]);
     if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
     body.appendChild(infoRows(rows));
@@ -1681,6 +1789,9 @@ function openSheet() {
       ...(c.talismans && Object.values(c.talismans).some(n => n > 0) ? [["Talismans 符箓", D.TALISMAN_ORDER.filter(k => (c.talismans[k] || 0) > 0).map(k => `${D.TALISMANS[k].name.split(" ")[0]}×${c.talismans[k]}`).join(", ")]] : []),
       ["Techniques", [...c.techniques.map(t => D.TECHNIQUES[t][0]), ...(c.customTechs || []).map(ct => ct.name + " ✦")].join(", ")],
     ]));
+    { const nActive = Ev.activeSagas(c).length, sg = el("button", "mbtn full");
+      sg.innerHTML = `机 Sagas 机缘${nActive ? `<small>${nActive} unfolding now</small>` : "<small>your multi-year storylines</small>"}`;
+      sg.onclick = openSagas; body.appendChild(sg); }
     const ach = el("button", "mbtn full"); ach.innerHTML = "✦ Achievements & Legacy";
     ach.onclick = () => openAchievements(openSheet); body.appendChild(ach);
     body.appendChild(el("div", "section-h", "Life Chronicle"));
@@ -1961,6 +2072,11 @@ function resumeFrom(sv) {
   if (c.sectJoinedAge === undefined) c.sectJoinedAge = c.sectKey ? c.age : null;
   if (!c.artifacts) c.artifacts = [];
   E.ensureEquipment(c);   // migrate legacy single-slot treasure → equipment slots
+  E.ensureDaos(c);        // backfill tiered-Dao fields on older saves
+  if (c.daoHeart == null) c.daoHeart = Math.round((c.soul || 30) * 0.25);  // older saves get a resolve from their soul
+  if (!c.arcs || typeof c.arcs !== "object") c.arcs = {};  // multi-year storyline state
+  if (!Array.isArray(c.arcTriggers)) c.arcTriggers = [];   // armed (action-triggered) arc openers
+  if (c.beast && c.beast.alive && !c.beast.trait) c.beast.trait = E.rollBeastTrait(state.rng);  // older beasts get an innate trait
   if (!c.movementArts) c.movementArts = [];
   if (!c.moveMastery) c.moveMastery = {};
   if (!c.customTechs) c.customTechs = [];
@@ -2087,6 +2203,24 @@ function doBossFight() {
   logMessages([`You seek out a fearsome adversary — the ${boss.name} accepts your challenge!`]);
   startBattle(boss, { title: `Boss · ${boss.name}` }, () => endActivityYear());
 }
+// The reckoning: hunt down your sworn nemesis and settle the grudge in a duel to
+// the death. They fight with their own realm-built arts, as a true boss-tier peer.
+function doNemesisReckoning() {
+  const c = state.c; const nem = L.getNemesis(c);
+  if (!nem) return;
+  if (!useAction()) return;
+  closeOverlay();
+  E.ensureNpcProfile(nem, state.rng);
+  nem.encounters = (nem.encounters || 0) + 1;
+  const foe = C.makeEnemyFromNpc(c, nem, state.rng, { boss: true, reward: (c.realm + 2) * 10 });
+  logMessages([`You hunt down ${nem.name} and bar their road. "${nem.grudge ? "For " + nem.grudge + "," : "This ends today,"}" you say. "One of us does not walk away." Steel and killing intent fill the air.`]);
+  startBattle(foe, { title: `Reckoning · ${nem.name}` }, o => {
+    const cc = state.c;
+    if (o === "win") { logMessages(E.defeatNemesis(cc, nem, state.rng)); if (cc.titles.some(x => x.startsWith("Nemesis Slain"))) award("nemesis"); }
+    else if (cc.alive) { nem.power *= 1.2; logMessages([`${nem.name} stands over you and laughs, then turns their back and walks away — sparing you, the cruelest cut of all. Their power swells, and your shame burns.`]); }
+    endActivityYear();
+  });
+}
 /* ----------------------- alchemy furnace minigame ------------------------ */
 // Keep the heat needle inside the drifting target band over several phases to
 // build pill quality; stray too far and instability risks an explosion.
@@ -2144,38 +2278,48 @@ function applyBrew() {
     const q = B.quality; let grade, mult;
     if (q >= 7) { grade = "Flawless"; mult = 2.2; award("alchemist"); } else if (q >= 4) { grade = "Fine"; mult = 1.4; } else { grade = "Crude"; mult = 0.8; }
     msgs = [`You withdraw a ${grade} ${B.recipe[1]} (quality ${q}/${B.rounds * 2}).`].concat(E.grantPill(c, B.recipe[0], rng, mult));
+    // A Flawless pill from a skilled hand can draw the notice of an old pill-sage's
+    // legacy — arming the Grandmaster's Cauldron alchemy arc.
+    if (grade === "Flawless" && c.realm >= 2 && E.armArc(c, "alchemy", rng, 0.35)) msgs.push("As the flawless pill settles, cool in your palm, you catch the faint scent of a furnace that has not been lit in a thousand years...");
   }
   state.brew = null; closeOverlay(); logMessages(msgs); endActivityYear();
 }
 
-/* --- Secret Realm: a multi-stage delve with carried wounds and a guardian --- */
+/* --- Secret Realm: a themed, multi-stage delve with carried wounds, signature
+ *     hazards and a named guardian at its heart (see D.SECRET_REALMS). --- */
 function doSecretRealm() {
   if (!ageAllows("secret") || !useAction()) return;
   const c = state.c; closeOverlay();
   const depth = 3 + Math.floor(state.rng.random() * 3); // 3-5 stages incl. guardian
-  // Each realm has an elemental character; its treasures share that attunement.
-  const elem = state.rng.choice(E.TREASURE_ELEMENTS);
-  state.realmRun = { depth, idx: 0, hpFrac: 1, element: elem };
-  logMessages([`You step through a shimmering rift into a ${C.elementIcon(elem)} ${elem}-attuned Secret Realm — the qi here is thick as honey, and the danger thicker still.`]);
+  const theme = state.rng.choice(D.SECRET_REALMS);
+  state.realmRun = { theme: theme.key, depth, idx: 0, hpFrac: 1, element: theme.element };
+  logMessages([`You step through a shimmering rift into the ${C.elementIcon(theme.element)} ${theme.name} (${theme.cn}) — ${theme.blurb} The qi here is thick as honey, and the danger thicker still.`]);
   realmStage();
 }
+const realmTheme = () => D.SECRET_REALM_BY_KEY[state.realmRun && state.realmRun.theme] || D.SECRET_REALMS[0];
 function realmStage() {
-  const c = state.c, R = state.realmRun;
+  const c = state.c, R = state.realmRun, theme = realmTheme();
   if (R.idx >= R.depth) { realmComplete(); return; }
   const stageNo = R.idx + 1, last = R.idx === R.depth - 1;
   if (last) {
-    const guardian = C.makeBoss(c, state.rng, { name: "the Realm Guardian", factor: 1.4 + state.rng.random() * 0.2, element: "Earth", factorMult: worldDanger(c) });
+    const guardian = C.makeBoss(c, state.rng, { name: theme.guardian, factor: 1.4 + state.rng.random() * 0.2, element: theme.element, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — ${guardian.name} bars the inner sanctum!`]);
-    startBattle(guardian, { title: "Secret Realm · Guardian", startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+    startBattle(guardian, { title: `${theme.name} · Guardian`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
     return;
   }
-  if (state.rng.random() < 0.6) {
-    const enemy = C.makeEnemy(c, state.rng, { factor: 0.8 + R.idx * 0.15, factorMult: worldDanger(c) });
+  const roll = state.rng.random();
+  if (roll < 0.55) {
+    const enemy = C.makeEnemy(c, state.rng, { kind: theme.kind || undefined, name: state.rng.choice(theme.foes), element: theme.element, factor: 0.8 + R.idx * 0.15, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — a ${enemy.name} lurks in the mist.`]);
-    startBattle(enemy, { title: `Secret Realm · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
-  } else {
+    startBattle(enemy, { title: `${theme.name} · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+  } else if (roll < 0.80) {
     logMessages([`Stage ${stageNo}/${R.depth} —`].concat(realmFortune(c)));
     R.idx++;
+    realmPrompt();
+  } else {
+    logMessages([`Stage ${stageNo}/${R.depth} —`].concat(realmHazard(c)));
+    R.idx++;
+    if (!c.alive) { state.realmRun = null; renderProfile(); checkDeath(); return; }
     realmPrompt();
   }
 }
@@ -2189,13 +2333,57 @@ function realmAfterBattle(outcome) {
   if (R.idx >= R.depth) realmComplete();
   else realmPrompt();
 }
+// Fortune-rooms, biased toward whatever bounty this realm is known for.
 function realmFortune(c) {
-  const rng = state.rng, r = rng.random();
-  if (r < 0.3) return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: (state.realmRun && state.realmRun.element) || null }));
-  if (r < 0.55) { const h = rng.randint(5, 12) + c.realm; c.herbs += h; return [`a grove of spirit herbs — you harvest ${h}.`]; }
-  if (r < 0.72) { c.pills += rng.randint(1, 3); return ["a dusty pill cache, still potent."]; }
-  if (r < 0.86) { c.hp = c.maxHp; const R = state.realmRun; if (R) R.hpFrac = 1; return ["a tranquil spirit spring — you bathe and recover fully."]; }
+  const rng = state.rng, theme = realmTheme(), R = state.realmRun;
+  const w = { treasure: 3, herb: 2.5, pill: 2, spring: 2, insight: 2 };
+  if (theme.fortune && w[theme.fortune] != null) w[theme.fortune] *= 2.4;
+  const keys = Object.keys(w);
+  const pick = rng.choices(keys, keys.map(k => w[k]));
+  if (pick === "treasure") return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: theme.element || null, slot: theme.rewardSlot || null }));
+  if (pick === "herb") { const h = rng.randint(5, 12) + c.realm; c.herbs += h; return [`a grove of spirit herbs — you harvest ${h}.`]; }
+  if (pick === "pill") { c.pills += rng.randint(1, 3); return ["a dusty pill cache, still potent."]; }
+  if (pick === "spring") { c.hp = c.maxHp; if (R) R.hpFrac = 1; return ["a tranquil spirit spring — you bathe and recover fully."]; }
   c.qi += E.qiToNext(c) * 0.5; return ["an ancient dao inscription — insight floods you and your qi surges."];
+}
+// A signature peril between stages: it wounds (carrying into later fights) but
+// never kills outright — you can always withdraw. Some hazards hide a boon.
+function realmHazard(c) {
+  const rng = state.rng, theme = realmTheme(), R = state.realmRun;
+  const ph = D.physEffect(c);
+  const wound = frac => { R.hpFrac = Math.max(0.08, (R.hpFrac || 1) - frac); c.hp = Math.max(1, Math.round(c.maxHp * R.hpFrac)); };
+  const dodged = rng.random() < clampN(0.25 + c.luck / 360 + c.soul / 500, 0, 0.85);
+  switch (theme.hazard) {
+    case "blades":
+      if (dodged) return ["a corridor of flying swords — you weave through the steel rain untouched."];
+      wound(rng.uniform(0.12, 0.20)); return ["a corridor of flying swords scythes from the walls — they score you bloody before you break clear."];
+    case "flood":
+      if (rng.random() < 0.4) { c.qi += E.qiToNext(c) * 0.3; return ["the halls flood with living water — you ride the surge to a hidden chamber, qi roaring."]; }
+      wound(rng.uniform(0.10, 0.16)); return ["a wall of black water crashes down the corridor and batters you against the stone."];
+    case "miasma": {
+      const cursed = (c.karma || 0) < -20;
+      if (!cursed && dodged) return ["devil-whispers claw at your dao heart — but your will holds, and the miasma parts before you."];
+      wound(rng.uniform(0.10, cursed ? 0.22 : 0.16)); return [`a tide of soul-rending miasma washes over you${cursed ? "; your sin-heavy karma draws it like a wound" : ""} — your meridians sear.`];
+    }
+    case "frost":
+      if (ph.element === "Fire" || dodged) return ["a killing cold floods the cavern — your qi burns warm against it, and you press on unbowed."];
+      wound(rng.uniform(0.10, 0.16)); return ["a glacial wind howls through the cave; frost gnaws into your bones before you warm your meridians."];
+    case "flame":
+      if (ph.burnImmune || dodged) return ["a gout of furnace-fire roars across the hall — it breaks harmlessly around you."];
+      wound(rng.uniform(0.12, 0.18)); return ["the furnaces flare without warning; spirit-flame washes over you and blackens your robes."];
+    case "thunder":
+      c.qi += E.qiToNext(c) * 0.25;
+      if (dodged) return ["heaven's lightning judges the tier — you bear it, and the searing insight quickens your qi."];
+      wound(rng.uniform(0.10, 0.15)); return ["a lattice of lightning arcs down the pagoda — it scorches you, yet the heaven-fire leaves hard-won insight in its wake."];
+    case "pollen":
+      if (rng.random() < 0.55) { const h = rng.randint(4, 9) + c.realm; c.herbs += h; return [`a drift of luminous spirit-pollen — you gather ${h} rare herbs from the bloom.`]; }
+      wound(rng.uniform(0.08, 0.14)); return ["a cloud of narcotic pollen bursts from a flower-demon's bloom; you reel, poisoned, before holding your breath."];
+    case "quake":
+      if (rng.random() < 0.35) return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: theme.element, slot: theme.rewardSlot || null }));
+      wound(rng.uniform(0.10, 0.18)); return ["the treasury heaves and collapses; falling jade and stone hammer down before you steady the ground."];
+    default:
+      wound(rng.uniform(0.08, 0.14)); return ["a sudden peril of the realm tests you, and you stagger through it."];
+  }
 }
 function realmPrompt() {
   const R = state.realmRun;
@@ -2210,14 +2398,22 @@ function realmPrompt() {
   }, false);
 }
 function realmComplete() {
-  const c = state.c, R = state.realmRun;
+  const c = state.c, R = state.realmRun, theme = realmTheme();
   const stones = (c.realm + 2) * state.rng.randint(15, 30);
   c.spiritStones += stones; c.reputation += 5;
-  const lines = [`✦ You conquer the Secret Realm to its very heart! (+${stones} spirit stones, +5 reputation)`];
+  const lines = [`✦ You conquer the ${theme.name} (${theme.cn}) to its very heart! (+${stones} spirit stones, +5 reputation)`];
   if (c.sectKey) { c.contribution += 80; lines.push("  Your charted findings earn +80 sect contribution."); }
-  if (state.rng.random() < 0.5) { const t = realmFortune(c); lines.push("  In the inner sanctum: " + t[0]); }
+  // The guardian hoarded the realm's own treasure — a guaranteed themed relic,
+  // its grade rising with how deep the delve ran.
+  const grade = R.depth >= 5 ? "Heaven" : R.depth >= 4 ? "Earth" : null;
+  lines.push("  From the guardian's hoard:");
+  for (const m of E.acquireArtifact(c, E.randomArtifact(c, state.rng, grade, { element: theme.element, slot: theme.rewardSlot || null }))) lines.push(m);
+  if (state.rng.random() < 0.5) for (const m of realmFortune(c)) lines.push("  " + m);
   const title = "Secret Realm Delver";
-  if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, "Conquered a Secret Realm."]); lines.push(`  ✦ You earn the title: ${title}!`); }
+  if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, `Conquered the ${theme.name}.`]); lines.push(`  ✦ You earn the title: ${title}!`); }
+  // Plumbing the heart of an ancient realm can lodge a dead power's memory-shard
+  // in your sea of consciousness — arming a years-long Sealed Will arc.
+  if (c.realm >= 3 && E.armArc(c, "sealedwill", state.rng, 0.22)) lines.push("  ✦ Something in the inner sanctum looked back at you. A cold, watchful something has followed you out...");
   logMessages(lines);
   realmEnd(true);
 }
@@ -2258,7 +2454,13 @@ function tourneyEnd(placement, won) {
   for (const [cut, name] of D.TOURNAMENT_TITLES) if (placement <= cut) { title = name; break; }
   const lines = [`The tournament ends — you place in the top ${Math.max(1, placement)}.`,
     `Rewards: +${contribution} contribution, +${rep} reputation, +${stones} spirit stones.`];
-  if (placement === 1) { c.pills += 3; lines.push("As Champion you are awarded a Foundation Pill and 3 pills!"); }
+  if (placement === 1) {
+    c.pills += 3; lines.push("As Champion you are awarded a Foundation Pill and 3 pills!");
+    // Crowned champion, you taste how sweet victory is — and how much sweeter
+    // forbidden power would be. Arms the Demon-Path arc (the lure of the shortcut).
+    if (c.realm >= 3 && E.armArc(c, "demonpath", rng, 0.18))
+      lines.push("Flush with triumph, an ugly little thought takes root: that there are faster roads to power than this, for those willing to walk them.");
+  }
   if (title) {
     const h = `Tournament ${title}`;
     if (!c.titles.includes(h)) c.titles.push(h);

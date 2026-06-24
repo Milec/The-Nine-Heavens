@@ -43,8 +43,16 @@ export const ROOT_TYPES = [
     "Two harmonised elements. The kind of talent that earns a seat among a sect's core disciples."],
   ["heavenly", "Heavenly Root (天灵根)", 2.60, 10, 28,
     "A single pure element. A genius once in a generation, courted by every great sect under heaven."],
+  ["swordroot", "Sword-Bone Root (剑骨灵根)", 2.75, 11, 10,
+    "Born with sword-bones — a single killing edge of Metal affinity that takes to the blade as breath to the lungs. Sword sects would war over you."],
   ["variant", "Variant Root (异灵根)", 3.40, 14, 8,
     "A mutated root channeling a power beyond the five elements. Prophecies are written about children like you."],
+  ["thunderroot", "Heavenly Thunder Root (天雷灵根)", 3.35, 13, 4,
+    "A variant root crackling with the heavens' own lightning; tribulations recognise their own, and the sky's wrath answers your call."],
+  ["iceroot", "Profound Ice Root (玄冰灵根)", 3.35, 13, 4,
+    "A variant root of glacial cold and stillness — your qi runs clear and merciless as a winter river, and your dao heart with it."],
+  ["voidroot", "Void Spirit Root (虚灵根)", 3.45, 16, 3,
+    "A variant root attuned to the empty Void that underlies all things — rarer even than the prophecies that foretell it."],
   ["chaos", "Chaos Root (混沌灵根)", 5.00, 22, 2,
     "The legendary primordial root that devours all elements. Such a soul is born to shake the Nine Heavens themselves."],
 ];
@@ -57,6 +65,11 @@ export const PHYSIQUES = [
   ["yang", "Nine-Yang Divine Body (九阳神体)", "A blazing yang constitution that scorches all poisons and demons.", 1.5, 1.4, 1.1, 2, 18],
   ["yin", "Grand-Yin Mystic Body (太阴玄体)", "A still, cold body that drinks moonlight and soothes the soul.", 1.1, 1.5, 1.4, 2, 16],
   ["dao", "Innate Dao Embryo (先天道胎)", "A body the heavens themselves seem to have shaped for cultivation.", 1.6, 1.7, 1.6, 4, 6],
+  ["phoenix", "Vermilion Phoenix Body (朱雀涅槃体)", "A body of fire and renewal that rises from its own ashes.", 1.3, 1.4, 1.2, 2, 10],
+  ["gale", "Gale-Spirit Body (罡风之体)", "Quicksilver flesh, light as wind and twice as hard to pin.", 1.1, 1.2, 1.2, 1, 12],
+  ["swordheart", "Sword-Heart Body (剑心通明体)", "A body and mind honed for the blade; killing intent comes as easily as breath.", 1.2, 1.2, 1.4, 1, 11],
+  ["titan", "Earth-Titan Body (后土巨灵体)", "Flesh like living mountain-rock — slow to gather qi, but all but unbreakable.", 1.9, 0.9, 1.0, 0, 9],
+  ["dragon", "True Dragon Body (真龙之躯)", "The blood of dragons runs in you — overwhelming in body and qi alike.", 1.7, 1.5, 1.2, 3, 4],
   ["immortal", "Undying Golden Body (不灭金身)", "Legends say such flesh cannot truly die while a single drop of blood remains.", 2.2, 1.3, 1.2, 5, 2],
 ];
 
@@ -74,6 +87,11 @@ export const BACKGROUNDS = [
   ["royal", "Imperial Bloodline (皇族)", "A child of an immortal-blooded dynasty that rules ten thousand li.", 60, 400, ["Dragon-Pattern Jade", "Imperial Body Lotion"], 14],
   ["demon", "Demonic Sect Scion (魔道传人)", "Heir to a hunted devil-path lineage -- feared, powerful, and alone.", -5, 120, ["Blood Refining Manual", "Soul-Eating Talisman"], 25],
   ["hermit", "Hidden Master's Heir (隐世传人)", "Found and raised by a reclusive ancient who saw something in you.", 5, 40, ["Mysterious Jade Slip", "Spirit Herb Bundle"], 18],
+  ["fallen", "Fallen Noble (没落世家)", "Your once-great clan crumbled before you were grown; you carry an old name, old debts, and one heirloom blade.", 5, 20, ["Clan Spirit Sword"], 55],
+  ["corsair", "Sea-Raider's Child (海寇遗孤)", "Raised on a reaver fleet among salt, blood and stolen relics, you learned the knife before the brush.", -8, 24, ["Coarse Iron Saber"], 45],
+  ["temple", "Temple Foundling (古刹弃儿)", "Left at a mountain monastery's gate and raised on sutras and cold gruel; the bells still ring in your dreams.", 6, 4, ["Annotated Dao Classic"], 60],
+  ["physician", "Physician's Child (杏林之家)", "Raised among herbs and silver needles, you could tell a poppy from a poison blindfold before you could read.", 8, 18, ["Spirit Herb Bundle"], 55],
+  ["nomad", "Steppe Nomad (草原牧民)", "Born to the horse-clans under open sky — hardy, far-wandering, and a stranger to every sect.", 0, 8, [], 70],
 ];
 
 // [text, comp, body, soul, luck, weight]
@@ -88,6 +106,16 @@ export const BIRTH_OMENS = [
   ["A spring bubbled up in the dry courtyard and ran sweet for a day.", 0, 0, 1, 2, 22],
   ["Crows gathered by the hundred and would not be driven off.", 0, 0, 1, -3, 18],
   ["An old turtle climbed from the river and bowed its head toward the house.", 1, 0, 1, 3, 10],
+  ["Every flower in the valley bloomed at once the night you were born, then withered by dawn.", 1, 0, 1, 1, 18],
+  ["A two-headed serpent was found coiled on the threshold, and could not be killed.", 0, 1, 0, -2, 16],
+  ["Nine cranes flew down and kept vigil on the roof-ridge until you were named.", 1, 0, 1, 2, 9],
+  ["The dry well ran with sweet wine for the space of a single breath.", 0, 0, 0, 3, 12],
+  ["A meteor fell into the western hills the hour of your birth; treasure-hunters dig for it still.", 1, 1, 0, 1, 14],
+  ["Your grandmother dreamed of a golden dragon coiling into your mother's womb.", 2, 1, 1, 1, 7],
+  ["The family's old blind dog stared at your cradle and howled for three nights running.", 0, 0, 1, -3, 20],
+  ["Frost-flowers spread across every window though it was the height of summer.", 1, 0, 1, 0, 16],
+  ["You did not breathe for a full minute — then laughed, instead of crying.", 2, 0, 1, -1, 12],
+  ["A wandering monk left a single copper coin in your swaddling and walked away without a word.", 0, 0, 1, 2, 14],
 ];
 
 export const SURNAMES = ["Li","Wang","Zhang","Han","Mu","Lin","Ye","Xiao","Chu","Bai","Gu","Jiang","Yun","Ji","Su","Tang","Feng","Ling","Shen","Qin"];
@@ -113,6 +141,9 @@ export const TECHNIQUES = {
   mountain_seal: ["Mountain-Bearing Seal", 2, 0.20, 14, "An Earth art that drops a mountain's weight on a foe, crushing and pinning them."],
   heaven_slash: ["Heaven-Splitting Sabre", 3, 0.42, 20, "A single annihilating cut that leaves you spent."],
   samsara_palm: ["Samsara Heaven-Turning Palm", 3, 0.50, 18, "Turn the wheel of life and death; void force that rends the foe and mends you."],
+  mountain_render: ["Mountain-Splitting Sunder (裂山诀)", 2, 0.20, 14, "An Earth art that shatters a foe's guard, leaving their defenses rent and open."],
+  flowing_light: ["Flowing-Light Sword (流光剑诀)", 2, 0.22, 12, "Quicksilver sword-light that scores a foe's armour with every glittering pass."],
+  soul_reap: ["Soul-Reaping Scythe (夺魂镰)", 3, 0.40, 18, "A demonic scythe that reaps a faltering foe's very soul — death to the near-dead."],
   // — sect-exclusive signature arts (taught only by their sect, at high rank) —
   cloudmist_veil: ["Cloud-Mist Veiling Art (云雾隐)", 3, 0.30, 12, "Cloud Mist's hidden art — wreathe yourself in mist, shielded, serene, untouchable."],
   fiveelem_cycle: ["Five Elements Rotation (五行轮转)", 3, 0.42, 20, "Turn the five phases in endless cycle, each blow striking a foe's weakness."],
@@ -137,10 +168,13 @@ export const MOVEMENT_BY_KEY = Object.fromEntries(MOVEMENT_ARTS.map(m => [m[0], 
 // [key, display, charmBonus, blurb, weight]
 export const APPEARANCES = [
   ["hideous", "Hideous (丑陋)", -25, "Scarred and misshapen; strangers flinch and look away.", 35],
+  ["weathered", "Weathered (沧桑)", -3, "A hard, careworn face that has seen too much too young — but there's a flinty appeal in it.", 120],
   ["plain", "Plain (相貌平平)", -8, "An utterly forgettable face in any crowd.", 180],
   ["ordinary", "Ordinary (寻常)", 0, "Neither handsome nor homely -- simply unremarkable.", 320],
   ["comely", "Comely (清秀)", 10, "Pleasant to look upon, with clear bright eyes.", 200],
+  ["roguish", "Roguish (风流)", 16, "A wicked, careless handsomeness that charms even as it warns.", 95],
   ["striking", "Striking (俊美)", 22, "Strikingly handsome; heads turn when you pass.", 110],
+  ["ethereal", "Ethereal Fairness (空灵之美)", 30, "A delicate, otherworldly fairness, as though you were not quite made for this world.", 50],
   ["peerless", "Peerless Beauty (倾国倾城)", 38, "A face from a master's painting -- a beauty to topple cities.", 35],
   ["immortal", "Immortal Grace (谪仙之姿)", 55, "An otherworldly presence that stills a room the moment you enter.", 12],
 ];
@@ -162,7 +196,7 @@ export const SECTS = [
 ];
 export const SECT_BY_KEY = Object.fromEntries(SECTS.map(s => [s[0], s]));
 
-export const ROOT_TIER = { none:0, waste:0, quad:1, triple:2, dual:3, heavenly:4, variant:5, chaos:6 };
+export const ROOT_TIER = { none:0, waste:0, quad:1, triple:2, dual:3, heavenly:4, swordroot:4, variant:5, thunderroot:5, iceroot:5, voidroot:5, chaos:6 };
 // Representative root for a given tier (used by bloodline genetics).
 export const ROOT_BY_TIER = { 0:"waste", 1:"quad", 2:"triple", 3:"dual", 4:"heavenly", 5:"variant", 6:"chaos" };
 
@@ -186,11 +220,11 @@ export const SECT_TRIAL_FACTOR = [0, 0, 0.85, 1.0, 1.2, 1.5];
 // [techKey, minRank (index into SECT_RANKS), contributionCost]
 export const SECT_ARTS = {
   cloudmist:   [["azure_cloud", 0, 35], ["moon_mirror", 1, 110], ["mirror_parry", 2, 220], ["cloudmist_veil", 3, 460]],
-  fiveelem:    [["frost_lotus", 0, 45], ["tide_palm", 1, 110], ["mountain_seal", 1, 130], ["nine_yang", 2, 230], ["fiveelem_cycle", 3, 480]],
+  fiveelem:    [["frost_lotus", 0, 45], ["tide_palm", 1, 110], ["mountain_seal", 1, 130], ["mountain_render", 2, 240], ["nine_yang", 2, 230], ["fiveelem_cycle", 3, 480]],
   spiritbeast: [["five_beasts", 0, 35], ["spirit_bind", 1, 120], ["vajra_body", 2, 220], ["spiritbeast_primal", 3, 470]],
-  azure:       [["azure_cloud", 0, 45], ["sword_rain", 1, 140], ["great_void", 3, 430], ["azure_formation", 4, 820]],
-  heavensword: [["sword_rain", 0, 55], ["thunder_step", 1, 150], ["heaven_slash", 3, 440], ["heavensword_myriad", 4, 920]],
-  bloodcult:   [["blood_refine", 0, 45], ["spirit_bind", 1, 120], ["samsara_palm", 3, 440], ["bloodcult_sea", 3, 480]],
+  azure:       [["azure_cloud", 0, 45], ["sword_rain", 1, 140], ["flowing_light", 2, 250], ["great_void", 3, 430], ["azure_formation", 4, 820]],
+  heavensword: [["sword_rain", 0, 55], ["thunder_step", 1, 150], ["flowing_light", 2, 250], ["heaven_slash", 3, 440], ["heavensword_myriad", 4, 920]],
+  bloodcult:   [["blood_refine", 0, 45], ["spirit_bind", 1, 120], ["soul_reap", 2, 260], ["samsara_palm", 3, 440], ["bloodcult_sea", 3, 480]],
 };
 
 // [name, minRank, contribution, stones, danger, blurb, reward?]
@@ -441,6 +475,10 @@ export const PILL_RECIPES = [
   ["body", "Marrow-Cleansing Pill", 5, 0.55, "Tempers the flesh, permanently raising Constitution."],
   ["soul", "Soul-Nourishing Pill", 5, 0.55, "Refines the spirit, permanently raising Soul Sense."],
   ["breakthrough", "Foundation Breakthrough Pill", 7, 0.45, "Consumed on your next breakthrough to greatly improve its odds."],
+  ["comprehension", "Spirit-Enlightening Pill", 6, 0.50, "Clears the sea of consciousness; permanently sharpens Comprehension."],
+  ["charm", "Jade-Countenance Pill", 4, 0.58, "Refines the flesh to an immortal's grace; permanently raises Charm."],
+  ["daoheart", "Heart-Calming Pill", 5, 0.52, "Stills the turbid heart; permanently steels your Dao Heart against demons."],
+  ["fortune", "Heaven-Fortune Pill", 9, 0.32, "A near-mythical pill said to coax the threads of fate; permanently nudges Fortune."],
   ["longevity", "Nine-Turn Longevity Pill", 12, 0.30, "The grandmaster's art -- adds precious years to your lifespan."],
 ];
 export const PILL_BY_KEY = Object.fromEntries(PILL_RECIPES.map(p => [p[0], p]));
@@ -475,6 +513,89 @@ export const DAOS = [
   ["dream", "Dao of Dreams (幻梦)", 0.12, 0.06, "The law of illusion and mind; reality bends, and the heavens lose sight of you."],
 ];
 export const DAO_BY_KEY = Object.fromEntries(DAOS.map(d => [d[0], d]));
+
+/* 道之境界 — a comprehended Dao is not static. Through patient meditation it
+ * deepens across four tiers of insight, each scaling the law's power and
+ * breakthrough bonuses — and from Great Mastery upward, manifesting in battle.
+ * A character's per-Dao tier (1..4) lives in c.daoLevels; 1 = freshly Glimpsed. */
+export const DAO_MAX_TIER = 4;
+// [english, 中文, bonus-scaling factor applied to the Dao's base bonuses]
+export const DAO_TIERS = [
+  null,                                 // index 0 unused — tiers are 1-based
+  ["Glimpsed",      "初窥", 1.00],
+  ["Minor Mastery", "小成", 1.60],
+  ["Great Mastery", "大成", 2.30],
+  ["Consummate",    "圆满", 3.20],
+];
+const daoTierClamp = lvl => Math.max(1, Math.min(DAO_MAX_TIER, lvl || 1));
+export const daoTierFactor = lvl => DAO_TIERS[daoTierClamp(lvl)][2];
+export function daoTierLabel(lvl) { const t = DAO_TIERS[daoTierClamp(lvl)]; return `${t[0]} (${t[1]})`; }
+export const daoTierName = lvl => DAO_TIERS[daoTierClamp(lvl)][0];
+
+/* Battle manifestations — unlocked at Great Mastery (tier 3) and intensified at
+ * Consummation (tier 4). The label shows on a Dao's card; the numbers live in
+ * one place, engine.daoBattleMods, so combat just reads the aggregate. */
+export const DAO_MANIFEST = {
+  sword:     "Sword-heart — a keener edge: +crit in battle.",
+  flame:     "Burning law — searing strikes: +crit.",
+  thunder:   "Heaven's wrath — punishing blows: +crit and armour-pierce.",
+  space:     "Folded space — your form blurs: +dodge.",
+  dream:     "Illusion — the foe's eyes deceive them: +dodge.",
+  time:      "Stretched moments: +dodge in battle, faster cultivation.",
+  vitality:  "Life unending: +battle HP and steady regeneration.",
+  void:      "Void edge: your strikes pierce more of the foe's defense.",
+  devour:    "Ravenous law: passive lifesteal on every blow.",
+  karma:     "Cause & effect — heaven shields you as the battle joins.",
+  slaughter: "Killing intent — the foe enters cowed and bleeding.",
+};
+
+/* Themed Secret Realms (秘境): a delve is no longer a generic elemental rift but
+ * one of these archetypes, lending its element, the mist-wreathed foes that
+ * haunt it, the fortunes its rooms tend to hold (fortune bias), a signature
+ * between-stage hazard, and a thematically-named guardian at its heart.
+ *   element  — drives foe/treasure attunement and the guardian's arts.
+ *   kind     — "beast" | "rogue" | null (mixed); shapes the foes within.
+ *   foes     — flavour names drawn for the stage battles.
+ *   fortune  — which fortune-room this realm favours (see realmFortune):
+ *              "treasure" | "spring" | "herb" | "pill" | "insight".
+ *   hazard   — signature peril fired between stages (see realmHazard).
+ *   guardian — the named boss barring the inner sanctum.
+ *   rewardSlot — (optional) treasure slot the realm's spoils favour. */
+export const SECRET_REALMS = [
+  { key: "swordtomb", name: "Ancient Sword Tomb", cn: "上古剑冢", element: "Metal", kind: "rogue",
+    foes: ["Sword Spirit", "Rusted Sword-Puppet", "Tomb Blade-Cultivator", "Vengeful Sabre-Wraith"],
+    fortune: "treasure", hazard: "blades", guardian: "the Sword-Tomb Warden", rewardSlot: "weapon",
+    blurb: "ten thousand buried blades hum in the dark, each hungry for a worthy hand." },
+  { key: "naga", name: "Sunken Naga Palace", cn: "蛟龙水府", element: "Water", kind: "beast",
+    foes: ["Naga Sentinel", "Abyssal Drake", "Tide-Maned Hippocamp", "Pearl-Eyed Serpent"],
+    fortune: "spring", hazard: "flood", guardian: "the Drowned Naga Lord",
+    blurb: "a drowned immortal palace whose halls still brim with cold, living water." },
+  { key: "demonabyss", name: "Demon-Sealing Abyss", cn: "镇魔渊", element: "Dark", kind: "rogue",
+    foes: ["Corpse Refiner", "Shackled Devil", "Blood-Soaked Revenant", "Whispering Heart-Demon"],
+    fortune: "treasure", hazard: "miasma", guardian: "the Unsealed Devil Ancestor",
+    blurb: "a black pit where the old sects buried devils too vile to slay — and the seals are failing." },
+  { key: "frostcave", name: "Frostmere Immortal Cave", cn: "冰寒仙府", element: "Ice", kind: "beast",
+    foes: ["Frost Python", "Glacial Ape", "Hoarfrost Crane", "Rime-Bound Wolf"],
+    fortune: "insight", hazard: "frost", guardian: "the Frostmere Immortal's Shade",
+    blurb: "a cave-heaven sealed in eternal ice, where a dead immortal's serenity still lingers." },
+  { key: "pillfurnace", name: "Volcanic Pill-Furnace Ruins", cn: "丹火遗址", element: "Fire", kind: "rogue",
+    foes: ["Flame-Mane Lion", "Furnace-Guard Puppet", "Cinder Alchemist", "Magma Salamander"],
+    fortune: "pill", hazard: "flame", guardian: "the Pill-Furnace Spirit",
+    blurb: "the wreck of a grand alchemist's mountain, its furnaces still roaring with spirit-fire." },
+  { key: "thunderpagoda", name: "Skyhigh Thunder Pagoda", cn: "九霄雷塔", element: "Lightning", kind: "rogue",
+    foes: ["Thunder Roc", "Lightning-Forged Sentinel", "Storm Sword-Cultivator", "Voltaic Wraith"],
+    fortune: "insight", hazard: "thunder", guardian: "the Pagoda's Thunder Sovereign",
+    blurb: "a storm-wreathed pagoda that climbs into the clouds, each tier judged by heaven's lightning." },
+  { key: "spiritgarden", name: "Verdant Spirit Garden", cn: "灵植秘园", element: "Wood", kind: "beast",
+    foes: ["Venom Serpent", "Thornbark Treant", "Pollen Sprite-Swarm", "Vine-Coiled Beast"],
+    fortune: "herb", hazard: "pollen", guardian: "the Ten-Thousand-Year Flower Demon",
+    blurb: "a runaway immortal garden gone wild, thick with spirit-herbs — and the things that guard them." },
+  { key: "godtreasury", name: "Earthen God-Treasury", cn: "后土宝库", element: "Earth", kind: "rogue",
+    foes: ["Stone-Hide Rhino", "Clay Tomb-Guard", "Gilded Treasury-Puppet", "Jade-Armoured Sentinel"],
+    fortune: "treasure", hazard: "quake", guardian: "the Treasury's Earthen Colossus", rewardSlot: "ring",
+    blurb: "a buried vault of an old earth-god, its vaults heavy with hoarded immortal gold." },
+];
+export const SECRET_REALM_BY_KEY = Object.fromEntries(SECRET_REALMS.map(r => [r.key, r]));
 
 export function karmaLabel(k) {
   if (k <= -120) return "Heaven-Defying Devil";
@@ -728,6 +849,19 @@ export function beastEvolvedName(base, rank) {
     default: return base;
   }
 }
+/* Innate beast traits (天赋): every spirit beast is born with one, a quirk of
+ * its blood that shapes how it fights at your side and forages at your abode.
+ * [key, name, cn, blurb, weight] */
+export const BEAST_TRAITS = [
+  ["ferocious", "Ferocious", "凶悍", "Born for the kill — its battle assists strike far harder.", 26],
+  ["vigilant",  "Vigilant",  "机警", "Ever-watchful — it throws itself between you and harm, shielding you in battle.", 18],
+  ["nimble",    "Nimble",    "灵巧", "Quicksilver and sure-footed — its presence sharpens your own evasion.", 16],
+  ["auspicious","Auspicious","祥瑞", "A lucky omen of a beast — it forages far richer at your abode.", 20],
+  ["devoted",   "Devoted",   "忠勇", "Bonds fast and deep — it trusts you sooner and treasures every kindness.", 20],
+];
+export const BEAST_TRAIT_BY_KEY = Object.fromEntries(BEAST_TRAITS.map(t => [t[0], t]));
+export const beastTraitName = key => BEAST_TRAIT_BY_KEY[key] ? `${BEAST_TRAIT_BY_KEY[key][1]} (${BEAST_TRAIT_BY_KEY[key][2]})` : "";
+
 // Infer a beast's innate element from its species name (null if none fits).
 export function beastElement(species) {
   const s = (species || "").toLowerCase();
@@ -779,6 +913,11 @@ export const PHYSIQUE_EFFECTS = {
   yang:     { cultivate: 0.15, burnImmune: true, vsDemon: 0.30, element: "Fire", desc: "Nine-Yang body: +15% cultivation, immune to burning, +30% damage vs demons, innate Fire." },
   yin:      { cultivate: 0.10, healBonus: 0.6, element: "Ice", desc: "Grand-Yin body: +10% cultivation, +60% to healing arts, innate Ice." },
   dao:      { cultivate: 0.30, breakthrough: 0.08, dao: 0.45, desc: "Innate Dao Embryo: +30% cultivation, +8% breakthrough odds, greatly faster Dao insight." },
+  phoenix:  { cultivate: 0.12, healBonus: 0.6, burnImmune: true, deathSave: 0.12, element: "Fire", desc: "Vermilion Phoenix body: +12% cultivation, +60% to healing arts, immune to burning, a chance to rise from death, innate Fire." },
+  gale:     { dodge: 0.16, qiPool: 0.20, element: "Wind", desc: "Gale-Spirit body: +16% dodge, +20% combat qi, innate Wind." },
+  swordheart: { dodge: 0.06, crit: 0.10, dao: 0.20, element: "Metal", desc: "Sword-Heart body: +10% crit, +6% dodge, faster Dao insight, innate Metal." },
+  titan:    { mitig: 0.20, hp: 0.55, element: "Earth", desc: "Earth-Titan body: heavy damage-reduction, +55% battle stamina, innate Earth." },
+  dragon:   { cultivate: 0.12, mitig: 0.12, hp: 0.30, vsDemon: 0.2, element: "Water", desc: "True Dragon body: +12% cultivation, strong mitigation, +30% battle stamina, innate Water." },
   immortal: { mitig: 0.18, hp: 0.50, deathSave: 0.25, desc: "Undying Golden Body: heavy damage-reduction, +50% battle stamina, and a chance to cheat death." },
 };
 export const physEffect = c => PHYSIQUE_EFFECTS[c.physiqueKey] || PHYSIQUE_EFFECTS.ordinary;
