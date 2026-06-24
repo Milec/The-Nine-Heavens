@@ -91,9 +91,20 @@ hits like a mountain but leaves you spent.
 
 You can also **delve a Secret Realm (秘境)**: a multi-stage expedition of
 escalating battles and fortune-rooms where **wounds carry between fights**.
-After each cleared stage you choose to **press deeper** for richer spoils or
-**withdraw** with what you hold — and a **Realm Guardian** boss waits at the
-heart for those bold (or greedy) enough to reach it.
+Each delve is one of eight **themed archetypes** — the **Ancient Sword Tomb**,
+**Sunken Naga Palace**, **Demon-Sealing Abyss**, **Frostmere Immortal Cave**,
+**Volcanic Pill-Furnace Ruins**, **Skyhigh Thunder Pagoda**, **Verdant Spirit
+Garden** or **Earthen God-Treasury** — each lending its **element**, the
+**mist-wreathed foes** that haunt it, the **fortune-rooms it favours** (a sword
+tomb hoards treasure, a garden teems with herbs, a furnace caches pills…), and
+a **thematically-named guardian**. Between stages a **signature hazard** may
+strike — a corridor of flying swords, soul-rending miasma (worse for the
+sin-heavy), heaven's judging lightning, collapsing vaults — wounds that carry
+forward but never kill outright (a steady soul and fortune help you slip them,
+and some hide a boon). After each cleared stage you choose to **press deeper**
+for richer spoils or **withdraw** with what you hold — and the realm's
+**Guardian** waits at the heart, hoarding a **guaranteed themed relic** (richer
+the deeper you dared) for those bold or greedy enough to reach it.
 
 Three more systems round out a cultivator's life:
 
