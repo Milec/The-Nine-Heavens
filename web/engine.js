@@ -593,17 +593,33 @@ function makeReplacement(rng, dead) {
   return makeGenius(rng, rng.randint(2, 3));
 }
 // Advance the whole population a year: each cultivator climbs their own road, and
-// any who die of old age are succeeded by a newcomer in their place.
+// any who die of old age are succeeded by a newcomer in their place. Returns a few
+// notable "tidings" (a great breakthrough, the passing of a famed name) so the
+// caller can let word of the wider realm reach the player.
+const sectShort = key => key && D.SECT_BY_KEY[key] ? D.SECT_BY_KEY[key][1].split(" (")[0] : null;
 export function agePopulation(c, rng) {
   const pop = c.world && c.world.npcs;
-  if (!Array.isArray(pop)) return;
+  if (!Array.isArray(pop)) return [];
+  const tidings = [];
   for (let i = 0; i < pop.length; i++) {
     const n = pop[i];
     if (!n || !n.alive) continue;
-    advanceNpc(n, rng);
-    if (n.age != null) { n.age += 1; if (n.age > n.maxAge) { n.alive = false; pop[i] = makeReplacement(rng, n); } }
+    const step = advanceNpc(n, rng);
+    if (step === "realm" && n.realm >= 7 && tidings.length < 4) {
+      const where = sectShort(n.sectKey);
+      tidings.push(`${n.name}${where ? ` of the ${where}` : ""} has broken through to ${D.REALMS[n.realm][0]} (${D.REALMS[n.realm][1]}).`);
+    }
+    if (n.age != null) {
+      n.age += 1;
+      if (n.age > n.maxAge) {
+        if ((n.title || (n.realm || 0) >= 7) && tidings.length < 4)
+          tidings.push(`${n.title ? `${n.name}, ${n.title},` : n.name} has passed from the world, a lifespan spent at ${D.REALMS[n.realm][0]}.`);
+        n.alive = false; pop[i] = makeReplacement(rng, n);
+      }
+    }
   }
   crownGeniuses(rng, pop);
+  return tidings;
 }
 // The Heaven Board: the realm's foremost living cultivators by raw power, plus
 // you. Returns { ranked, rank, total } for the board, and { worldRank, worldTotal }

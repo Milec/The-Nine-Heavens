@@ -423,7 +423,9 @@ export function ageUp(c, rng) {
     if (npc.age != null) { npc.age += 1; if (npc.age > npc.maxAge) npcDies(c, npc, events); }
   }
   if (worldUp) events.push({ id: "world_advance", auto: true, text: [`Word reaches you: ${worldUp.name} has broken through to ${E.npcRealmName(worldUp)} (${D.REALMS[worldUp.realm][1]}). The world does not stand still while you cultivate.`] });
-  E.agePopulation(c, rng);   // the realm's cultivators climb (and fall) on their own roads
+  const tidings = E.agePopulation(c, rng);   // the realm's cultivators climb (and fall) on their own roads
+  if (tidings.length && rng.random() < 0.45)
+    events.push({ id: "realm_tidings_" + c.age, auto: true, text: [`☷ Tidings from the wider realm: ${tidings[rng.randint(0, tidings.length - 1)]}`] });
 
   // Your spirit beast grows over the year (and its yearly feeding refreshes).
   if (c.beast && c.beast.alive) E.beastGrow(c, rng);
@@ -761,6 +763,90 @@ export function takeDisciple(c, rng) {
   c.happiness = clampN(c.happiness + 4, 0, 100);
   note(c, `Took ${n.name} as a disciple.`);
   return [`You take ${n.name} under your wing as a disciple. They kowtow three times, eyes brimming.`];
+}
+
+/* ----------------- the wider realm: meeting its cultivators --------------- */
+// The world population is not mere scenery: a cultivator dwelling where you stand
+// can be sought out as a bond (or even a master), recruited into a sect you lead,
+// or challenged. Winning them over MOVES them out of the population and into your
+// relationships, where the ordinary relationship system takes over.
+const atYourLocation = (c, npc) => !!(npc && npc.alive && npc.home != null && npc.home === c.location);
+
+function removeDenizen(c, npc) {
+  const pop = c.world && c.world.npcs;
+  if (pop) { const i = pop.indexOf(npc); if (i >= 0) pop.splice(i, 1); }
+}
+
+// The interactions available with a world denizen (only where you both stand).
+export function denizenActions(c, npc) {
+  const acts = [];
+  if (!atYourLocation(c, npc)) return acts;
+  acts.push({ id: "acquaint", label: "Seek their acquaintance" });
+  if (c.ownSect && !npc.sectKey) acts.push({ id: "recruit", label: "Recruit to your sect" });
+  if (c.awakened && c.age >= D.ageMin("duel") && (npc.power || 0) <= E.power(c) * 3.2)
+    acts.push({ id: "challenge", label: "Challenge to a duel" });
+  return acts;
+}
+
+// Try to win a denizen's acquaintance — charm, renown and a near-enough realm help.
+// On success they join your bonds (a friend, a wary rival, or, if far mightier and
+// taken with you, a Master); on failure they remain a stranger of the realm.
+export function acquaintDenizen(c, npc, rng) {
+  if (!atYourLocation(c, npc)) return [`${npc.name} is not here to be met.`];
+  E.ensureNpcProfile(npc, rng);
+  const pull = c.charm + (["striking", "peerless", "immortal"].includes(c.appearanceKey) ? 15 : 0);
+  const gap = (npc.realm || 0) - (c.realm || 0);
+  const chance = clampN(0.42 + pull / 220 + c.reputation / 600 + (npc.sectKey && npc.sectKey === c.sectKey ? 0.2 : 0) - Math.max(0, gap) * 0.07, 0.08, 0.95);
+  if (rng.random() >= chance)
+    return [`${npc.name} hears you out with cool courtesy, but no rapport takes. Raise your renown and seek them again another year.`];
+  removeDenizen(c, npc);
+  delete npc.title;                                   // a bond, not a board-listing
+  let role = "friend", aff = 16 + Math.floor(pull / 8), line;
+  if (gap >= 3 && c.reputation >= 25 && !E.findNpc(c, "master") && rng.random() < 0.55) {
+    role = "master"; aff = 30;
+    line = `✦ ${npc.name} sees rare promise in you and offers to take you in hand — you have found a Master!`;
+  } else if (npc.sectKey === "bloodcult" || rng.random() < 0.12) {
+    role = "rival"; aff = -8;
+    line = `You cross words with ${npc.name}; sparks fly, and a wary rivalry is born.`;
+  }
+  npc.role = role; npc.affinity = clampN(aff, -100, 100); npc.met = true;
+  if (!line) line = `You strike up an acquaintance with ${npc.name}. A new bond enters your life. (${E.npcStatus(npc)})`;
+  c.relationships.push(npc);
+  c.happiness = clampN(c.happiness + 3, 0, 100);
+  note(c, `Made the acquaintance of ${npc.name}${role === "master" ? ", who became your master" : ""}.`);
+  return [line];
+}
+
+// Draw an unaffiliated cultivator into a sect you lead — a named disciple, and a
+// little more prestige and strength for your banner.
+export function recruitDenizen(c, npc, rng) {
+  if (!c.ownSect) return ["You lead no sect to recruit into."];
+  if (!atYourLocation(c, npc)) return [`${npc.name} is not here.`];
+  if (npc.sectKey) return [`${npc.name} already wears another sect's crest.`];
+  const cap = sectCapacity(c);
+  if (c.ownSect.members >= cap) return [`Your halls are full (${c.ownSect.members}/${cap}). Expand your abode to make room for more.`];
+  E.ensureNpcProfile(npc, rng);
+  const chance = clampN(0.4 + c.charm / 250 + c.reputation / 500 + (E.power(c) > (npc.power || 0) ? 0.18 : -0.12), 0.1, 0.92);
+  if (rng.random() >= chance)
+    return [`${npc.name} declines to bend the knee to a fledgling banner. Win greater renown, and such talents will come of their own accord.`];
+  removeDenizen(c, npc);
+  delete npc.title;
+  npc.role = "disciple"; npc.kin = "Disciple"; npc.learned = npc.learned || [];
+  npc.affinity = clampN(42 + Math.floor(c.charm / 10), -100, 100); npc.resides = false;
+  c.relationships.push(npc);
+  c.ownSect.members += 1; c.ownSect.prestige += 2 + (npc.realm || 0);
+  note(c, `Recruited ${npc.name} into the ${c.ownSect.name}.`);
+  return [`✦ ${npc.name} pledges to your banner — a new disciple of the ${c.ownSect.name}. (+1 member, +prestige)`];
+}
+
+// Settle a won challenge against a local cultivator: renown rises, and the bested
+// foe (slain or driven off) leaves the realm's roster.
+export function defeatDenizen(c, npc, rng) {
+  removeDenizen(c, npc);
+  c.reputation += 4 + (npc.realm || 0);
+  c.happiness = clampN(c.happiness + 4, 0, 100);
+  note(c, `Bested ${npc.name} in a duel.`);
+  return [`✦ You best ${npc.name} before the watching realm; your name carries the further for it. (+Reputation)`];
 }
 
 // Pass one of your techniques to a child / disciple / dao companion (free).

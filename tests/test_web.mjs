@@ -732,6 +732,59 @@ function testBirthOptions() {
     const g = E.playerGenome(c); assert(g && g.physiqueKey === "dragon", "a special physique enters the heritable genome"); }
 }
 
+// The realm is peopled by a living population that fills sects and locations, and
+// whose cultivators you can seek out where you stand, recruit, or challenge.
+function testWorldPopulationAndDenizens() {
+  const rng = new E.RNG(31);
+  const c = L.bornCharacter(rng, "Founder", null);
+  const pop = c.world.npcs;
+  assert(Array.isArray(pop) && pop.length >= 150, `the realm is densely peopled (got ${pop && pop.length})`);
+  assert(pop.every(n => !n.alive || n.age != null), "every living denizen carries an age");
+  for (const s of D.SECTS)
+    assert(pop.some(n => n.alive && n.sectKey === s[0]), `sect ${s[0]} is populated`);
+
+  // The Heaven Board reports a true standing among the whole population.
+  const st = E.rankboardStanding(c);
+  assert(st.worldTotal === pop.filter(n => n.alive).length + 1, "world standing counts every living cultivator");
+  assert(st.worldRank >= 1 && st.worldRank <= st.worldTotal, "world rank is within range");
+
+  // A denizen where you stand can be won over — and moves into your relationships.
+  c.awakened = true; c.age = 40; c.realm = 4; c.charm = 150; c.reputation = 120;
+  const here = c.location;
+  let d = pop.find(n => n.alive && n.home === here) || pop[0];
+  d.home = here;
+  assert(L.denizenActions(c, d).some(a => a.id === "acquaint"), "a local denizen can be sought out");
+  assert(L.denizenActions(c, { ...d, home: here + 999 }).length === 0, "a far-off denizen offers no interactions");
+  const popBefore = pop.length;
+  let moved = false;
+  for (let i = 0; i < 20 && !moved; i++) {
+    const target = pop.find(n => n.alive && n.home === here);
+    if (!target) break;
+    L.acquaintDenizen(c, target, rng);
+    if (c.relationships.includes(target)) { moved = true; assert(["friend", "rival", "master"].includes(target.role), "an acquaintance takes a bond role"); }
+  }
+  assert(moved, "befriending a denizen moves them from the population into your relationships");
+  assert(pop.length < popBefore, "a befriended denizen leaves the world population");
+
+  // A sect-founder can recruit an unaffiliated denizen as a disciple.
+  c.ownSect = { name: "Test Sect", members: 0, prestige: 20, founded: c.age, alignment: "neutral" };
+  c.abode = 3;
+  let recruited = false;
+  for (let i = 0; i < 20 && !recruited; i++) {
+    const r = pop.find(n => n.alive && n.home === here && !n.sectKey);
+    if (!r) break;
+    L.recruitDenizen(c, r, rng);
+    if (r.role === "disciple" && c.relationships.includes(r)) recruited = true;
+  }
+  assert(recruited && c.ownSect.members >= 1, "recruiting a denizen swells your sect");
+
+  // Ageing the population yields well-formed tidings and never crashes.
+  let tidings = [];
+  for (let y = 0; y < 80; y++) tidings = tidings.concat(E.agePopulation(c, rng));
+  assert(Array.isArray(tidings) && tidings.every(t => typeof t === "string" && t.length), "realm tidings are well-formed strings");
+  assert(pop.filter(n => n.alive).length > 100, "the population stays alive and replenished across the years");
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -752,6 +805,7 @@ try {
   test("multi-year storyline arcs thread and branch across the years", testStoryArcs);
   test("action-triggered arcs arm sensibly and thread to their ends", testTriggeredArcs);
   test("new birth options are well-formed and fully integrated", testBirthOptions);
+  test("a living realm population fills sects and can be sought out, recruited & challenged", testWorldPopulationAndDenizens);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

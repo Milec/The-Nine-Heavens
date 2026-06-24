@@ -567,6 +567,16 @@ function openPeople() {
     body.appendChild(el("div", "section-h", "Bonds"));
     if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or sworn enemies yet."));
     bonds.forEach(n => body.appendChild(personRow(n)));
+    // Named cultivators of the realm who dwell where you now stand — seek them out
+    // (in their dossier) to win them as bonds, recruit them, or cross blades.
+    const here = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.home === c.location)
+      .sort((a, b) => (b.power || 0) - (a.power || 0));
+    if (here.length) {
+      const hereLoc = W.locById(c, c.location);
+      body.appendChild(el("div", "section-h", `Cultivators Here${hereLoc ? ` · ${escapeHtml(hereLoc.name)}` : ""}`));
+      here.slice(0, 6).forEach(n => body.appendChild(denizenRow(n)));
+      if (here.length > 6) body.appendChild(el("p", "note", `…and ${here.length - 6} more dwell here — see the place itself (Adventure → Travel the Realm) for the full roll.`));
+    }
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
     b.onclick = () => { if (!ageAllows("mingle") || !useAction("social")) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
     body.appendChild(b);
@@ -749,6 +759,7 @@ function denizenRow(n) {
   return row;
 }
 function openDenizen(n) {
+  const c = state.c;
   const rootName = k => { const r = D.ROOT_TYPES.find(x => x[0] === k); return r ? r[1] : "—"; };
   openOverlay(n.name, body => {
     const arts = (n.techniques || []).filter(t => t !== "basic_breathing").map(t => D.TECHNIQUES[t][0]);
@@ -762,7 +773,34 @@ function openDenizen(n) {
       ["Power", Math.floor(n.power || E.npcPower(n)), "power"],
     ];
     body.appendChild(infoRows(rows));
-    body.appendChild(el("p", "note", "A cultivator of the wider realm, walking their own road. You are not personally acquainted — seek renown on the Heaven Board to test yourself against the realm's strongest."));
+    const acts = L.denizenActions(c, n);
+    body.appendChild(el("p", "note", acts.length
+      ? "A cultivator of the realm, dwelling where you now stand. Seek them out and they may enter your life — as a friend, a rival, even a master — or cross blades to make your name."
+      : "A cultivator of the wider realm, walking their own road. Travel to where they dwell to seek them out, or test yourself against the realm's strongest on the Heaven Board."));
+    for (const act of acts) {
+      const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
+      b.onclick = () => {
+        if (act.id === "challenge") {
+          if (!ageAllows("duel") || !useAction("social")) return;
+          const enemy = C.makeEnemyFromNpc(c, n, state.rng, { reward: (c.realm + 1) * 6 });
+          logMessages([`You bar ${n.name}'s path and call them to a duel before the watching realm!`]);
+          startBattle(enemy, { title: `Duel · ${n.name}` }, (outcome) => {
+            if (state.c.alive) {
+              if (outcome === "win") logMessages(L.defeatDenizen(c, n, state.rng));
+              else { c.reputation = Math.max(-200, c.reputation - 2); logMessages([`${n.name} gets the better of the bout and walks on. (−Reputation)`]); }
+            }
+            renderProfile(); if (!state.c.alive) checkDeath(); else closeOverlay();
+          });
+          return;
+        }
+        if (!useAction("social")) return;
+        const res = act.id === "recruit" ? L.recruitDenizen(c, n, state.rng) : L.acquaintDenizen(c, n, state.rng);
+        logMessages(res); renderProfile();
+        if (c.relationships.includes(n)) openPerson(n);   // they joined your life — hand off
+        else openDenizen(n);
+      };
+      body.appendChild(b);
+    }
     backBtn(body, closeOverlay);
   });
 }
