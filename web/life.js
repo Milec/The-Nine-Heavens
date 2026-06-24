@@ -29,7 +29,7 @@ function augment(c, rng, sex) {
   if (c.legacySect === undefined) c.legacySect = null;
   if (c.generation == null) c.generation = 1;
   if (c.era == null) { c.era = D.ERAS[Math.floor(rng.random() * D.ERAS.length)][0]; c.eraYears = 20 + Math.floor(rng.random() * 35); }
-  if (c.rankboard == null) c.rankboard = E.generateRankboard(rng);   // the era's geniuses exist on their own
+  E.ensurePopulation(c, rng);           // people the realm: sects, towns, and the Heaven Board
   if (c.talismans == null) c.talismans = {};
   if (c.bodyRealm == null) c.bodyRealm = 0;
   if (c.temper == null) c.temper = 0;
@@ -67,7 +67,6 @@ export function reincarnateLife(old, rng, name) {
   }
   carryLegacySect(c, old, rng);
   c.era = old.era; c.eraYears = old.eraYears;   // the world keeps turning across rebirth
-  if (old.rankboard) c.rankboard = old.rankboard;
   // A soul you were bound to most fiercely may be reborn into this turning of the
   // wheel too — a lost dao companion or a sworn nemesis. Seeds the Reborn Bond arc.
   const lostLove = (old.relationships || []).filter(n => n.role === "companion" && !n.alive && (n.affinity || 0) >= 70)
@@ -257,7 +256,6 @@ export function succeedAsHeir(old, child, rng) {
   c.age = Math.max(16, childAge(old, child));
   c.generation = (old.generation || 1) + 1;
   c.era = old.era; c.eraYears = old.eraYears;          // the same world the forebear knew
-  if (old.rankboard) c.rankboard = old.rankboard;
   // inherit the family estate and a share of the fortune (re-rooted in the new realm)
   c.abode = old.abode || 0;
   if (c.abode > 0) { c.abodeLocation = c.location; c.abodeRegion = c.region; } else { c.abodeLocation = null; c.abodeRegion = null; }
@@ -425,7 +423,7 @@ export function ageUp(c, rng) {
     if (npc.age != null) { npc.age += 1; if (npc.age > npc.maxAge) npcDies(c, npc, events); }
   }
   if (worldUp) events.push({ id: "world_advance", auto: true, text: [`Word reaches you: ${worldUp.name} has broken through to ${E.npcRealmName(worldUp)} (${D.REALMS[worldUp.realm][1]}). The world does not stand still while you cultivate.`] });
-  if (c.rankboard) E.ageRankboard(c, rng);   // the era's geniuses climb (and fall) too
+  E.agePopulation(c, rng);   // the realm's cultivators climb (and fall) on their own roads
 
   // Your spirit beast grows over the year (and its yearly feeding refreshes).
   if (c.beast && c.beast.alive) E.beastGrow(c, rng);
@@ -564,6 +562,9 @@ function finishYear(c, rng, msgs) {
 // These do NOT cost a year (BitLife-style); they shift affinity and mood.
 
 const teachableTechs = c => c.techniques.filter(t => t !== "basic_breathing");
+// The arts a master could still pass to you: only those they themselves know and
+// you do not. A finite well — once drawn dry, there is nothing left to teach.
+const masterTeachable = (c, npc) => (npc.techniques || []).filter(t => t !== "basic_breathing" && !c.techniques.includes(t));
 export const getDisciples = c => c.relationships.filter(n => n.role === "disciple" && n.alive);
 
 export function relationActions(c, npc) {
@@ -582,6 +583,8 @@ export function relationActions(c, npc) {
     acts.push({ id: "gift", label: "Give a gift (5 stones)" });
     acts.push({ id: "spar", label: "Spar" });
     if ((c.abode || 0) > 0) acts.push(npc.resides ? { id: "sendaway", label: "Have them leave your abode" } : { id: "invite", label: "Invite to live at your abode" });
+    acts.push({ id: "harsh", label: "Rebuke harshly" });
+    if (npc.affinity <= -25) acts.push({ id: "expel", label: "Expel from the sect" });
     return acts;
   }
   const acts = [];
@@ -590,7 +593,7 @@ export function relationActions(c, npc) {
     acts.push({ id: "teach", label: "Teach a technique" });
   if (npc.role !== "enemy") acts.push({ id: "gift", label: "Give a gift (5 stones)" });
   if (npc.role === "master") {
-    acts.push({ id: "seekteaching", label: "Ask to be taught an art" });
+    if (masterTeachable(c, npc).length) acts.push({ id: "seekteaching", label: "Ask to be taught an art" });
     acts.push({ id: "mguidance", label: "Seek their guidance" });
     acts.push({ id: "spar", label: "Spar (a lesson in arms)" });
     acts.push({ id: "askmaster", label: "Beg a parting gift" });
@@ -609,6 +612,10 @@ export function relationActions(c, npc) {
   }
   if ((npc.role === "companion" || npc.role === "disciple") && (c.abode || 0) > 0)
     acts.push(npc.resides ? { id: "sendaway", label: "Have them leave your abode" } : { id: "invite", label: "Invite to live at your abode" });
+  // Every bond can be wounded as well as deepened. A sweetheart not yet wed can be
+  // cast off entirely; a friend or rival driven low enough turns to open enmity.
+  if (npc.role !== "enemy") acts.push({ id: "harsh", label: npc.role === "companion" && !npc.married ? "Quarrel bitterly" : "Speak harshly" });
+  if (npc.role === "companion" && !npc.married) acts.push({ id: "breakup", label: "Break it off" });
   if (npc.role === "enemy") { acts.push({ id: "insult", label: "Threaten them" }); acts.push({ id: "reconcile", label: "Make peace" }); acts.push({ id: "duel", label: "Challenge to a duel" }); }
   return acts;
 }
@@ -636,12 +643,14 @@ export function doRelationAction(c, npc, action, rng) {
     }
     // ---- with your master ----
     case "seekteaching": {
-      const unknown = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing" && !c.techniques.includes(k));
-      if (!unknown.length) { adj(2); cap(c, "comprehension", 1); return [`${npc.name} has no art left to teach that you do not already know, but offers a subtle pointer. (+Comprehension)`]; }
+      E.ensureNpcProfile(npc, rng);   // a master must have their own repertoire to teach from
+      const teachable = masterTeachable(c, npc);
+      if (!teachable.length) { adj(1); cap(c, "comprehension", 1); return [`${npc.name} has passed on every art they know — there is nothing left to teach, though they offer a subtle pointer. (+Comprehension)`]; }
       if (rng.random() < 0.4 + npc.affinity / 250 + c.comprehension / 400) {
-        const t = rng.choice(unknown); c.techniques.push(t); adj(3); happy(3);
+        const t = rng.choice(teachable); c.techniques.push(t); adj(3); happy(3);
         note(c, `${npc.name} taught you ${D.TECHNIQUES[t][0]}.`);
-        return [`${npc.name} judges you ready and imparts the ${D.TECHNIQUES[t][0]}. (${D.TECHNIQUES[t][4]})`];
+        const left = teachable.length - 1;
+        return [`${npc.name} judges you ready and imparts one of their own arts, the ${D.TECHNIQUES[t][0]}. (${D.TECHNIQUES[t][4]})${left ? "" : " It is the last art they have to give."}`];
       }
       adj(1); return [`"Not yet," ${npc.name} says. "Temper your foundation, and ask again." (Raise your bond and comprehension.)`];
     }
@@ -704,6 +713,31 @@ export function doRelationAction(c, npc, action, rng) {
     case "invite": npc.resides = true; adj(rng.randint(4, 8)); happy(3); return [`${npc.name} moves into your cave abode. ${npc.role === "disciple" ? "They will tend its spirit fields and grow in its dense qi." : "It feels far more like a home now."}`];
     case "sendaway": npc.resides = false; adj(-rng.randint(1, 3)); return [`${npc.name} packs their things and leaves your abode.`];
     case "insult": adj(-rng.randint(4, 10)); happy(1); return [`You hurl threats at ${npc.name}. The feud festers.`];
+    case "harsh": {
+      adj(-rng.randint(7, 15)); happy(-rng.randint(1, 3));
+      const lines = [`You speak harshly to ${npc.name}; the words land like cold iron and the warmth between you cools. (${E.npcStatus(npc)})`];
+      // A light bond driven deep into resentment curdles into open enmity; blood,
+      // marriage vows and a master's standing endure a sharp tongue without breaking.
+      const canSour = npc.role === "friend" || npc.role === "rival" || (npc.role === "companion" && !npc.married);
+      if (canSour && npc.affinity <= -45 && rng.random() < 0.6) {
+        npc.role = "enemy"; delete npc.kin; npc.married = false;
+        lines.push(`Something breaks between you for good. ${npc.name} now numbers among your enemies.`);
+      }
+      return lines;
+    }
+    case "breakup": {
+      if (npc.married) return [`You and ${npc.name} are wed — parting is no longer so simple a thing.`];
+      happy(-rng.randint(2, 6));
+      if (rng.random() < 0.45) { npc.role = "enemy"; delete npc.kin; adj(-rng.randint(20, 40)); return [`You break it off with ${npc.name}. They do not take it kindly — a sweetheart becomes a foe.`]; }
+      npc.role = "friend"; npc.affinity = clampN(Math.min(npc.affinity, 20), -100, 100);
+      return [`You gently end your courtship with ${npc.name}. The romance fades, though a wary friendship remains.`];
+    }
+    case "expel": {
+      if (npc.role !== "disciple") return ["They are not your disciple to expel."];
+      npc.role = "enemy"; npc.resides = false; delete npc.kin; adj(-rng.randint(15, 30)); happy(-2);
+      note(c, `Expelled ${npc.name} from the sect.`);
+      return [`You strike ${npc.name}'s name from the rolls and cast them out. A disgraced disciple seldom forgives — you have made an enemy.`];
+    }
     case "reconcile":
       if (rng.random() < 0.35 + c.charm / 300) { npc.role = "friend"; npc.affinity = 15; return [`Against all odds, ${npc.name} accepts your olive branch. Enemy becomes friend.`]; }
       adj(-3); return [`${npc.name} spits at your feet. Some grudges do not heal.`];

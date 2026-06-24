@@ -486,39 +486,131 @@ export function advanceNpc(npc, rng) {
   return broke ? "realm" : "stage";
 }
 
-/* ------------------------- the Heaven Board (天骄榜) ---------------------- */
-// A roster of the era's young geniuses — high-talent NPC cultivators you are
-// ranked against by raw power. They advance (and die) like any cultivator.
+/* --------------------- the realm's NPC population ------------------------ */
+// The world is peopled by a population of NPC cultivators, generated once when
+// the realm is born. They dwell in its cities, towns and villages, fill the six
+// great sects from Sect Master down to outer disciple, and the strongest among
+// them are crowned the era's geniuses on the Heaven Board (天骄榜). Each is a
+// full cultivator (root, realm, techniques, power) with an age and a lifespan,
+// and each climbs — and dies — on their own merits, whether or not you awaken.
 const GENIUS_TITLES = ["the Sword Prodigy", "the Jade Phoenix", "the Young Patriarch", "the Frostfire Genius",
   "the Heaven's Pride", "the Demon-Slayer", "the Cloud Walker", "the Thunder Scion", "the Peerless Maiden",
   "the Dao Child", "the Blood Marquis", "the Azure Dragon", "the Starpicker", "the Undying Youth"];
-// A genius exists on their own terms — an absolute realm, not scaled to the player.
+const NPC_ROOT_POOL = ["quad", "triple", "triple", "dual", "dual", "heavenly", "variant"];
+
+// One realm denizen: a full cultivator with a home (a location id) and, often, a
+// sect rank. opts may pin realm/power/age/sect/title/home/rootPool/role.
+function makeWorldNpc(rng, opts = {}) {
+  const rootKey = opts.rootKey || rng.choice(opts.rootPool || NPC_ROOT_POOL);
+  const npc = {
+    name: npcName(rng), role: opts.role || "world", alive: true, affinity: 0,
+    geno: Object.assign(rollGenome(rng), { rootKey }),
+    home: opts.home != null ? opts.home : null,
+  };
+  if (opts.sectKey) { npc.sectKey = opts.sectKey; npc.sectRank = opts.sectRank || 0; }
+  if (opts.title) npc.title = opts.title;
+  return ensureNpcProfile(npc, rng, { realm: opts.realm, power: opts.power, age: opts.age });
+}
+// A standalone genius for the Heaven Board's rising newcomers (no fixed home).
 function makeGenius(rng, realm) {
   const rootKey = rng.choice(["triple", "dual", "dual", "heavenly", "heavenly", "variant", "quad", "chaos"]);
   const r = realm != null ? realm : rng.choices([2, 3, 4, 5, 6, 7], [24, 28, 22, 14, 8, 4]);
-  const g = { name: npcName(rng), role: "genius", alive: true, affinity: 0, geno: Object.assign(rollGenome(rng), { rootKey }), title: rng.choice(GENIUS_TITLES) };
-  return ensureNpcProfile(g, rng, { realm: r });
+  return makeWorldNpc(rng, { rootKey, realm: r, role: "genius", title: rng.choice(GENIUS_TITLES) });
 }
-// The era's roll of foremost young cultivators — generated and ranked on their
-// own merits, existing whether or not the player ever awakens a root.
-export function generateRankboard(rng, size = 12) {
-  const board = [];
-  for (let i = 0; i < size; i++) board.push(makeGenius(rng));
-  return board;
+// Title the strongest as-yet-untitled cultivators, so the Heaven Board always
+// has named stars at its head however the population shifts over the years.
+function crownGeniuses(rng, pop) {
+  const taken = new Set(pop.filter(n => n.title).map(n => n.title));
+  const free = GENIUS_TITLES.filter(t => !taken.has(t));
+  if (!free.length) return;
+  const rising = pop.filter(n => n.alive && !n.title).sort((a, b) => (b.power || 0) - (a.power || 0));
+  for (let i = 0; i < rising.length && free.length; i++) rising[i].title = free.shift();
 }
-// Advance the board a year; replace any who die of old age with rising newcomers.
-export function ageRankboard(c, rng) {
-  if (!c.rankboard) return;
-  for (let i = 0; i < c.rankboard.length; i++) {
-    const g = c.rankboard[i];
-    advanceNpc(g, rng);
-    if (g.age != null) { g.age += 1; if (g.age > g.maxAge) c.rankboard[i] = makeGenius(rng, rng.randint(2, 3)); }   // a young star rises
+// People a freshly generated world: fill its sects top to bottom, scatter rogue
+// cultivators through its settlements (the deadlier the land, the stronger they
+// run), and add a few unaffiliated wanderers. Returns a flat array of NPCs.
+export function generatePopulation(rng, world) {
+  const pop = [];
+  const locs = (world && world.locations) || [];
+  const dangerIdx = loc => Math.max(0, D.REGIONS.findIndex(r => r[0] === (loc && loc.biome)));
+  // The six great sects, seated on the map, each filled from the top down.
+  for (const sect of D.SECTS) {
+    const key = sect[0];
+    const seat = locs.find(l => l.sectKey === key);
+    if (!seat) continue;
+    const tier = sect[4] || 1;                                       // 1..4 — a sect's might
+    const masterRealm = Math.min(D.REALMS.length - 1, 6 + tier);
+    pop.push(makeWorldNpc(rng, { home: seat.id, sectKey: key, sectRank: 5, role: "sectmaster",
+      title: "Sect Master", realm: masterRealm, age: rng.randint(120, 320) }));
+    const elders = 4 + (tier >= 3 ? 2 : 0);
+    for (let i = 0; i < elders; i++)
+      pop.push(makeWorldNpc(rng, { home: seat.id, sectKey: key, sectRank: i === 0 ? 4 : 3, role: "elder",
+        title: i === 0 ? "Grand Elder" : "Elder", realm: Math.max(4, masterRealm - rng.randint(1, 3)) }));
+    const disciples = 22 + tier * 8;
+    for (let i = 0; i < disciples; i++)
+      pop.push(makeWorldNpc(rng, { home: seat.id, sectKey: key, sectRank: rng.randint(0, 2), role: "disciple",
+        realm: Math.max(1, masterRealm - rng.randint(3, 6)), age: rng.randint(16, 60) }));
+  }
+  // Rogue cultivators dwelling in each settlement (the more populous the place,
+  // the denser its cultivators; the deadlier the land, the harder they run).
+  for (const loc of locs) {
+    const t = World.LOC_TYPES[loc.type];
+    if (!t || !t.settle || loc.sectKey) continue;
+    const di = dangerIdx(loc), n = (t.npc || 1) * 6 + rng.randint(0, 4);
+    for (let i = 0; i < n; i++)
+      pop.push(makeWorldNpc(rng, { home: loc.id, role: "rogue",
+        realm: clamp(1 + di + rng.randint(0, 2), 0, D.REALMS.length - 1),
+        rootPool: ["waste", "quad", "quad", "triple", "triple", "dual"] }));
+  }
+  // Unaffiliated wanderers of real strength — the era's loose stars.
+  for (let i = 0; i < 16; i++) {
+    const loc = locs.length ? rng.choice(locs) : null;
+    pop.push(makeWorldNpc(rng, { home: loc ? loc.id : null, role: "genius",
+      realm: rng.choices([3, 4, 5, 6], [30, 30, 25, 15]) }));
+  }
+  crownGeniuses(rng, pop);
+  return pop;
+}
+// Make sure a world carries its population (generating one for older saves).
+export function ensurePopulation(c, rng) {
+  if (c.world && (!Array.isArray(c.world.npcs) || !c.world.npcs.length)) {
+    c.world.npcs = generatePopulation(rng, c.world);
+    delete c.rankboard;                                              // legacy field, now subsumed
   }
 }
-// Everyone on the board plus you, sorted by power (desc). Returns {ranked, you}.
-export function rankboardStanding(c) {
+// Succeed a fallen denizen: a sect figure is replaced within their own ranks; a
+// free cultivator gives way to a rising young star.
+function makeReplacement(rng, dead) {
+  if (dead.sectKey) {
+    const tier = (D.SECT_BY_KEY[dead.sectKey] || [])[4] || 1;
+    const realm = dead.sectRank >= 5 ? Math.min(D.REALMS.length - 1, 6 + tier)
+      : Math.max(1, (dead.realm || 4) - rng.randint(0, 2));
+    return makeWorldNpc(rng, { home: dead.home, sectKey: dead.sectKey, sectRank: dead.sectRank,
+      role: dead.role, title: dead.sectRank >= 3 ? dead.title : null, realm,
+      age: dead.sectRank >= 4 ? rng.randint(110, 240) : rng.randint(16, 60) });
+  }
+  return makeGenius(rng, rng.randint(2, 3));
+}
+// Advance the whole population a year: each cultivator climbs their own road, and
+// any who die of old age are succeeded by a newcomer in their place.
+export function agePopulation(c, rng) {
+  const pop = c.world && c.world.npcs;
+  if (!Array.isArray(pop)) return;
+  for (let i = 0; i < pop.length; i++) {
+    const n = pop[i];
+    if (!n || !n.alive) continue;
+    advanceNpc(n, rng);
+    if (n.age != null) { n.age += 1; if (n.age > n.maxAge) { n.alive = false; pop[i] = makeReplacement(rng, n); } }
+  }
+  crownGeniuses(rng, pop);
+}
+// The Heaven Board: the realm's foremost living cultivators by raw power, plus
+// you, sorted descending. Returns { ranked, rank, total }.
+export function rankboardStanding(c, size = 14) {
+  const pop = ((c.world && c.world.npcs) || []).filter(n => n && n.alive);
+  const board = pop.sort((a, b) => (b.power || npcPower(b)) - (a.power || npcPower(a))).slice(0, size);
   const me = { name: c.name, you: true, power: power(c), realm: c.realm, title: "you" };
-  const ranked = [...(c.rankboard || []).map(g => ({ name: g.name, power: g.power || npcPower(g), realm: g.realm, title: g.title, ref: g })), me]
+  const ranked = [...board.map(g => ({ name: g.name, power: g.power || npcPower(g), realm: g.realm, title: g.title || "a rising cultivator", age: g.age, ref: g })), me]
     .sort((a, b) => b.power - a.power);
   return { ranked, rank: ranked.findIndex(x => x.you) + 1, total: ranked.length };
 }
@@ -1498,8 +1590,20 @@ export function exchangeContribution(c, rng) {
 function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 // The stable notable figures of a named world sect — its Sect Master and Elders —
 // so a sect's leadership reads the same each time you look upon its hierarchy.
-export function sectFigures(sectKey) {
+export function sectFigures(sectKey, c) {
   const sect = D.SECT_BY_KEY[sectKey]; if (!sect) return null;
+  // Prefer the living members of the actual world population.
+  const pop = c && c.world && Array.isArray(c.world.npcs) ? c.world.npcs : null;
+  if (pop) {
+    const members = pop.filter(n => n.alive && n.sectKey === sectKey)
+      .sort((a, b) => (b.sectRank || 0) - (a.sectRank || 0) || (b.power || 0) - (a.power || 0));
+    if (members.length) {
+      const master = members[0];
+      const elders = members.filter(n => n !== master && (n.sectRank || 0) >= 3).slice(0, 3)
+        .map(e => ({ name: e.name, realm: e.realm, title: (e.sectRank || 0) >= 4 ? "Grand Elder" : "Elder" }));
+      return { master: { name: master.name, realm: master.realm, title: "Sect Master" }, elders };
+    }
+  }
   const rng = new RNG(hashStr("figures:" + sectKey));
   const baseRealm = Math.min(D.REALMS.length - 1, 5 + (sect[4] || 1));
   const master = { name: npcName(rng), realm: baseRealm, title: "Sect Master" };
@@ -1790,10 +1894,12 @@ function interactNpc(c, npc, rng) {
   }
 }
 function withMaster(c, npc, rng) {
+  ensureNpcProfile(npc, rng);   // the master teaches only from their own repertoire
   adjust(npc, rng.randint(2, 6));
   const msgs = [`You attend on your master, ${npc.name} (${npcStatus(npc)}).`];
+  const teachable = (npc.techniques || []).filter(k => k !== "basic_breathing" && !c.techniques.includes(k));
   if (npc.affinity > 40 && rng.random() < 0.5) { const g = rng.randint(2, 7); c.comprehension = Math.min(160, c.comprehension + g); msgs.push(`  Their pointers sharpen your insight. (+${g} comprehension)`); }
-  else if (rng.random() < 0.35) { const unknown = Object.keys(D.TECHNIQUES).filter(k => !c.techniques.includes(k)); if (unknown.length) { const t = rng.choice(unknown); c.techniques.push(t); msgs.push(`  Master imparts a manual: ${D.TECHNIQUES[t][0]}!`); } }
+  else if (teachable.length && rng.random() < 0.35) { const t = rng.choice(teachable); c.techniques.push(t); msgs.push(`  Master imparts one of their own arts: ${D.TECHNIQUES[t][0]}!`); }
   else { c.qi += qiToNext(c) * rng.uniform(0.2, 0.5); msgs.push("  Guided meditation under their eye refines your qi."); }
   return msgs;
 }
