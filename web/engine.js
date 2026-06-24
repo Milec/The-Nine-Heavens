@@ -504,6 +504,7 @@ function makeWorldNpc(rng, opts = {}) {
   const rootKey = opts.rootKey || rng.choice(opts.rootPool || NPC_ROOT_POOL);
   const npc = {
     name: npcName(rng), role: opts.role || "world", alive: true, affinity: 0,
+    sex: opts.sex || (rng.random() < 0.5 ? "female" : "male"),
     geno: Object.assign(rollGenome(rng), { rootKey }),
     home: opts.home != null ? opts.home : null,
   };
@@ -605,14 +606,17 @@ export function agePopulation(c, rng) {
   crownGeniuses(rng, pop);
 }
 // The Heaven Board: the realm's foremost living cultivators by raw power, plus
-// you, sorted descending. Returns { ranked, rank, total }.
+// you. Returns { ranked, rank, total } for the board, and { worldRank, worldTotal }
+// for your true standing among every living cultivator of the realm.
 export function rankboardStanding(c, size = 14) {
   const pop = ((c.world && c.world.npcs) || []).filter(n => n && n.alive);
-  const board = pop.sort((a, b) => (b.power || npcPower(b)) - (a.power || npcPower(a))).slice(0, size);
-  const me = { name: c.name, you: true, power: power(c), realm: c.realm, title: "you" };
+  const myPower = power(c);
+  const board = pop.slice().sort((a, b) => (b.power || npcPower(b)) - (a.power || npcPower(a))).slice(0, size);
+  const me = { name: c.name, you: true, power: myPower, realm: c.realm, title: "you" };
   const ranked = [...board.map(g => ({ name: g.name, power: g.power || npcPower(g), realm: g.realm, title: g.title || "a rising cultivator", age: g.age, ref: g })), me]
     .sort((a, b) => b.power - a.power);
-  return { ranked, rank: ranked.findIndex(x => x.you) + 1, total: ranked.length };
+  const stronger = pop.reduce((n, g) => n + ((g.power || npcPower(g)) > myPower ? 1 : 0), 0);
+  return { ranked, rank: ranked.findIndex(x => x.you) + 1, total: ranked.length, worldRank: stronger + 1, worldTotal: pop.length + 1 };
 }
 export function reincarnate(old, rng, name) {
   const c = generateCharacter(rng, name);

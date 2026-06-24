@@ -504,9 +504,10 @@ function openRankboard() {
   const c = state.c;
   E.ensurePopulation(c, state.rng);
   openOverlay("Heaven Board 天骄榜", body => {
-    const { ranked, rank, total } = E.rankboardStanding(c);
-    const last = rank === total;
-    const standing = last ? `You do not yet rank among them — you stand <b>last, #${rank} of ${total}</b>` : `You stand <b>#${rank} of ${total}</b>`;
+    const { ranked, rank, total, worldRank, worldTotal } = E.rankboardStanding(c);
+    const onBoard = rank < total;
+    const standing = `Among the realm's <b>${worldTotal}</b> living cultivators you stand <b>#${worldRank}</b>` +
+      (onBoard ? `, and <b>#${rank}</b> on the board itself` : " — not yet among the board's elite");
     body.appendChild(el("p", "note", `The roll of the realm's foremost cultivators, ranked by raw power — drawn from the great sects and the wider world, climbing their own roads whether or not you ever awaken. ${standing}. Climb it by out-cultivating them; challenge a rival above you to test yourself — win and your renown soars, lose and it dims.`));
     ranked.forEach((x, i) => {
       const row = el("div", "listrow" + (x.you ? " bound" : ""));
@@ -1024,7 +1025,7 @@ function actWorld() {
   const c = state.c;
   openOverlay("The Wider World", body => {
     const g = leafGrid(body);
-    g.mk("The Heaven Board", "天骄榜 · the era's geniuses", openRankboard, { full: true, disabled: !c.awakened });
+    g.mk("The Heaven Board", "天骄榜 · the realm's strongest", openRankboard, { full: true, disabled: !c.awakened });
     g.mk("Achievements & Legacy", "feats across all your lives", () => openAchievements(actWorld), { full: true });
     backBtn(body, openActivities);
   });
@@ -1283,8 +1284,10 @@ function openLocationCard(id) {
     const denizens = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.home === id)
       .sort((a, b) => (b.power || 0) - (a.power || 0));
     if (denizens.length) {
-      body.appendChild(el("div", "section-h", loc.sectKey ? `The ${D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0]}` : "Cultivators Dwelling Here"));
+      const hdr = loc.sectKey ? `The ${D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0]} · ${denizens.length}` : `Cultivators Dwelling Here · ${denizens.length}`;
+      body.appendChild(el("div", "section-h", hdr));
       denizens.slice(0, 12).forEach(n => body.appendChild(denizenRow(n)));
+      if (denizens.length > 12) body.appendChild(el("p", "note", `…and ${denizens.length - 12} more ${loc.sectKey ? "disciples throng its halls" : "make their home here"}.`));
     }
     if (id === c.location) {
       body.appendChild(el("p", "note", "✦ You are here."));
@@ -1640,7 +1643,10 @@ function openSect() {
     body.appendChild(el("div", "section-h", "Hierarchy 品级"));
     renderRankLadder(c, body);
     const fig = E.sectFigures(c.sectKey, c);
-    if (fig) body.appendChild(el("p", "note", `Above you stand Sect Master <b>${escapeHtml(fig.master.name)}</b> (${D.REALMS[fig.master.realm][0]}), and the elders ${fig.elders.map(e => `${escapeHtml(e.name)} (${e.title})`).join(", ")}.`));
+    if (fig) {
+      const strength = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.sectKey === c.sectKey).length;
+      body.appendChild(el("p", "note", `Above you stand Sect Master <b>${escapeHtml(fig.master.name)}</b> (${D.REALMS[fig.master.realm][0]}), and the elders ${fig.elders.map(e => `${escapeHtml(e.name)} (${e.title})`).join(", ")}.${strength ? ` Some <b>${strength}</b> disciples and elders fill its halls in all.` : ""}`));
+    }
     // ---- promotion status ----
     const req = E.nextRankReq(c);
     if (req) {

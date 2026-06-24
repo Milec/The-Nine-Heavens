@@ -161,7 +161,7 @@ function generateFamily(c, rng) {
     c.relationships.push(newKin("Mother", prof[1], Math.max(0, prof[2] - 1), rng.randint(60, 85)));
   }
   if (rng.random() < 0.45) {
-    const sib = newKin(rng.random() < 0.5 ? "Brother" : "Sister", "a fellow child", 0, rng.randint(40, 70));
+    const sib = newKin(rng.random() < 0.5 ? "Brother" : "Sister", null, 0, rng.randint(40, 70));
     c.relationships.push(sib);
   }
 }
