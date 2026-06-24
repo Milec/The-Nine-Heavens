@@ -227,7 +227,12 @@ export function marry(c, npc, rng) {
   if (n >= 3) { c.titles = c.titles.filter(t => !/^Harem of/.test(t)); c.titles.push(`Harem of ${n}`); }
   note(c, `Wed ${npc.name}${n > 1 ? ` (now ${n} dao companions)` : ""}.`);
   const others = n > 1 ? ` Your other ${n - 1} dao companion${n - 1 > 1 ? "s" : ""} look on — some glowing with joy, some with a flicker of jealousy.` : "";
-  return [`✦ Beneath a blood-red moon, you and ${npc.name} pledge to walk the long road to immortality together — wed at last, ${npc.kin.toLowerCase()} and spouse.${others}`];
+  const out = [`✦ Beneath a blood-red moon, you and ${npc.name} pledge to walk the long road to immortality together — wed at last, ${npc.kin.toLowerCase()} and spouse.${others}`];
+  // The heavens are jealous of a love too deep; a great bond can invite a love
+  // tribulation. Arms the Star-Crossed Love arc (only from Foundation up).
+  if (c.realm >= 2 && E.armArc(c, "tragedy", rng, 0.25))
+    out.push("As you pledge your hearts, a chill crosses the moon, and for an instant the whole world seems to hold its breath — as though something vast had taken notice of your happiness.");
+  return out;
 }
 
 // Grown children who could carry on the bloodline if you die.
@@ -839,7 +844,12 @@ export function foundSect(c, rng, name) {
   c.reputation += 10;
   if (!c.titles.includes("Founder")) c.titles.push("Founder");
   note(c, `Founded the ${sectName} (${alignment}), seated at your abode.`);
-  return [`✦ You raise your banner and found the ${sectName}! Your cave abode becomes its mountain seat. Disciples will gather to your name — the sect will rise, or fall, with you.`];
+  const out = [`✦ You raise your banner and found the ${sectName}! Your cave abode becomes its mountain seat. Disciples will gather to your name — the sect will rise, or fall, with you.`];
+  // The weight of leading a power tempts even the upright toward forbidden
+  // shortcuts — and a demonic banner all the more. Arms the Demon-Path arc.
+  if (E.armArc(c, "demonpath", rng, alignment === "demonic" ? 0.6 : 0.12 - c.karma / 600))
+    out.push("That first night beneath your own banner, a cold thought visits you unbidden: how much faster the sect would rise, if you were willing to pay in blood...");
+  return out;
 }
 
 // The sect's quiet year: it recruits toward its seat's capacity, gains prestige

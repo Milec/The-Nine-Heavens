@@ -2412,7 +2412,13 @@ function tourneyEnd(placement, won) {
   for (const [cut, name] of D.TOURNAMENT_TITLES) if (placement <= cut) { title = name; break; }
   const lines = [`The tournament ends — you place in the top ${Math.max(1, placement)}.`,
     `Rewards: +${contribution} contribution, +${rep} reputation, +${stones} spirit stones.`];
-  if (placement === 1) { c.pills += 3; lines.push("As Champion you are awarded a Foundation Pill and 3 pills!"); }
+  if (placement === 1) {
+    c.pills += 3; lines.push("As Champion you are awarded a Foundation Pill and 3 pills!");
+    // Crowned champion, you taste how sweet victory is — and how much sweeter
+    // forbidden power would be. Arms the Demon-Path arc (the lure of the shortcut).
+    if (c.realm >= 3 && E.armArc(c, "demonpath", rng, 0.18))
+      lines.push("Flush with triumph, an ugly little thought takes root: that there are faster roads to power than this, for those willing to walk them.");
+  }
   if (title) {
     const h = `Tournament ${title}`;
     if (!c.titles.includes(h)) c.titles.push(h);

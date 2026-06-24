@@ -611,6 +611,57 @@ function testTriggeredArcs() {
     }
     assert(seeded, "a past life's deepest bond can be reborn into the next life");
   }
+
+  // Demon-Path: armed by the lure of power → embrace → feed → become a Demon Sovereign.
+  { const { c, rng } = mk(30); const A = api(c, rng); E.armArc(c, "demonpath", rng, 1); c.karma = -20;
+    assert(ev("demonpath_start").cond(c), "an armed Demon-Path opener is eligible");
+    choose(c, rng, A, "demonpath_start", 0); assert(Ev.arcStage(c, "demonpath") === 1, "embracing the demonic path begins the fall");
+    c.age += 2; const k = c.karma; choose(c, rng, A, "demonpath_deepen", 0); assert(Ev.arcStage(c, "demonpath") === 2 && c.karma < k, "feeding the hunger deepens the corruption");
+    c.age += 2; choose(c, rng, A, "demonpath_climax", 0);
+    assert(Ev.arcStage(c, "demonpath") === 99 && c.techniques.includes("bloodcult_sea"), "a full fall makes you a Demon Sovereign");
+  }
+  // Blood-Lineage: armed by a first Foundation breakthrough → awaken an ancestral physique.
+  { const { c, rng } = mk(31); const A = api(c, rng); c.constitution = 120; E.armArc(c, "bloodline", rng, 1);
+    assert(ev("bloodline_start").cond(c), "an armed Blood-Lineage opener is eligible");
+    choose(c, rng, A, "bloodline_start", 0); assert(Ev.arcStage(c, "bloodline") === 1, "delving the blood begins the awakening");
+    c.age += 2; choose(c, rng, A, "bloodline_trial", 1); assert(Ev.arcStage(c, "bloodline") === 2, "the blood-trial advances the arc");
+    const conBefore = c.constitution; c.age += 2; choose(c, rng, A, "bloodline_climax", 0);
+    assert(Ev.arcStage(c, "bloodline") === 99 && c.constitution > conBefore, "the awakening reforges a mightier body");
+  }
+  // A first Foundation breakthrough can arm the Blood-Lineage arc.
+  { let armed = false;
+    for (let s = 0; s < 30 && !armed; s++) {
+      const rng = new E.RNG(800 + s); const c = L.bornCharacter(rng, "B", null);
+      c.realm = 2; c.stage = D.REALMS[2][2] - 1; c.awakened = true; c.constitution = 140;
+      c.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Earth"], comprehensionBonus: 0, display: "H" };
+      c.qi = E.qiToNext(c) * 2; E.attemptBreakthrough(c, rng, { deferTribulation: true });
+      if (E.arcArmed(c, "bloodline") || (c.arcs && c.arcs.bloodline)) armed = true;
+    }
+    assert(armed, "a first Foundation breakthrough can stir an ancestral bloodline");
+  }
+  // Star-Crossed Love: armed by marriage → the love-tribulation can take a beloved.
+  { const { c, rng } = mk(32); const A = api(c, rng);
+    const spouse = { name: "Yun", role: "companion", kin: "Wife", married: true, affinity: 90, alive: true, sex: "female", power: 1 };
+    c.relationships.push(spouse); E.armArc(c, "tragedy", rng, 1);
+    assert(ev("tragedy_start").cond(c), "marriage + an armed omen makes the love-tribulation eligible");
+    choose(c, rng, A, "tragedy_start", 0); assert(Ev.arcStage(c, "tragedy") === 1, "vowing to protect begins the arc");
+    c.age += 2; assert(ev("tragedy_crisis").cond(c), "the crisis comes due while the spouse lives");
+    choose(c, rng, A, "tragedy_crisis", 1);   // let them go
+    assert(Ev.arcStage(c, "tragedy") === 99 && !spouse.alive, "letting go costs the beloved their life");
+    // A lost, deeply-loved spouse can be reborn next life (arcs interlink).
+    c.realm = 6; const next = L.reincarnateLife(c, rng, "Next");
+    assert(next.rebornBond === null || next.rebornBond.kind === "love" || next.rebornBond.kind === "foe", "a tragic loss feeds the reborn-bond system cleanly");
+  }
+  // Marriage at Foundation+ can arm the love-tribulation.
+  { let armed = false;
+    for (let s = 0; s < 30 && !armed; s++) {
+      const rng = new E.RNG(900 + s); const c = L.bornCharacter(rng, "M", null); c.realm = 3; c.awakened = true;
+      const sp = { name: "Lei", role: "companion", affinity: 80, alive: true, sex: "male", power: 1 };
+      c.relationships.push(sp); L.marry(c, sp, rng);
+      if (E.arcArmed(c, "tragedy")) armed = true;
+    }
+    assert(armed, "a Foundation+ marriage can invite a love-tribulation");
+  }
 }
 
 /* ------------------------------- runner ---------------------------------- */

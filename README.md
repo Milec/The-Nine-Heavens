@@ -60,10 +60,16 @@ your body that you must one day wrestle for your very soul. Rise to standing in 
 or neutrality in a years-long power struggle settled in blood. And the wheel of
 rebirth keeps its own bonds: a soul you loved or warred with most fiercely may be
 **reborn alongside you (夙世之缘)**, a stranger's face that stops you cold with a
-grief or a hatred not from this life — to rekindle, or to lay to rest. Every arc
-is gated to a fitting age and realm, and triggers where it makes sense — found at
-random when the time is right, or set in motion by your own deeds, by chance or
-by certainty. Within each year you may perform a few **deeds** — use
+grief or a hatred not from this life — to rekindle, or to lay to rest. And your deeds keep planting seeds that bloom years later: a first **Foundation
+breakthrough** can stir a sleeping **ancestral bloodline (血脉觉醒)** in the strong
+of body, a path of remade flesh; **founding a sect** or being crowned **tournament
+champion** can whisper you onto the **demon path (入魔)**, a slow fall toward
+devilhood — or a hard, scarring turn back; and a **marriage** too deep can invite
+a **love-tribulation (情劫)**, the jealous heavens striking at the one you love,
+to be defied at ruinous cost or grieved and survived (a beloved lost this way may
+yet be reborn alongside you, lifetimes hence). Every arc is gated to a fitting age
+and realm, and triggers where it makes sense — found at random when the time is
+right, or set in motion by your own deeds, by chance or by certainty. Within each year you may perform a few **deeds** — use
 the tabs to **Cultivate** (seclusion, breakthroughs, the Dao), tend
 **Relationships** (family, masters, rivals, dao companions, even children of
 your own), pursue **Activities** (train, study, rest, alchemy, adventure), and

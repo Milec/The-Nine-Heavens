@@ -1043,7 +1043,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: "qi_deviation", weight: 5, minAge: 14, maxAge: 9000, awakened: true, minRealm: 1, cond: c => c.root.key !== "none",
+    id: "reckless_cultivation", weight: 5, minAge: 14, maxAge: 9000, awakened: true, minRealm: 1, cond: c => c.root.key !== "none",
     text: () => "Greedy for faster progress, you drive a dangerous high-speed cultivation method through the night.",
     choices: [
       { label: "Force on through the danger", result: (c, rng, A) => { if (rng.random() < 0.45 + c.soul / 250) { A.qi(0.7); A.happy(4); return "You ride the surging qi to the very edge and back. A reckless gamble — and this time it pays. (qi surges)"; } A.heal(-18); A.qi(-0.3); A.happy(-6); return "Your meridians rebel; qi tears loose and you cough blood for a week. The dao is no place for greed. (-Health, qi lost)"; } },
@@ -1668,6 +1668,138 @@ export const EVENTS = [
         c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 5); cap(c, "soul", 2);
         if (love) { A.happy(-3); return ["You close your hand around the ache and let them pass, a stranger to a stranger. Some loves are meant for one life only; carrying them into the next is a weight no soul should bear. You walk on, lighter and emptier both. (+Dao Heart, +Soul)"]; }
         A.karma(6); return ["You unclench your fist and let the nameless hatred drain out of you. Whatever was between you belonged to two people who are both long dead. You give the stranger a small nod and walk away, a lifetime's grudge finally laid down. (+Karma, +Dao Heart)"];
+      } },
+    ],
+  },
+
+  // — The Demon-Path Corruption (入魔) — armed by the lure of power (founding a
+  //   sect, a tournament crown); a slow fall toward devilhood, or a hard turn back.
+  {
+    id: "demonpath_start", arc: true, weight: 40, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "demonpath") === 0 && E.arcArmed(c, "demonpath"),
+    speaker: () => "The Whisper of the Shortcut",
+    text: () => "The thought has been with you for months now, and tonight it has a voice. A forbidden manual all but falls into your hands — blood-script that promises in a decade what the orthodox road grudges over centuries. The price is written plainly, and plainly you have stopped caring. Or have you?",
+    choices: [
+      { label: "Open the manual. Embrace the demonic path", result: (c, rng, A) => { E.disarmArc(c, "demonpath"); arcSet(c, "demonpath", 1, { path: "fallen" }); A.karma(-15); A.qi(0.8); if (!c.techniques.includes("blood_refine")) c.techniques.push("blood_refine"); A.note("Began walking the demonic path."); return ["You break the seal and read by your own qi-light until dawn. Cold power answers, swift and sweet and hungry, and the first forbidden art carves itself into your meridians. The road bends downward now — and downward is so much faster. (+qi, learned a blood-art, −Karma)"]; } },
+      { label: "Burn it, and purge the temptation from your heart", result: (c, rng, A) => { E.disarmArc(c, "demonpath"); arcSet(c, "demonpath", 99); A.karma(8); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); cap(c, "soul", 2); return ["You hold the manual over a flame and watch the blood-script writhe and blacken. The hunger in you howls — and then, slowly, quiets. You will walk the long road, the hard road, the only road that was ever truly yours. (+Karma, +Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "demonpath_deepen", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "demonpath") === 1 && arcYears(c, "demonpath") >= 2,
+    text: () => "The blood-art has grown in you, and now it makes its first true demand: it is hungry, and only the qi and blood of others will feed it. A caravan of mortal cultivators camps in the valley below, unguarded. The hunger coils, and waits to see what you are.",
+    choices: [
+      { label: "Feed the hunger — take what it craves", result: (c, rng, A) => { arcSet(c, "demonpath", 2, { path: "deep" }); A.karma(-25); A.qi(1.1); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); c.reputation = Math.max(-200, c.reputation - 6); A.note("Fed the demonic hunger on the innocent."); return ["You descend on the camp like a red wind, and rise from it gorged, your cultivation surging on stolen life. It is monstrous. It is intoxicating. Something in you that used to flinch has stopped flinching. (+++qi, −−Karma, −Dao Heart, infamy)"]; } },
+      { label: "Master the hunger — feed it only your own discipline", result: (c, rng, A) => { arcSet(c, "demonpath", 2, { path: "controlled" }); A.qi(0.4); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 4); cap(c, "soul", 2); return ["You turn from the valley and wrestle the hunger down, feeding it only on your own will and pain. It is slower this way, and it hurts in ways orthodox cultivation never did — but the people in the valley below wake to an ordinary dawn, and never know how close it came. (+qi, +Dao Heart, +Soul)"]; } },
+    ],
+  },
+  {
+    id: "demonpath_climax", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "demonpath") === 2 && arcYears(c, "demonpath") >= 2,
+    speaker: () => "The Devil in the Mirror",
+    text: () => "The demonic art reaches its threshold, and demands you choose what you have become. The power is vast now — vaster than any orthodox peer your age — and it asks only that you let go of the last thing holding you back: the self you were before.",
+    choices: [
+      { label: "Seize it all — become a Demon Sovereign", result: (c, rng, A) => {
+        arcSet(c, "demonpath", 99); A.karma(-30); A.qi(1.4); c.reputation = Math.max(-200, c.reputation - 10);
+        if (!c.techniques.includes("bloodcult_sea")) c.techniques.push("bloodcult_sea");
+        cap(c, "comprehension", 3); A.note("Fell fully to the demonic path and rose a Demon Sovereign.");
+        return ["You let the last of the old you burn away, and what stands when the smoke clears is something the righteous world will learn to fear. Devil-qi crowns you. You have become a Demon Sovereign — terrible, free, and utterly alone at the summit of a red mountain. (+++qi, a supreme blood-art, deep infamy)"]
+          .concat(E.maybeAwardEpithet(c, rng, { base: 0.6 }));
+      } },
+      { label: "Turn back — reclaim your humanity at the last", result: (c, rng, A) => {
+        arcSet(c, "demonpath", 99);
+        const can = (c.daoHeart || 0) >= 30 || (c.arcs.demonpath && c.arcs.demonpath.path === "controlled");
+        if (can || rng.random() < 0.35 + c.soul / 400) { A.karma(15); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 10); cap(c, "comprehension", 2); A.note("Walked the demonic path and walked back out of it again."); return ["At the very threshold you stop, and look at what you are about to lose, and refuse. The turning-back is agony — you tear the demonic art half out of your own soul — but you emerge scarred, lessened, and unmistakably still yourself. Few who walk this road ever walk back. (+Karma, +Dao Heart)"]; }
+        A.heal(-Math.round(c.maxHp * 0.4)); c.daoHeart = Math.max(0, (c.daoHeart || 0) - 8); c.soul = Math.max(1, c.soul - 5); c.stage = Math.max(0, c.stage - 1); return ["You try to turn back — and find the door already locked behind you. The demonic art will not be un-learned, and your half-hearted renunciation only tears you in two. You are neither devil nor the person you were, and the wound of it festers. (−Soul, −Dao Heart, slipped a stage)"];
+      } },
+    ],
+  },
+
+  // — The Blood-Lineage Awakening (血脉觉醒) — armed by a first Foundation
+  //   breakthrough in the strong of body; a path of ancestral flesh.
+  {
+    id: "bloodline_start", arc: true, weight: 40, minRealm: 3, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "bloodline") === 0 && E.arcArmed(c, "bloodline"),
+    text: () => "Ever since your breakthrough, something has been moving in your marrow — a heat, a pressure, a memory that is not yours. An old physician who reads your pulse goes wide-eyed: somewhere far up your bloodline ran the blood of something mighty, and your foundation has woken it. Left alone it will sleep again. Pursued, it could remake your very flesh.",
+    choices: [
+      { label: "Delve into the sleeping blood", result: (c, rng, A) => { E.disarmArc(c, "bloodline"); arcSet(c, "bloodline", 1); cap(c, "constitution", 3); A.note("Began awakening an ancestral bloodline."); return ["You sink your awareness down into your own marrow, chasing the heat to its source. It is like grasping a sleeping tiger by the tail — but you feel it stir, and answer, and begin, slowly, to wake. (+Constitution)"]; } },
+      { label: "Let the ancient blood lie still", result: (c, rng, A) => { E.disarmArc(c, "bloodline"); arcSet(c, "bloodline", 99); cap(c, "soul", 1); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); return ["Whatever your ancestors were, you will be yourself, by your own road. You let the heat in your marrow bank down to embers and turn back to your cultivation. (+Soul, +Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "bloodline_trial", arc: true, weight: 20, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "bloodline") === 1 && arcYears(c, "bloodline") >= 2,
+    text: () => "The ancestral blood wakes fully, and with it comes the Blood-Trial: a season of agony as your flesh tears itself apart and reforges in an older, mightier mold. It cannot be rushed without risk — nor refused now without leaving you half-made.",
+    choices: [
+      { label: "Force the awakening through in one burning push", result: (c, rng, A) => {
+        if (rng.random() < 0.35 + c.constitution / 250) { arcSet(c, "bloodline", 2, { path: "forced" }); c.temper = (c.temper || 0) + 60; cap(c, "constitution", 4); A.note("Forced the bloodline awakening."); return ["You drive the awakening through in a single screaming season, flesh and bone remaking in fire. You come out the far side monstrous and magnificent — and far stronger of body than you went in. (++Constitution, your body tempers)"]; }
+        A.heal(-Math.round(c.maxHp * 0.3)); c.constitution = Math.max(1, c.constitution - 2); arcSet(c, "bloodline", 2, { path: "scarred" }); return ["You push too hard, too fast; the reforging cracks where it should have flowed, and you barely hold yourself together. The awakening continues — but it will not be the clean ascension it could have been. (−health, −Constitution)"];
+      } },
+      { label: "Endure the reforging patiently, season by season", result: (c, rng, A) => { arcSet(c, "bloodline", 2, { path: "patient" }); c.temper = (c.temper || 0) + 30; cap(c, "constitution", 2); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); return ["You let the blood reforge you at its own pace, breathing through the agony one day at a time. Slow, sure, and whole. (+Constitution, your body tempers, +Dao Heart)"]; } },
+    ],
+  },
+  {
+    id: "bloodline_climax", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "bloodline") === 2 && arcYears(c, "bloodline") >= 2,
+    text: () => "The Blood-Lineage Awakening reaches its crown. Your flesh stands on the threshold of an ancestral physique — what your bloodline was, at its mightiest, you are about to become.",
+    choices: [
+      { label: "Complete the awakening", result: (c, rng, A) => {
+        arcSet(c, "bloodline", 99);
+        const strong = c.constitution >= 80 || (c.arcs.bloodline && c.arcs.bloodline.path !== "scarred");
+        if (strong) {
+          cap(c, "constitution", 8); c.temper = (c.temper || 0) + 80; if (!c.techniques.includes("vajra_body")) c.techniques.push("vajra_body");
+          E.recomputeMaxHp(c); A.note("Fully awakened an ancestral physique.");
+          return ["The last barrier shatters and the ancestral blood claims you wholly — your body remade into something out of legend, dense as a divine metal, deep as an old mountain. You stand in your own awakened flesh and feel, for the first time, what your bloodline was always meant to be. (+++Constitution, a body-art, your body surges)"]
+            .concat(E.maybeAwardEpithet(c, rng, { base: 0.5 }));
+        }
+        cap(c, "constitution", 3); c.temper = (c.temper || 0) + 30; E.recomputeMaxHp(c);
+        return ["The awakening completes, but imperfectly — your too-frail foundation could not hold the full inheritance, and much of the ancestral might slips away as it settles. You are stronger of body than you were, if less than you might have been. (+Constitution)"];
+      } },
+    ],
+  },
+
+  // — The Star-Crossed Love (情劫) — armed by marriage; the love-tribulation the
+  //   jealous heavens send against a bond too deep.
+  {
+    id: "tragedy_start", arc: true, weight: 40, minRealm: 2, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tragedy") === 0 && E.arcArmed(c, "tragedy") && (c.relationships || []).some(n => n.married && n.alive),
+    speaker: () => "An Ill Omen",
+    text: c => { const s = (c.relationships || []).find(n => n.married && n.alive); return `A blind fortune-teller seizes your wrist in the street and will not let go. "Your bond with ${s ? s.name : "your beloved"} burns too bright," they hiss, milky eyes rolling. "The heavens are jealous of such a love, and what the heavens envy, they break. A love-tribulation is coming for one of you. Guard your heart — and theirs."`; },
+    choices: [
+      { label: "Vow to shield them with your life", result: (c, rng, A) => { arcSet(c, "tragedy", 1, { path: "devoted" }); const s = (c.relationships || []).find(n => n.married && n.alive); if (s) s.affinity = clampN((s.affinity || 50) + 10, -100, 100); A.happy(3); return [`You go home and hold ${s ? s.name : "them"} a long time without explaining why. Whatever is coming, it will have to come through you first. (your bond deepens)`]; } },
+      { label: "Pull away, to make them a smaller target", result: (c, rng, A) => { arcSet(c, "tragedy", 1, { path: "distant" }); const s = (c.relationships || []).find(n => n.married && n.alive); if (s) s.affinity = clampN((s.affinity || 50) - 8, -100, 100); A.happy(-5); return [`You begin to put distance between you — cold words, long seclusions, a deliberate frost — praying that if the heavens cannot see your love, they cannot strike at it. It is its own kind of grief. (−Happiness, −the warmth between you)`]; } },
+    ],
+  },
+  {
+    id: "tragedy_moot", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tragedy") === 1 && !(c.relationships || []).some(n => n.married && n.alive),
+    auto: (c, rng, A) => { arcSet(c, "tragedy", 99); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 3); return "The love-tribulation you braced against never falls — for the love it was coming for is already gone, lost to the ordinary cruelties of a cultivator's life before the heavens could even take their due. Some griefs do not wait for prophecy."; },
+  },
+  {
+    id: "tragedy_crisis", arc: true, weight: 30, awakened: true, cooldown: 0,
+    cond: c => arcStage(c, "tragedy") === 1 && arcYears(c, "tragedy") >= 2 && (c.relationships || []).some(n => n.married && n.alive),
+    speaker: () => "The Tribulation Falls",
+    text: c => { const s = (c.relationships || []).find(n => n.married && n.alive); return `It comes without warning: ${s ? s.name : "your beloved"} is struck down — a stray bolt of a heavenly tribulation not even meant for them, drawn by the brightness of your shared bond. They are dying in your arms, and you have one desperate chance to defy heaven itself and pull them back.`; },
+    choices: [
+      { label: "Burn everything you are to save them", result: (c, rng, A) => {
+        arcSet(c, "tragedy", 99); const s = (c.relationships || []).find(n => n.married && n.alive);
+        const devoted = c.arcs.tragedy && c.arcs.tragedy.path === "devoted";
+        if (rng.random() < (devoted ? 0.7 : 0.5) + c.daoHeart / 400) {
+          c.qi = 0; c.stage = Math.max(0, c.stage - 1); A.heal(-Math.round(c.maxHp * 0.3)); c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 8); A.happy(6);
+          if (s) s.affinity = 100; A.note(`Defied the heavens and saved ${s ? s.name : "your beloved"}.`);
+          return [`You pour your own life and cultivation into them without a heartbeat's hesitation — years of progress, burned to embers to buy back one mortal span. And it works. ${s ? s.name : "Your love"} draws breath. You have spent a fortune of power and would spend it again a thousand times. Some things are worth more than the dao. (−cultivation, slipped a stage — but they live, +Dao Heart)`];
+        }
+        if (s) { s.alive = false; s.affinity = Math.max(s.affinity || 50, 90); }
+        c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 12); A.happy(-20); A.heal(-Math.round(c.maxHp * 0.4));
+        A.note(`${s ? s.name : "Your beloved"} died in the love-tribulation, despite everything.`);
+        return [`You give everything — and it is not enough. ${s ? s.name : "Your love"} goes still in your arms beneath an indifferent sky, and something in you closes like a fist and does not open again. You will carry this the rest of your immortal life. They say the deepest dao hearts are forged in the deepest grief. You would trade every shard of it to have them back. (a beloved lost — −Happiness, ++Dao Heart)`];
+      } },
+      { label: "Let them go, and survive to remember", result: (c, rng, A) => {
+        arcSet(c, "tragedy", 99); const s = (c.relationships || []).find(n => n.married && n.alive);
+        if (s) { s.alive = false; s.affinity = Math.max(s.affinity || 50, 85); }
+        c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + 6); A.happy(-16); cap(c, "soul", 3);
+        A.note(`Lost ${s ? s.name : "a beloved"} to a love-tribulation.`);
+        return [`You cannot burn your whole future on a battle you might lose — and you both know it. ${s ? s.name : "Your love"} presses your hand one last time, and smiles, and forgives you for the choice before you have even finished making it. Then they are gone. You walk on, intact and hollow, the dao a colder thing than it was. (a beloved lost — −Happiness, +Soul, +Dao Heart)`];
       } },
     ],
   },

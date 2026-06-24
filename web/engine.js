@@ -627,6 +627,10 @@ export function attemptBreakthrough(c, rng, opts = {}) {
     c.realm += 1; c.stage = 0; recomputeMaxAge(c); recomputeMaxHp(c); c.hp = c.maxHp;
     msgs.push(`☯ BREAKTHROUGH! You have ascended to ${realmLabel(c)}!`);
     note(c, `Broke through to ${realmName(c)}.`);
+    // Reaching Foundation can stir a latent ancestral bloodline in the strong of
+    // body — arming the Blood-Lineage Awakening arc (likelier the sturdier you are).
+    if (c.realm === 3 && armArc(c, "bloodline", rng, 0.18 + c.constitution / 400))
+      msgs.push("  Something deep in your marrow answers the breakthrough — an old, sleeping blood, stirring.");
     pushAll(msgs, maybeAwardEpithet(c, rng, { base: 0.3 }));
     pushAll(msgs, heartDemon(c, rng));
     // From Golden Core up, the heavens send a Tribulation. The web UI can run
