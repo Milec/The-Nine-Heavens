@@ -108,7 +108,7 @@ const clampPct = (a, b) => b <= 0 ? 0 : Math.max(0, Math.min(100, (a / b) * 100)
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /* ----------------------------- persistence ------------------------------- */
-function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ c: state.c, s: state.rng.s })); } catch (e) {} }
+function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ c: state.c, s: state.rng.s, deeds: state.deeds })); } catch (e) {} }
 function loadSave() { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
 function clearSave() { try { localStorage.removeItem(STORAGE_KEY); } catch (e) {} }
 
@@ -303,6 +303,8 @@ const DEED_ICON = {
   social: icon("deedSocial", { size: 13, cls: "chip-ic" }),
 };
 const defaultDeeds = () => ({ cult: DEEDS_PER_CAT, act: DEEDS_PER_CAT, social: DEEDS_PER_CAT });
+// Coerce a persisted/restored deed tally back into [0, DEEDS_PER_CAT], defaulting a missing one to full.
+const clampDeed = n => (typeof n === "number" && isFinite(n)) ? Math.max(0, Math.min(DEEDS_PER_CAT, Math.floor(n))) : DEEDS_PER_CAT;
 const deedsLeft = cat => (state.deeds && state.deeds[cat] != null) ? state.deeds[cat] : DEEDS_PER_CAT;
 
 /* Minimum ages for certain endeavours live in the shared data layer (the single
@@ -2057,7 +2059,10 @@ function creatorPreviewCard(c) {
 }
 function resumeFrom(sv) {
   state.c = sv.c; state.rng = new E.RNG(0); state.rng.s = sv.s >>> 0; state.deadHandled = false;
-  state.deeds = defaultDeeds();
+  // Restore the year's spent deeds so closing & reopening can't refresh them (old saves get a fresh set).
+  state.deeds = (sv.deeds && typeof sv.deeds === "object")
+    ? { cult: clampDeed(sv.deeds.cult), act: clampDeed(sv.deeds.act), social: clampDeed(sv.deeds.social) }
+    : defaultDeeds();
   // Back-compat: ensure life-sim fields exist on older saves.
   const c = state.c;
   if (typeof c.happiness !== "number") c.happiness = 55;
