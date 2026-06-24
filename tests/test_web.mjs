@@ -12,6 +12,7 @@
 import * as E from "../web/engine.js";
 import * as L from "../web/life.js";
 import * as D from "../web/data.js";
+import * as C from "../web/combat.js";
 
 /* --------------------------- tiny test harness --------------------------- */
 let passed = 0;
@@ -220,6 +221,33 @@ function testDaoTiers() {
   assert(hi.pierce > 0 && hi.enemyWeaken > 0, "Great Mastery+ Daos manifest in battle");
 }
 
+// Themed Secret Realms (秘境): each archetype must be well-formed, and the
+// engine pieces a delve leans on — themed foes, a named guardian and a themed
+// treasure drop — must all resolve to valid, realm-attuned objects.
+function testSecretRealmThemes() {
+  assert(D.SECRET_REALMS.length >= 6, "expected a spread of themed realms");
+  const rng = new E.RNG(99);
+  const c = L.bornCharacter(rng, "Delver", null);
+  c.realm = 5; c.stage = 2; c.comprehension = c.soul = c.constitution = 140; c.awakened = true;
+  E.recomputeMaxHp(c); c.hp = c.maxHp;
+  const seen = new Set();
+  for (const t of D.SECRET_REALMS) {
+    assert(t.key && t.name && t.cn && t.element, `theme well-formed: ${t.key}`);
+    assert(!seen.has(t.key), `theme keys must be unique (${t.key})`); seen.add(t.key);
+    assert(Array.isArray(t.foes) && t.foes.length >= 2, `theme lists foes: ${t.key}`);
+    assert(D.SECRET_REALM_BY_KEY[t.key] === t, `theme index resolves: ${t.key}`);
+    // A themed stage foe is well-formed and carries the realm's element.
+    const foe = C.makeEnemy(c, rng, { kind: t.kind || undefined, name: rng.choice(t.foes), element: t.element, factor: 1.0 });
+    assert(foe.power > 0 && foe.element === t.element && t.foes.includes(foe.name), `themed foe carries realm element: ${t.key}`);
+    // The named guardian is a proper boss.
+    const g = C.makeBoss(c, rng, { name: t.guardian, element: t.element, factor: 1.4 });
+    assert(g.boss && g.power > 0 && g.name === t.guardian, `themed guardian resolves: ${t.key}`);
+    // A themed drop always resolves to a real treasure (element/slot themed, with fallback).
+    const art = E.randomArtifact(c, rng, null, { element: t.element, slot: t.rewardSlot || null });
+    assert(D.ARTIFACT_BY_KEY[art], `themed drop is a real treasure: ${t.key}`);
+  }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -230,6 +258,7 @@ try {
   test("large systems interlock without crashing", testSystemsInterlock);
   test("reincarnation carries a legacy", testReincarnationCarriesLegacy);
   test("Daos deepen through tiers and manifest in battle", testDaoTiers);
+  test("Secret Realms are themed and their pieces resolve", testSecretRealmThemes);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

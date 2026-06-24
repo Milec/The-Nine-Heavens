@@ -511,6 +511,54 @@ export const DAO_MANIFEST = {
   slaughter: "Killing intent — the foe enters cowed and bleeding.",
 };
 
+/* Themed Secret Realms (秘境): a delve is no longer a generic elemental rift but
+ * one of these archetypes, lending its element, the mist-wreathed foes that
+ * haunt it, the fortunes its rooms tend to hold (fortune bias), a signature
+ * between-stage hazard, and a thematically-named guardian at its heart.
+ *   element  — drives foe/treasure attunement and the guardian's arts.
+ *   kind     — "beast" | "rogue" | null (mixed); shapes the foes within.
+ *   foes     — flavour names drawn for the stage battles.
+ *   fortune  — which fortune-room this realm favours (see realmFortune):
+ *              "treasure" | "spring" | "herb" | "pill" | "insight".
+ *   hazard   — signature peril fired between stages (see realmHazard).
+ *   guardian — the named boss barring the inner sanctum.
+ *   rewardSlot — (optional) treasure slot the realm's spoils favour. */
+export const SECRET_REALMS = [
+  { key: "swordtomb", name: "Ancient Sword Tomb", cn: "上古剑冢", element: "Metal", kind: "rogue",
+    foes: ["Sword Spirit", "Rusted Sword-Puppet", "Tomb Blade-Cultivator", "Vengeful Sabre-Wraith"],
+    fortune: "treasure", hazard: "blades", guardian: "the Sword-Tomb Warden", rewardSlot: "weapon",
+    blurb: "ten thousand buried blades hum in the dark, each hungry for a worthy hand." },
+  { key: "naga", name: "Sunken Naga Palace", cn: "蛟龙水府", element: "Water", kind: "beast",
+    foes: ["Naga Sentinel", "Abyssal Drake", "Tide-Maned Hippocamp", "Pearl-Eyed Serpent"],
+    fortune: "spring", hazard: "flood", guardian: "the Drowned Naga Lord",
+    blurb: "a drowned immortal palace whose halls still brim with cold, living water." },
+  { key: "demonabyss", name: "Demon-Sealing Abyss", cn: "镇魔渊", element: "Dark", kind: "rogue",
+    foes: ["Corpse Refiner", "Shackled Devil", "Blood-Soaked Revenant", "Whispering Heart-Demon"],
+    fortune: "treasure", hazard: "miasma", guardian: "the Unsealed Devil Ancestor",
+    blurb: "a black pit where the old sects buried devils too vile to slay — and the seals are failing." },
+  { key: "frostcave", name: "Frostmere Immortal Cave", cn: "冰寒仙府", element: "Ice", kind: "beast",
+    foes: ["Frost Python", "Glacial Ape", "Hoarfrost Crane", "Rime-Bound Wolf"],
+    fortune: "insight", hazard: "frost", guardian: "the Frostmere Immortal's Shade",
+    blurb: "a cave-heaven sealed in eternal ice, where a dead immortal's serenity still lingers." },
+  { key: "pillfurnace", name: "Volcanic Pill-Furnace Ruins", cn: "丹火遗址", element: "Fire", kind: "rogue",
+    foes: ["Flame-Mane Lion", "Furnace-Guard Puppet", "Cinder Alchemist", "Magma Salamander"],
+    fortune: "pill", hazard: "flame", guardian: "the Pill-Furnace Spirit",
+    blurb: "the wreck of a grand alchemist's mountain, its furnaces still roaring with spirit-fire." },
+  { key: "thunderpagoda", name: "Skyhigh Thunder Pagoda", cn: "九霄雷塔", element: "Lightning", kind: "rogue",
+    foes: ["Thunder Roc", "Lightning-Forged Sentinel", "Storm Sword-Cultivator", "Voltaic Wraith"],
+    fortune: "insight", hazard: "thunder", guardian: "the Pagoda's Thunder Sovereign",
+    blurb: "a storm-wreathed pagoda that climbs into the clouds, each tier judged by heaven's lightning." },
+  { key: "spiritgarden", name: "Verdant Spirit Garden", cn: "灵植秘园", element: "Wood", kind: "beast",
+    foes: ["Venom Serpent", "Thornbark Treant", "Pollen Sprite-Swarm", "Vine-Coiled Beast"],
+    fortune: "herb", hazard: "pollen", guardian: "the Ten-Thousand-Year Flower Demon",
+    blurb: "a runaway immortal garden gone wild, thick with spirit-herbs — and the things that guard them." },
+  { key: "godtreasury", name: "Earthen God-Treasury", cn: "后土宝库", element: "Earth", kind: "rogue",
+    foes: ["Stone-Hide Rhino", "Clay Tomb-Guard", "Gilded Treasury-Puppet", "Jade-Armoured Sentinel"],
+    fortune: "treasure", hazard: "quake", guardian: "the Treasury's Earthen Colossus", rewardSlot: "ring",
+    blurb: "a buried vault of an old earth-god, its vaults heavy with hoarded immortal gold." },
+];
+export const SECRET_REALM_BY_KEY = Object.fromEntries(SECRET_REALMS.map(r => [r.key, r]));
+
 export function karmaLabel(k) {
   if (k <= -120) return "Heaven-Defying Devil";
   if (k <= -40) return "Blood-Soaked";

@@ -104,6 +104,7 @@ const $ = id => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const escapeHtml = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const clampPct = (a, b) => b <= 0 ? 0 : Math.max(0, Math.min(100, (a / b) * 100));
+const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /* ----------------------------- persistence ------------------------------- */
 function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ c: state.c, s: state.rng.s })); } catch (e) {} }
@@ -2199,34 +2200,41 @@ function applyBrew() {
   state.brew = null; closeOverlay(); logMessages(msgs); endActivityYear();
 }
 
-/* --- Secret Realm: a multi-stage delve with carried wounds and a guardian --- */
+/* --- Secret Realm: a themed, multi-stage delve with carried wounds, signature
+ *     hazards and a named guardian at its heart (see D.SECRET_REALMS). --- */
 function doSecretRealm() {
   if (!ageAllows("secret") || !useAction()) return;
   const c = state.c; closeOverlay();
   const depth = 3 + Math.floor(state.rng.random() * 3); // 3-5 stages incl. guardian
-  // Each realm has an elemental character; its treasures share that attunement.
-  const elem = state.rng.choice(E.TREASURE_ELEMENTS);
-  state.realmRun = { depth, idx: 0, hpFrac: 1, element: elem };
-  logMessages([`You step through a shimmering rift into a ${C.elementIcon(elem)} ${elem}-attuned Secret Realm — the qi here is thick as honey, and the danger thicker still.`]);
+  const theme = state.rng.choice(D.SECRET_REALMS);
+  state.realmRun = { theme: theme.key, depth, idx: 0, hpFrac: 1, element: theme.element };
+  logMessages([`You step through a shimmering rift into the ${C.elementIcon(theme.element)} ${theme.name} (${theme.cn}) — ${theme.blurb} The qi here is thick as honey, and the danger thicker still.`]);
   realmStage();
 }
+const realmTheme = () => D.SECRET_REALM_BY_KEY[state.realmRun && state.realmRun.theme] || D.SECRET_REALMS[0];
 function realmStage() {
-  const c = state.c, R = state.realmRun;
+  const c = state.c, R = state.realmRun, theme = realmTheme();
   if (R.idx >= R.depth) { realmComplete(); return; }
   const stageNo = R.idx + 1, last = R.idx === R.depth - 1;
   if (last) {
-    const guardian = C.makeBoss(c, state.rng, { name: "the Realm Guardian", factor: 1.4 + state.rng.random() * 0.2, element: "Earth", factorMult: worldDanger(c) });
+    const guardian = C.makeBoss(c, state.rng, { name: theme.guardian, factor: 1.4 + state.rng.random() * 0.2, element: theme.element, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — ${guardian.name} bars the inner sanctum!`]);
-    startBattle(guardian, { title: "Secret Realm · Guardian", startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+    startBattle(guardian, { title: `${theme.name} · Guardian`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
     return;
   }
-  if (state.rng.random() < 0.6) {
-    const enemy = C.makeEnemy(c, state.rng, { factor: 0.8 + R.idx * 0.15, factorMult: worldDanger(c) });
+  const roll = state.rng.random();
+  if (roll < 0.55) {
+    const enemy = C.makeEnemy(c, state.rng, { kind: theme.kind || undefined, name: state.rng.choice(theme.foes), element: theme.element, factor: 0.8 + R.idx * 0.15, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — a ${enemy.name} lurks in the mist.`]);
-    startBattle(enemy, { title: `Secret Realm · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
-  } else {
+    startBattle(enemy, { title: `${theme.name} · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+  } else if (roll < 0.80) {
     logMessages([`Stage ${stageNo}/${R.depth} —`].concat(realmFortune(c)));
     R.idx++;
+    realmPrompt();
+  } else {
+    logMessages([`Stage ${stageNo}/${R.depth} —`].concat(realmHazard(c)));
+    R.idx++;
+    if (!c.alive) { state.realmRun = null; renderProfile(); checkDeath(); return; }
     realmPrompt();
   }
 }
@@ -2240,13 +2248,57 @@ function realmAfterBattle(outcome) {
   if (R.idx >= R.depth) realmComplete();
   else realmPrompt();
 }
+// Fortune-rooms, biased toward whatever bounty this realm is known for.
 function realmFortune(c) {
-  const rng = state.rng, r = rng.random();
-  if (r < 0.3) return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: (state.realmRun && state.realmRun.element) || null }));
-  if (r < 0.55) { const h = rng.randint(5, 12) + c.realm; c.herbs += h; return [`a grove of spirit herbs — you harvest ${h}.`]; }
-  if (r < 0.72) { c.pills += rng.randint(1, 3); return ["a dusty pill cache, still potent."]; }
-  if (r < 0.86) { c.hp = c.maxHp; const R = state.realmRun; if (R) R.hpFrac = 1; return ["a tranquil spirit spring — you bathe and recover fully."]; }
+  const rng = state.rng, theme = realmTheme(), R = state.realmRun;
+  const w = { treasure: 3, herb: 2.5, pill: 2, spring: 2, insight: 2 };
+  if (theme.fortune && w[theme.fortune] != null) w[theme.fortune] *= 2.4;
+  const keys = Object.keys(w);
+  const pick = rng.choices(keys, keys.map(k => w[k]));
+  if (pick === "treasure") return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: theme.element || null, slot: theme.rewardSlot || null }));
+  if (pick === "herb") { const h = rng.randint(5, 12) + c.realm; c.herbs += h; return [`a grove of spirit herbs — you harvest ${h}.`]; }
+  if (pick === "pill") { c.pills += rng.randint(1, 3); return ["a dusty pill cache, still potent."]; }
+  if (pick === "spring") { c.hp = c.maxHp; if (R) R.hpFrac = 1; return ["a tranquil spirit spring — you bathe and recover fully."]; }
   c.qi += E.qiToNext(c) * 0.5; return ["an ancient dao inscription — insight floods you and your qi surges."];
+}
+// A signature peril between stages: it wounds (carrying into later fights) but
+// never kills outright — you can always withdraw. Some hazards hide a boon.
+function realmHazard(c) {
+  const rng = state.rng, theme = realmTheme(), R = state.realmRun;
+  const ph = D.physEffect(c);
+  const wound = frac => { R.hpFrac = Math.max(0.08, (R.hpFrac || 1) - frac); c.hp = Math.max(1, Math.round(c.maxHp * R.hpFrac)); };
+  const dodged = rng.random() < clampN(0.25 + c.luck / 360 + c.soul / 500, 0, 0.85);
+  switch (theme.hazard) {
+    case "blades":
+      if (dodged) return ["a corridor of flying swords — you weave through the steel rain untouched."];
+      wound(rng.uniform(0.12, 0.20)); return ["a corridor of flying swords scythes from the walls — they score you bloody before you break clear."];
+    case "flood":
+      if (rng.random() < 0.4) { c.qi += E.qiToNext(c) * 0.3; return ["the halls flood with living water — you ride the surge to a hidden chamber, qi roaring."]; }
+      wound(rng.uniform(0.10, 0.16)); return ["a wall of black water crashes down the corridor and batters you against the stone."];
+    case "miasma": {
+      const cursed = (c.karma || 0) < -20;
+      if (!cursed && dodged) return ["devil-whispers claw at your dao heart — but your will holds, and the miasma parts before you."];
+      wound(rng.uniform(0.10, cursed ? 0.22 : 0.16)); return [`a tide of soul-rending miasma washes over you${cursed ? "; your sin-heavy karma draws it like a wound" : ""} — your meridians sear.`];
+    }
+    case "frost":
+      if (ph.element === "Fire" || dodged) return ["a killing cold floods the cavern — your qi burns warm against it, and you press on unbowed."];
+      wound(rng.uniform(0.10, 0.16)); return ["a glacial wind howls through the cave; frost gnaws into your bones before you warm your meridians."];
+    case "flame":
+      if (ph.burnImmune || dodged) return ["a gout of furnace-fire roars across the hall — it breaks harmlessly around you."];
+      wound(rng.uniform(0.12, 0.18)); return ["the furnaces flare without warning; spirit-flame washes over you and blackens your robes."];
+    case "thunder":
+      c.qi += E.qiToNext(c) * 0.25;
+      if (dodged) return ["heaven's lightning judges the tier — you bear it, and the searing insight quickens your qi."];
+      wound(rng.uniform(0.10, 0.15)); return ["a lattice of lightning arcs down the pagoda — it scorches you, yet the heaven-fire leaves hard-won insight in its wake."];
+    case "pollen":
+      if (rng.random() < 0.55) { const h = rng.randint(4, 9) + c.realm; c.herbs += h; return [`a drift of luminous spirit-pollen — you gather ${h} rare herbs from the bloom.`]; }
+      wound(rng.uniform(0.08, 0.14)); return ["a cloud of narcotic pollen bursts from a flower-demon's bloom; you reel, poisoned, before holding your breath."];
+    case "quake":
+      if (rng.random() < 0.35) return E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: theme.element, slot: theme.rewardSlot || null }));
+      wound(rng.uniform(0.10, 0.18)); return ["the treasury heaves and collapses; falling jade and stone hammer down before you steady the ground."];
+    default:
+      wound(rng.uniform(0.08, 0.14)); return ["a sudden peril of the realm tests you, and you stagger through it."];
+  }
 }
 function realmPrompt() {
   const R = state.realmRun;
@@ -2261,14 +2313,19 @@ function realmPrompt() {
   }, false);
 }
 function realmComplete() {
-  const c = state.c, R = state.realmRun;
+  const c = state.c, R = state.realmRun, theme = realmTheme();
   const stones = (c.realm + 2) * state.rng.randint(15, 30);
   c.spiritStones += stones; c.reputation += 5;
-  const lines = [`✦ You conquer the Secret Realm to its very heart! (+${stones} spirit stones, +5 reputation)`];
+  const lines = [`✦ You conquer the ${theme.name} (${theme.cn}) to its very heart! (+${stones} spirit stones, +5 reputation)`];
   if (c.sectKey) { c.contribution += 80; lines.push("  Your charted findings earn +80 sect contribution."); }
-  if (state.rng.random() < 0.5) { const t = realmFortune(c); lines.push("  In the inner sanctum: " + t[0]); }
+  // The guardian hoarded the realm's own treasure — a guaranteed themed relic,
+  // its grade rising with how deep the delve ran.
+  const grade = R.depth >= 5 ? "Heaven" : R.depth >= 4 ? "Earth" : null;
+  lines.push("  From the guardian's hoard:");
+  for (const m of E.acquireArtifact(c, E.randomArtifact(c, state.rng, grade, { element: theme.element, slot: theme.rewardSlot || null }))) lines.push(m);
+  if (state.rng.random() < 0.5) for (const m of realmFortune(c)) lines.push("  " + m);
   const title = "Secret Realm Delver";
-  if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, "Conquered a Secret Realm."]); lines.push(`  ✦ You earn the title: ${title}!`); }
+  if (!c.titles.includes(title)) { c.titles.push(title); c.log.push([c.age, `Conquered the ${theme.name}.`]); lines.push(`  ✦ You earn the title: ${title}!`); }
   logMessages(lines);
   realmEnd(true);
 }
