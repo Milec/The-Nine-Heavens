@@ -289,9 +289,12 @@ Three more systems round out a cultivator's life:
   disciples, dao companions) is a **full cultivator** with their own root, physique,
   realm and techniques; they **advance along their own road** (capped by their
   talent), **age and die** by a realm-given lifespan (mortals wither, immortals
-  endure), and **fight you with their actual arts**. The **Heaven Board (天骄榜)**
-  ranks the era's young geniuses by power — see where you stand and **challenge
-  rivals above you** to climb the roll of heaven's pride.
+  endure), and **fight you with their actual arts**. The realm is **peopled at
+  birth by a whole population of cultivators** who fill the great sects from Sect
+  Master down to outer disciple and dwell in its cities, towns and villages — and
+  the **Heaven Board (天骄榜)** ranks the strongest of them all by power, so you
+  can see where you stand and **challenge rivals above you** to climb the roll of
+  heaven's pride.
 - **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
   home base, from a Humble Cave Dwelling all the way to a legendary **Cave
   Heaven**. The abode is the **hub that ties the world together**: it is **rooted

@@ -502,15 +502,15 @@ function openCultivate() {
 }
 function openRankboard() {
   const c = state.c;
-  if (!c.rankboard) c.rankboard = E.generateRankboard(state.rng);
+  E.ensurePopulation(c, state.rng);
   openOverlay("Heaven Board 天骄榜", body => {
     const { ranked, rank, total } = E.rankboardStanding(c);
     const last = rank === total;
     const standing = last ? `You do not yet rank among them — you stand <b>last, #${rank} of ${total}</b>` : `You stand <b>#${rank} of ${total}</b>`;
-    body.appendChild(el("p", "note", `The roll of the era's foremost young cultivators, ranked by raw power — geniuses who walk their own road whether or not you ever awaken. ${standing}. Climb it by out-cultivating them; challenge a rival above you to test yourself — win and your renown soars, lose and it dims.`));
+    body.appendChild(el("p", "note", `The roll of the realm's foremost cultivators, ranked by raw power — drawn from the great sects and the wider world, climbing their own roads whether or not you ever awaken. ${standing}. Climb it by out-cultivating them; challenge a rival above you to test yourself — win and your renown soars, lose and it dims.`));
     ranked.forEach((x, i) => {
       const row = el("div", "listrow" + (x.you ? " bound" : ""));
-      const sub = x.you ? "— you —" : `${x.title} · ${D.REALMS[x.realm][0]} · power ${Math.floor(x.power)}`;
+      const sub = x.you ? "— you —" : `${x.title} · ${D.REALMS[x.realm][0]}${x.age != null ? ` · age ${x.age}` : ""} · power ${Math.floor(x.power)}`;
       row.innerHTML = `<div class="lr-ava ${i === 0 ? "tint-gold" : x.you ? "tint-jade" : ""}">${icon(i === 0 ? "crown" : x.you ? "lotus" : "blade", { size: 22 })}</div><div class="lr-main"><div class="lr-title">#${i + 1} ${escapeHtml(x.name)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
       // You may challenge anyone ranked above you, within reach (the next 4 places up).
       if (!x.you && i < rank - 1 && i >= rank - 5) row.onclick = () => challengeGenius(x.ref);
@@ -537,6 +537,8 @@ function openPeople() {
   const c = state.c;
   openOverlay("Relationships", body => {
     const all = c.relationships.filter(n => n.alive);
+    // Backfill cultivator profiles (root, realm, age…) so every row can show them.
+    all.forEach(n => { if (n.kin !== "Son" && n.kin !== "Daughter") E.ensureNpcProfile(n, state.rng); });
     const family = all.filter(n => n.role === "family" && n.kin !== "Son" && n.kin !== "Daughter");
     const loves = all.filter(n => n.role === "companion").sort((a, b) => (b.married ? 1 : 0) - (a.married ? 1 : 0) || b.affinity - a.affinity);
     const kids = all.filter(n => n.kin === "Son" || n.kin === "Daughter");
@@ -590,12 +592,16 @@ function personRow(n) {
   const aff = Math.max(-100, Math.min(100, n.affinity));
   const col = aff < 0 ? "var(--red)" : aff < 40 ? "var(--muted)" : aff < 75 ? "var(--jade)" : "var(--pink)";
   const w = (aff + 100) / 2;
+  const isChild = n.kin === "Son" || n.kin === "Daughter";
+  const ageVal = isChild ? L.childAge(state.c, n) : n.age;
+  const ageStr = (ageVal != null && ageVal >= 0) ? ` · age ${ageVal}` : "";
+  const realmStr = (!isChild && n.realm != null && n.realm > 0) ? ` · ${E.npcRealmName(n)}` : "";
   const extra = n.occupation ? " · " + n.occupation : (n.parent ? " · child of " + escapeHtml(n.parent) : "");
   const homeLoc = (n.home != null && state.c.world) ? W.locById(state.c, n.home) : null;
   const where = homeLoc ? ` · of ${escapeHtml(homeLoc.name)}` : "";
   row.innerHTML = `<div class="lr-ava ${personTint(n)}">${personGlyph(n)}</div><div class="lr-main">
     <div class="lr-title">${escapeHtml(n.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(relLabel(n))}</span></div>
-    <div class="lr-sub">${E.npcStatus(n)}${extra}${where}</div>
+    <div class="lr-sub">${E.npcStatus(n)}${ageStr}${realmStr}${extra}${where}</div>
     <div class="affbar"><div style="width:${w}%;background:${col}"></div></div></div>`;
   row.onclick = () => openPerson(n);
   return row;
@@ -643,8 +649,12 @@ function openPerson(n) {
       if (arts.length) cult.push(["Arts", arts.join(", ")]);
     }
     if (n.power && !isChild) cult.push(["Power", Math.floor(n.power), "power"]);
+    const ageVal = isChild ? L.childAge(c, n) : n.age;
+    const ageRow = (ageVal != null && ageVal >= 0)
+      ? [["Age", `${ageVal}${!isChild && n.maxAge ? ` · lifespan ~${n.maxAge}` : ""}`]] : [];
     body.appendChild(infoRows([
       ["Relation", relLabel(n) + (n.role === "companion" && n.married ? " (married)" : "")], ["Feeling", `${E.npcStatus(n)} (${n.affinity >= 0 ? "+" : ""}${n.affinity})`],
+      ...ageRow,
       ...(n.parent ? [["Parent", n.parent]] : []),
       ...cult,
       ...(n.occupation ? [["Occupation", n.occupation]] : []),
@@ -669,8 +679,8 @@ function openPerson(n) {
           return;
         }
         if (act.id === "duel") {  // an interactive duel to the finish
-          if (!ageAllows("duel") || !useAction("social")) return;
           const isNemesis = n.role === "nemesis";
+          if (!ageAllows(isNemesis ? "showdown" : "duel") || !useAction("social")) return;
           const enemy = isNemesis
             ? C.makeBoss(c, state.rng, { name: n.name, power: n.power, element: n.element })
             : C.makeEnemyFromNpc(c, n, state.rng, { reward: (c.realm + 1) * 6 });
@@ -702,6 +712,37 @@ function openPerson(n) {
       body.appendChild(b);
     }
     const back = el("button", "mbtn full"); back.innerHTML = "‹ Back"; back.onclick = openPeople; body.appendChild(back);
+  });
+}
+
+// A world denizen — a population NPC you don't personally know. Tapping the row
+// opens a read-only dossier (you have no relationship actions with a stranger).
+const DENIZEN_ROLE_LABEL = { sectmaster: "Sect Master", elder: "Elder", disciple: "Sect Disciple", rogue: "Rogue Cultivator", genius: "Wandering Genius", world: "Cultivator" };
+function denizenRow(n) {
+  const row = el("div", "listrow");
+  const sub = `${n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator"} · ${E.npcRealmName(n)}${n.age != null ? ` · age ${n.age}` : ""}`;
+  const glyph = (n.role === "sectmaster" || n.role === "elder") ? "avSage" : (n.sex === "female" ? "avAdultF" : "avAdultM");
+  row.innerHTML = `<div class="lr-ava ${n.sectKey ? "tint-gold" : ""}">${icon(glyph, { size: 22 })}</div><div class="lr-main">
+    <div class="lr-title">${escapeHtml(n.name)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
+  row.onclick = () => openDenizen(n);
+  return row;
+}
+function openDenizen(n) {
+  const rootName = k => { const r = D.ROOT_TYPES.find(x => x[0] === k); return r ? r[1] : "—"; };
+  openOverlay(n.name, body => {
+    const arts = (n.techniques || []).filter(t => t !== "basic_breathing").map(t => D.TECHNIQUES[t][0]);
+    const rows = [
+      ["Standing", n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator"],
+      ...(n.sectKey ? [["Sect", D.SECT_BY_KEY[n.sectKey][1].split(" (")[0]]] : []),
+      ["Realm", `${E.npcRealmName(n)} (${D.REALMS[n.realm][1]})`, "realm"],
+      ...(n.age != null ? [["Age", `${n.age} · lifespan ~${n.maxAge}`]] : []),
+      ["Spiritual Root", n.geno ? rootName(n.geno.rootKey) : "—", "root"],
+      ...(arts.length ? [["Arts", arts.join(", ")]] : []),
+      ["Power", Math.floor(n.power || E.npcPower(n)), "power"],
+    ];
+    body.appendChild(infoRows(rows));
+    body.appendChild(el("p", "note", "A cultivator of the wider realm, walking their own road. You are not personally acquainted — seek renown on the Heaven Board to test yourself against the realm's strongest."));
+    backBtn(body, closeOverlay);
   });
 }
 
@@ -925,7 +966,7 @@ function actAdventure() {
     g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
     g.mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
     g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
-    { const nem = L.getNemesis(c); if (nem) g.mk("⚔ Settle the Score 宿敌", canHunt ? `duel ${nem.name} to the death` : "needs cultivation", doNemesisReckoning, { full: true, disabled: !canHunt }); }
+    { const nem = L.getNemesis(c); if (nem) { const tooYoung = c.age < AGE_MIN.showdown; g.mk("⚔ Settle the Score 宿敌", tooYoung ? `from age ${AGE_MIN.showdown}` : canHunt ? `duel ${nem.name} to the death` : "needs cultivation", doNemesisReckoning, { full: true, disabled: !canHunt || tooYoung }); } }
     backBtn(body, openActivities);
   });
 }
@@ -1218,6 +1259,12 @@ function openLocationCard(id) {
       });
       p.appendChild(document.createTextNode("."));
       body.appendChild(p);
+    }
+    const denizens = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.home === id)
+      .sort((a, b) => (b.power || 0) - (a.power || 0));
+    if (denizens.length) {
+      body.appendChild(el("div", "section-h", loc.sectKey ? `The ${D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0]}` : "Cultivators Dwelling Here"));
+      denizens.slice(0, 12).forEach(n => body.appendChild(denizenRow(n)));
     }
     if (id === c.location) {
       body.appendChild(el("p", "note", "✦ You are here."));
@@ -1572,7 +1619,7 @@ function openSect() {
     // ---- the sect's hierarchy ladder ----
     body.appendChild(el("div", "section-h", "Hierarchy 品级"));
     renderRankLadder(c, body);
-    const fig = E.sectFigures(c.sectKey);
+    const fig = E.sectFigures(c.sectKey, c);
     if (fig) body.appendChild(el("p", "note", `Above you stand Sect Master <b>${escapeHtml(fig.master.name)}</b> (${D.REALMS[fig.master.realm][0]}), and the elders ${fig.elders.map(e => `${escapeHtml(e.name)} (${e.title})`).join(", ")}.`));
     // ---- promotion status ----
     const req = E.nextRankReq(c);
@@ -2088,6 +2135,7 @@ function resumeFrom(sv) {
   if (c.ownSect && !c.ownSect.library) c.ownSect.library = [];
   if (!c.region) c.region = "azuredomain";
   W.ensureWorld(c, state.rng);   // old saves get a freshly generated realm, located sensibly
+  E.ensurePopulation(c, state.rng);   // ...and a population of cultivators to fill it
   closeOverlay(); $("log").innerHTML = ""; logBanner("☯ YOUR SAGA CONTINUES ☯"); renderProfile();
   if (!c.alive) checkDeath();
 }
@@ -2213,6 +2261,7 @@ function doBossFight() {
 function doNemesisReckoning() {
   const c = state.c; const nem = L.getNemesis(c);
   if (!nem) return;
+  if (!ageAllows("showdown")) return;   // a duel to the death is no child's affair
   if (!useAction()) return;
   closeOverlay();
   E.ensureNpcProfile(nem, state.rng);

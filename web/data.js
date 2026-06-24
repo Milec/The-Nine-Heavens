@@ -652,6 +652,7 @@ export const AGE_MIN = {
   train: 4, study: 5, spar: 6, oddjobs: 10, alchemy: 10, wander: 12, hunt: 12,
   arena: 12, duel: 12, quest: 12, mingle: 12, travel: 14, tournament: 14,
   romance: COMING_OF_AGE, boss: 16, secret: 16, abode: COMING_OF_AGE, disciple: 18, child: PARENTHOOD_AGE,
+  showdown: COMING_OF_AGE,   // a duel to the death with a sworn nemesis — no child's affair
 };
 // The minimum age for an endeavour (0 if ungated).
 export const ageMin = key => AGE_MIN[key] || 0;
