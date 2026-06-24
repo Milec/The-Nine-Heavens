@@ -52,6 +52,9 @@ export const SKILLS = {
   mountain_seal: { id: "mountain_seal", tech: "mountain_seal", name: "Mountain-Bearing Seal", qi: 22, dmg: 0.60, element: "Earth", target: { type: "stun", turns: 1, value: 0, chance: 0.35 }, desc: "Drop a mountain's weight on the foe — heavy Earth damage that may pin them." },
   heaven_slash: { id: "heaven_slash", tech: "heaven_slash", name: "Heaven-Splitting Slash", qi: 32, dmg: 0.95, pierce: 0.4, element: "Metal", self: { type: "weaken", turns: 1, value: 0.30 }, desc: "A colossal cut — but it leaves you spent (weakened) next turn." },
   samsara_palm: { id: "samsara_palm", tech: "samsara_palm", name: "Samsara Heaven-Turning Palm", qi: 30, dmg: 0.72, element: "Void", lifesteal: 0.35, desc: "Turn the wheel of life and death: heavy void damage that mends you." },
+  mountain_render: { id: "mountain_render", tech: "mountain_render", name: "Mountain-Splitting Sunder", qi: 22, dmg: 0.50, element: "Earth", sunder: { turns: 2, value: 0.12 }, desc: "Heavy Earth damage that shatters the foe's guard — rends their defense for 2 turns." },
+  flowing_light: { id: "flowing_light", tech: "flowing_light", name: "Flowing-Light Sword", qi: 20, dmg: 0.22, hits: 2, element: "Metal", sunder: { turns: 2, value: 0.07 }, desc: "Two quicksilver sword-passes that score the foe's armour, rending their defense." },
+  soul_reap: { id: "soul_reap", tech: "soul_reap", name: "Soul-Reaping Scythe", qi: 26, dmg: 0.46, element: "Dark", execute: 2.4, lifesteal: 0.3, karma: -1, desc: "A demonic reap — devastating to a foe below 30% HP. Heals you; stains your karma." },
   // — sect-exclusive signature arts —
   cloudmist_veil: { id: "mist_veil", tech: "cloudmist_veil", name: "Cloud-Mist Veil", qi: 16, type: "defend", shield: 0.18, self: { type: "regen", turns: 3, value: 0.05 }, qiRestore: 0.12, desc: "Vanish into mist: a shield, steady regeneration, and restored qi." },
   fiveelem_cycle: { id: "elem_cycle", tech: "fiveelem_cycle", name: "Five Elements Rotation", qi: 24, dmg: 0.30, hits: 2, pierce: 0.3, desc: "Strike twice through the cycle of the five phases, piercing defences." },
@@ -247,6 +250,8 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
   player.mentalResist = E.mentalResist(c);
   // A Nimble spirit beast lends you its quicksilver footwork.
   if (player.beastTrait === "nimble") player.dodge = clampN(player.dodge + 0.05, 0, 0.7);
+  // A trained movement art (轻功) lends real evasion in battle, not just on the road.
+  player.dodge = clampN(player.dodge + E.movementDodge(c), 0, 0.7);
 
   const ep = enemyDef.power;
   const hpMult = enemyDef.hpMult || 2.3;
@@ -297,6 +302,8 @@ function statusAtkMult(u) {
   return Math.max(0.4, m);
 }
 function hasStatus(u, t) { return u.statuses.some(s => s.type === t); }
+// Total armour-sunder on a unit (each stack drops its mitigation by its value).
+function sunderAmt(u) { return u.statuses.reduce((a, s) => a + (s.type === "sunder" ? s.value : 0), 0); }
 function addStatus(u, type, turns, value) { u.statuses.push({ type, turns, value }); }
 function tickStart(B, u, lines) {
   // Damage-over-time and regen apply at the start of the unit's turn.
@@ -348,18 +355,23 @@ function resolveSkill(B, att, def, skill, lines) {
     const skEl = skill.element || att.element;
     const attuned = skEl && att.rootElements && att.rootElements.includes(skEl);   // your art rides your root's element
     let base = att.atk * skill.dmg * statusAtkMult(att) * mm * demonBonus * (attuned ? 1 + att.attune : 1);
+    // Execute: a reaping art falls catastrophically on a foe near death.
+    const exec = skill.execute && def.hp <= def.maxHp * 0.30;
+    if (exec) base *= skill.execute;
     let mult = elementMult(skEl, def.element);
     const crit = rng.random() < att.crit;
     if (crit) mult *= 2;
     base *= mult * rng.uniform(0.9, 1.1);
     if (rng.random() < def.dodge) { lines.push(`${icon(def)} ${def.name} evades${hits > 1 ? ` hit ${h + 1}` : ""} — dodged!`); continue; }
-    let dmg = base * (1 - def.mitig * (1 - clampN((skill.pierce || 0) + (att.daoPierce || 0), 0, 0.9)));
+    // Sunder debuffs the foe's mitigation; pierce ignores a fraction of what's left.
+    const effMitig = Math.max(0, def.mitig - sunderAmt(def));
+    let dmg = base * (1 - effMitig * (1 - clampN((skill.pierce || 0) + (att.daoPierce || 0), 0, 0.9)));
     // The defender's own root element resonates against an attack of that element.
     if (skEl && def.rootElements && def.rootElements.includes(skEl)) dmg *= (1 - (def.attune || 0) * 0.5);
     if (def.shield > 0) { const a = Math.min(def.shield, dmg); def.shield -= a; dmg -= a; }
     dmg = Math.max(0, Math.round(dmg));
     def.hp -= dmg;
-    lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${attuned ? " 🜂" : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${attuned ? " (attuned)" : ""}${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
+    lines.push(`${icon(att)} ${att.name} — ${skill.name}${hits > 1 ? ` (${h + 1}/${hits})` : ""}${attuned ? " 🜂" : ""}${exec ? " ☠EXECUTE" : ""}${mult > 1.05 && !crit ? " 🔆" : ""}${crit ? " 💥CRIT" : ""} → ${dmg} dmg${attuned ? " (attuned)" : ""}${mult > 1.05 ? " (advantage)" : mult < 0.95 ? " (resisted)" : ""}.`);
     const lifeFrac = (skill.lifesteal || 0) + (att.equipLifesteal || 0);
     if (lifeFrac && dmg > 0) { const hh = dmg * lifeFrac; att.hp = Math.min(att.maxHp, att.hp + hh); lines.push(`   ${att.name} drains ${Math.round(hh)} HP.`); }
     // Counter / reflect: a defender in a reflecting stance turns force back.
@@ -378,6 +390,8 @@ function resolveSkill(B, att, def, skill, lines) {
   };
   applyTarget(skill.target);
   applyTarget(skill.target2);
+  // Sunder rends the foe's defense for a few turns (stacks with other sunders).
+  if (skill.sunder && def.hp > 0) { addStatus(def, "sunder", skill.sunder.turns + 1, skill.sunder.value); lines.push(`   ${def.name}'s defense is rent — armour sundered!`); }
 }
 
 function enemyChoose(B) {

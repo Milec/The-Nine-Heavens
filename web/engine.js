@@ -1156,6 +1156,13 @@ export const hopsPerDeed = c => Math.max(1, Math.floor(travelSpeed(c)));
 // Travel deeds (rounded up) to reach a place, given your speed.
 export function travelDeeds(c, toId) { return Math.max(1, Math.ceil(World.travelHops(c, toId) / hopsPerDeed(c))); }
 // The art you lean on most — the one giving the greatest effective speed now.
+// A trained movement art (轻功) is not only for the road: its light-body skill
+// lends real evasion in battle, scaling with the art's tier and your mastery.
+export function movementDodge(c) {
+  const k = bestMovementArt(c); if (!k) return 0;
+  const m = D.MOVEMENT_BY_KEY[k]; if (!m) return 0;
+  return clamp((0.02 + m[3] * 0.018) * (0.4 + 0.6 * moveFraction(c, k)), 0, 0.13);
+}
 export function bestMovementArt(c) {
   let best = null, bs = -1;
   for (const k of (c.movementArts || [])) { const m = D.MOVEMENT_BY_KEY[k]; if (!m) continue; const eff = m[4] * moveFraction(c, k); if (eff > bs) { bs = eff; best = k; } }

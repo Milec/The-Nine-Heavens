@@ -86,8 +86,12 @@ against rival disciples, capped by a fight with the **Reigning Champion**, for
 contribution, renown, titles and a shot at catching an admirer's eye. Beyond the
 orthodox arts you can learn techniques with distinct combat mechanics — a
 **multi-hit** sword storm, a **reflecting parry** that turns a blow back on the
-foe, a **binding seal** that weakens and may stun, and a **recoil ultimate** that
-hits like a mountain but leaves you spent.
+foe, a **binding seal** that weakens and may stun, a **recoil ultimate** that
+hits like a mountain but leaves you spent, an **armour-sundering** strike that
+rends a foe's defenses wide open, and an **executing** demonic scythe that falls
+catastrophically on a foe near death. A learned **movement art (轻功)** is no
+longer only for the road, either — its light-body skill lends **real evasion in
+battle**, scaling with the art's tier and your mastery of it.
 
 You can also **delve a Secret Realm (秘境)**: a multi-stage expedition of
 escalating battles and fortune-rooms where **wounds carry between fights**.

@@ -113,6 +113,9 @@ export const TECHNIQUES = {
   mountain_seal: ["Mountain-Bearing Seal", 2, 0.20, 14, "An Earth art that drops a mountain's weight on a foe, crushing and pinning them."],
   heaven_slash: ["Heaven-Splitting Sabre", 3, 0.42, 20, "A single annihilating cut that leaves you spent."],
   samsara_palm: ["Samsara Heaven-Turning Palm", 3, 0.50, 18, "Turn the wheel of life and death; void force that rends the foe and mends you."],
+  mountain_render: ["Mountain-Splitting Sunder (裂山诀)", 2, 0.20, 14, "An Earth art that shatters a foe's guard, leaving their defenses rent and open."],
+  flowing_light: ["Flowing-Light Sword (流光剑诀)", 2, 0.22, 12, "Quicksilver sword-light that scores a foe's armour with every glittering pass."],
+  soul_reap: ["Soul-Reaping Scythe (夺魂镰)", 3, 0.40, 18, "A demonic scythe that reaps a faltering foe's very soul — death to the near-dead."],
   // — sect-exclusive signature arts (taught only by their sect, at high rank) —
   cloudmist_veil: ["Cloud-Mist Veiling Art (云雾隐)", 3, 0.30, 12, "Cloud Mist's hidden art — wreathe yourself in mist, shielded, serene, untouchable."],
   fiveelem_cycle: ["Five Elements Rotation (五行轮转)", 3, 0.42, 20, "Turn the five phases in endless cycle, each blow striking a foe's weakness."],
@@ -186,11 +189,11 @@ export const SECT_TRIAL_FACTOR = [0, 0, 0.85, 1.0, 1.2, 1.5];
 // [techKey, minRank (index into SECT_RANKS), contributionCost]
 export const SECT_ARTS = {
   cloudmist:   [["azure_cloud", 0, 35], ["moon_mirror", 1, 110], ["mirror_parry", 2, 220], ["cloudmist_veil", 3, 460]],
-  fiveelem:    [["frost_lotus", 0, 45], ["tide_palm", 1, 110], ["mountain_seal", 1, 130], ["nine_yang", 2, 230], ["fiveelem_cycle", 3, 480]],
+  fiveelem:    [["frost_lotus", 0, 45], ["tide_palm", 1, 110], ["mountain_seal", 1, 130], ["mountain_render", 2, 240], ["nine_yang", 2, 230], ["fiveelem_cycle", 3, 480]],
   spiritbeast: [["five_beasts", 0, 35], ["spirit_bind", 1, 120], ["vajra_body", 2, 220], ["spiritbeast_primal", 3, 470]],
-  azure:       [["azure_cloud", 0, 45], ["sword_rain", 1, 140], ["great_void", 3, 430], ["azure_formation", 4, 820]],
-  heavensword: [["sword_rain", 0, 55], ["thunder_step", 1, 150], ["heaven_slash", 3, 440], ["heavensword_myriad", 4, 920]],
-  bloodcult:   [["blood_refine", 0, 45], ["spirit_bind", 1, 120], ["samsara_palm", 3, 440], ["bloodcult_sea", 3, 480]],
+  azure:       [["azure_cloud", 0, 45], ["sword_rain", 1, 140], ["flowing_light", 2, 250], ["great_void", 3, 430], ["azure_formation", 4, 820]],
+  heavensword: [["sword_rain", 0, 55], ["thunder_step", 1, 150], ["flowing_light", 2, 250], ["heaven_slash", 3, 440], ["heavensword_myriad", 4, 920]],
+  bloodcult:   [["blood_refine", 0, 45], ["spirit_bind", 1, 120], ["soul_reap", 2, 260], ["samsara_palm", 3, 440], ["bloodcult_sea", 3, 480]],
 };
 
 // [name, minRank, contribution, stones, danger, blurb, reward?]

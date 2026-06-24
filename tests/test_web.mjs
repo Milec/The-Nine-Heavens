@@ -316,6 +316,45 @@ function testBeastTraits() {
   assert(B.over, "a trait-bearing beast-assisted battle resolves cleanly");
 }
 
+// New combat verbs (sunder armour-break, execute) and Movement Arts (轻功)
+// manifesting as real battle evasion.
+function testCombatVerbsAndMovement() {
+  // The three new techniques exist as skills with their new verbs.
+  const byTech = t => Object.values(C.SKILLS).find(x => x.tech === t);
+  assert(byTech("mountain_render") && byTech("mountain_render").sunder, "Mountain-Splitting Sunder carries the sunder verb");
+  assert(byTech("flowing_light") && byTech("flowing_light").sunder && byTech("flowing_light").hits === 2, "Flowing-Light is a multi-hit sunder");
+  assert(byTech("soul_reap") && byTech("soul_reap").execute > 1, "Soul-Reaping Scythe carries the execute verb");
+  for (const t of ["mountain_render", "flowing_light", "soul_reap"]) assert(D.TECHNIQUES[t], `technique is in the catalogue: ${t}`);
+
+  // Movement dodge scales with tier and mastery, and stays capped.
+  const c = L.bornCharacter(new E.RNG(1), "Runner", null);
+  assert(E.movementDodge(c) === 0, "no movement art means no battle dodge");
+  c.movementArts = ["void_rift"]; c.moveMastery = { void_rift: 0 };
+  const untrained = E.movementDodge(c);
+  c.moveMastery = { void_rift: 99999 };
+  const perfected = E.movementDodge(c);
+  assert(perfected > untrained && perfected <= 0.13, "movement dodge rises with mastery and stays capped");
+
+  // Execute lands catastrophically on a foe near death.
+  const r = new E.RNG(2); const p = L.bornCharacter(r, "Reaper", null);
+  p.realm = 6; p.stage = 2; p.comprehension = p.soul = p.constitution = 140; p.awakened = true;
+  p.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Dark"] };
+  p.techniques = ["basic_breathing", "soul_reap"]; E.recomputeMaxHp(p); p.hp = p.maxHp;
+  const B = C.createBattle(p, C.makeEnemy(p, r, { factor: 3.0 }), r, {});
+  B.enemy.hp = B.enemy.maxHp * 0.25;
+  const res = B.act("soul_reap");
+  assert(res.lines.some(l => /EXECUTE/.test(l)), "execute fires against a foe below the HP threshold");
+
+  // Sunder rends a foe's armour (a debuff appears on the enemy).
+  const r2 = new E.RNG(5); const p2 = L.bornCharacter(r2, "Render", null);
+  p2.realm = 6; p2.stage = 2; p2.comprehension = p2.soul = p2.constitution = 140; p2.awakened = true;
+  p2.root = { key: "heavenly", name: "H", multiplier: 2.6, purity: 1, elements: ["Earth"] };
+  p2.techniques = ["basic_breathing", "mountain_render"]; E.recomputeMaxHp(p2); p2.hp = p2.maxHp;
+  const B2 = C.createBattle(p2, C.makeEnemy(p2, r2, { factor: 4.0 }), r2, {});
+  B2.act("mountain_render");
+  assert(B2.enemy.statuses.some(s => s.type === "sunder"), "sunder applies an armour-break debuff to the foe");
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -330,6 +369,7 @@ try {
   test("Dao Heart tempers resolve, ward and battle nerve", testDaoHeartResolve);
   test("new alchemy pills raise their attributes within caps", testAlchemyPills);
   test("spirit beasts carry traits that shape feeding and battle", testBeastTraits);
+  test("new combat verbs (sunder, execute) and movement-art evasion", testCombatVerbsAndMovement);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

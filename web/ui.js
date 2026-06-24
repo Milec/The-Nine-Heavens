@@ -1095,8 +1095,8 @@ function openWorldMap() {
   if (!c.world) W.ensureWorld(c, state.rng);
   openOverlay("The Realm 寰宇", body => {
     const locs = c.world.locations, here = W.currentLoc(c);
-    const art = E.bestMovementArt(c), perDeed = E.hopsPerDeed(c);
-    const speedTxt = `You cover <b>${perDeed} stage${perDeed > 1 ? "s" : ""}</b> of road per travel deed${art ? ` — ${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : ""}.`;
+    const art = E.bestMovementArt(c), perDeed = E.hopsPerDeed(c), bd = Math.round(E.movementDodge(c) * 100);
+    const speedTxt = `You cover <b>${perDeed} stage${perDeed > 1 ? "s" : ""}</b> of road per travel deed${art ? ` — ${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : ""}.${bd > 0 ? ` Your light-body skill also lends <b>+${bd}% dodge</b> in battle.` : ""}`;
     body.appendChild(el("p", "note", `You stand at <b>${escapeHtml(here ? here.name : "—")}</b>${here && here.cn ? ` (${escapeHtml(here.cn)})` : ""} — ${W.typeOf(here).label}. ${speedTxt} Distant places take more than a year's travel — you rest at waystations along the road.`));
 
     // A journey already underway: offer to ride on toward the remembered goal.
@@ -1732,7 +1732,7 @@ function openSheet() {
     if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
     if (c.daos.length) rows.push(["Daos", c.daos.map(d => `${D.DAO_BY_KEY[d][1].split(" (")[0]} · ${D.daoTierName(E.daoTierOf(c, d))}`).join(", ")]);
     rows.push(["Dao Heart 道心", `${E.daoHeartLabel(c.daoHeart || 0)} (${Math.round(c.daoHeart || 0)}/${E.DAO_HEART_MAX})`]);
-    { const art = E.bestMovementArt(c); rows.push(["Movement 轻功", `${art ? `${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : "—"} · ${E.hopsPerDeed(c)} stage${E.hopsPerDeed(c) > 1 ? "s" : ""}/deed`]); }
+    { const art = E.bestMovementArt(c), bd = Math.round(E.movementDodge(c) * 100); rows.push(["Movement 轻功", `${art ? `${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : "—"} · ${E.hopsPerDeed(c)} stage${E.hopsPerDeed(c) > 1 ? "s" : ""}/deed${bd > 0 ? ` · +${bd}% battle dodge` : ""}`]); }
     if ((c.epithets || []).length) rows.push(["Monikers 名号", c.epithets.map(e => `「${e.text}」`).join(" "), "monikers"]);
     if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
     body.appendChild(infoRows(rows));
