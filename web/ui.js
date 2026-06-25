@@ -16,11 +16,11 @@ const GLOSSARY = {
   power: ["Power ✦", "Your overall combat strength, drawn from your realm, body, soul, techniques, bound treasure, beast and Daos."],
   health: ["Health", "Your physical condition (0–100). Wounds and illness lower it; rest, pills and spirit springs restore it. Hit zero and you die."],
   happiness: ["Happiness", "Your state of mind (0–100). A serene heart steadies breakthroughs; deep misery invites the heart-demon."],
-  comprehension: ["Comprehension 悟性", "How quickly you grasp the dao. Speeds cultivation, eases breakthroughs, and quickens Dao insight. An ordinary mortal sits near 50 (Apt); the banner names your tier, from Dull up to Sage-Minded."],
-  constitution: ["Constitution 根骨", "Bodily strength. More battle stamina and damage-reduction, and a sturdier resistance to death. An ordinary mortal sits near 50 (Hardy); tiers run Frail up to Indestructible."],
-  soul: ["Soul Sense 神识", "Your spiritual sense — the spirit pillar to Constitution's body. A larger combat qi pool that refills faster each round, a steadier ward against mind-afflictions, sharper Dao insight, alchemy and art-forging, and a keener eye for hidden spoils. Temper it through meditation. Near 50 (Aware); tiers run Dim up to Heaven-Spanning."],
-  fortune: ["Fortune 气运", "The heavens' favour. Sweetens crits, lucky finds, treasure grade and pill quality, and pulls you back from death's door. It grows with merit (good Karma ripens into fortune; ill Karma sours it). Near 50 (Favoured); tiers run Cursed up to Heaven-Chosen."],
-  charm: ["Charm 魅力", "Your presence and renown. Wins friends, dao companions and recruits, makes your public deeds spread further (more fame), draws followers to a sect you lead, and steels your allies in battle. Refine it amid cultivator society. Near 50 (Comely); tiers run Plain up to Nation-Toppling."],
+  comprehension: ["Comprehension 悟性", "How quickly you grasp the dao. Speeds cultivation, eases breakthroughs, and quickens Dao insight. Every stat climbs an eight-tier ladder; you are BORN into the first three (a fine birth at tier 2, a heavenly one at tier 3) and climb the rest — Study Scriptures — over a life. Tiers run Dull → Sage-Minded."],
+  constitution: ["Constitution 根骨", "Bodily strength — battle stamina, damage-reduction, a sturdier resistance to death. Born in tiers 1–3 of 8; raised by Training the Body. Tiers run Frail → Indestructible."],
+  soul: ["Soul Sense 神识", "Your spiritual sense — the spirit pillar to Constitution's body: a larger combat qi pool that refills faster each round, a steadier ward against mind-afflictions, sharper Dao insight, alchemy and art-forging, and a keener eye for hidden spoils. Born in tiers 1–3 of 8; raised by Tempering the Soul. Tiers run Dim → Heaven-Spanning."],
+  fortune: ["Fortune 气运", "The heavens' favour: sweetens crits, lucky finds, treasure grade and pill quality, and pulls you back from death's door. Born in tiers 1–3 of 8, it then grows with merit — good Karma ripens into fortune, ill Karma sours it. Tiers run Cursed → Heaven-Chosen."],
+  charm: ["Charm 魅力", "Your presence and renown: wins friends, dao companions and recruits, makes public deeds spread further (more fame), draws followers to a sect you lead, and steels allies in battle. Born in tiers 1–3 of 8; raised by Refining your Presence. Tiers run Plain → Nation-Toppling."],
   karma: ["Karma 业力", "Merit versus sin. Merit softens the Heavenly Tribulation; deep sin summons a heart-demon and bounty hunters."],
   fame: ["Fame 声望", "How the cultivation world regards your name — Unknown up to Legendary. Fame draws invitations and gifts; infamy brings hunters."],
   monikers: ["Monikers 名号", "Names the world hangs on you, earned through your dao, deeds, fame and nature — a Sword Immortal, a Pill Sage, a Devil Sovereign. Greater fame unlocks grander names; the grandest you hold is how the world speaks of you, shown beneath your name."],
@@ -1878,7 +1878,7 @@ function openSheet() {
     if (D.PHYSIQUE_EFFECTS[c.physiqueKey] && c.physiqueKey !== "ordinary")
       body.appendChild(el("p", "note", "✦ " + D.physEffect(c).desc));
     body.appendChild(el("div", "section-h", "Attributes"));
-    const attrRow = (label, field, attr, tip) => [label, `${c[field]} · ${D.attrTier(attr, c[field]).name}`, tip];
+    const attrRow = (label, field, attr, tip) => { const t = D.attrTier(attr, c[field]); return [label, `${c[field]} · ${t.name} (${t.idx + 1}/${t.of})`, tip]; };
     body.appendChild(infoRows([
       attrRow("Comprehension 悟性", "comprehension", "comprehension", "comprehension"),
       attrRow("Constitution 根骨", "constitution", "constitution", "constitution"),
@@ -2158,7 +2158,7 @@ function creatorPreviewCard(c) {
   const wrap = el("div", "cr-preview");
   wrap.appendChild(el("span", "chop"));
   wrap.appendChild(el("div", "cr-pv-top", `${D.avatarFor(c, 22)} <b>${escapeHtml(c.name)}</b> · ${c.sex === "female" ? "♀" : "♂"}`));
-  const tg = (field, attr) => `${c[field]} (${D.attrTier(attr, c[field]).name})`;
+  const tg = (field, attr) => { const t = D.attrTier(attr, c[field]); return `${c[field]} · ${t.name} (tier ${t.idx + 1}/${t.of})`; };
   const rows = [
     ["Spiritual Root", `${c.root.display}${c.root.elements.length ? " [" + c.root.elements.join(", ") + "]" : ""}`],
     ["Physique", c.physiqueName], ["Appearance", c.appearanceName], ["Standing", c.backgroundName],

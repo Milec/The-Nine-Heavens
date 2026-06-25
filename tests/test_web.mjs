@@ -815,6 +815,38 @@ function testStatsEarnTheirKeep() {
     assert(evil.luck < le0, `evil karma bleeds fortune away (${le0} -> ${evil.luck})`); }
 }
 
+// Birth sets a low starting rung on the eight-tier ladder (1..3); the climb to the
+// peak is the work of a life, and legacy can carry a soul above the birth cap.
+function testBirthStartsLowOnTheLadder() {
+  const stats = ["comprehension", "constitution", "soul", "luck", "charm"];
+  const cap = D.ATTR_TIER_CUTS[2] - 1;   // top of tier 3
+  // No fresh birth — however lucky the roll — ever exceeds tier 3.
+  let maxTier = 0;
+  for (let s = 0; s < 600; s++) {
+    const c = L.bornCharacter(new E.RNG(s), "B" + s, null);
+    for (const k of stats) {
+      const idx = D.attrTierIndex(c[k]);
+      assert(idx <= 2, `${k}=${c[k]} (tier ${idx + 1}) must be born in tiers 1..3`);
+      assert(c[k] <= cap, `${k} birth value within the tier-3 cap`);
+      maxTier = Math.max(maxTier, idx + 1);
+    }
+  }
+  assert(maxTier === 3, "the very best births do reach tier 3");
+  // A deliberately heavenly birth still lands at tier 3, not the summit.
+  for (let s = 0; s < 50; s++) {
+    const c = L.bornCharacter(new E.RNG(s), "Heaven", null, { rootKey: "chaos", physiqueKey: "dragon", appearanceKey: "peerless", backgroundKey: "hermit" });
+    for (const k of stats) assert(D.attrTierIndex(c[k]) <= 2, `even a heavenly birth caps ${k} at tier 3`);
+  }
+  // Training climbs past the birth cap into the upper tiers.
+  { const c = L.bornCharacter(new E.RNG(3), "Climber", null); c.awakened = true;
+    for (let i = 0; i < 120 && c.alive; i++) L.temperSoul(c, new E.RNG(900 + i));
+    assert(D.attrTierIndex(c.soul) >= 3, `Tempering the Soul climbs past tier 3 (soul ${c.soul})`); }
+  // Legacy carries a soul above the birth cap (reincarnation's inherited insight).
+  { const old = L.bornCharacter(new E.RNG(8), "Sage", null); old.realm = 9; old.daos = ["sword", "time", "death"];
+    const reborn = L.reincarnateLife(old, new E.RNG(8), "Reborn");
+    assert(reborn.comprehension > cap, `legacy lifts a reborn soul above the birth cap (comp ${reborn.comprehension})`); }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -837,6 +869,7 @@ try {
   test("new birth options are well-formed and fully integrated", testBirthOptions);
   test("a living realm population fills sects and can be sought out, recruited & challenged", testWorldPopulationAndDenizens);
   test("the lesser stats (Soul/Luck/Charm) are trainable and carry mechanical weight", testStatsEarnTheirKeep);
+  test("birth starts low on the eight-tier ladder; the climb is earned", testBirthStartsLowOnTheLadder);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

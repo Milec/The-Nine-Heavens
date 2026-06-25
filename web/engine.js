@@ -44,6 +44,13 @@ function rollAttribute(rng, low = 1, high = 100) {
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// Birth lands a soul in the lower reaches of the eight-tier attribute ladder. The
+// full rolled spread (root, omen, physique, upbringing) is preserved in its shape
+// but scaled down into tiers 1..3 and hard-capped at tier 3 — so a heavenly birth
+// is a head start, never a finished cultivator. (See generateCharacter.)
+const BIRTH_TIER_CAP = D.ATTR_TIER_CUTS[2] - 1;   // 44 = the top of tier 3 (band 2 of 0..7)
+const BIRTH_TIER_SCALE = 0.45;
+
 /* ------------------------- derived stats --------------------------------- */
 export const realmName = c => D.REALMS[c.realm][0];
 export const realmCn = c => D.REALMS[c.realm][1];
@@ -373,8 +380,13 @@ export function generateCharacter(rng, name, opts = {}) {
   if (nurture[bk]) { const [a, d] = nurture[bk]; c[a] += d; }
   // A physician's child grows up with a real head start at the furnace.
   if (bk === "physician") c.alchemySkill = (c.alchemySkill || 0) + 10;
+  // A newborn soul begins low on the eight-tier ladder: root, omen, physique and
+  // upbringing decide *where* in the first three tiers you start — a fine birth
+  // lands you at tier 2, a heavenly one at tier 3 — but nothing is born at the
+  // summit. The long climb up tiers 4..8 is the work of a life of cultivation.
+  // (Legacy — reincarnation and heirs — layers its own gains above this cap.)
   for (const a of ["comprehension", "constitution", "soul", "luck", "charm"])
-    c[a] = clamp(c[a], 1, 160);
+    c[a] = clamp(Math.round(c[a] * BIRTH_TIER_SCALE), 1, BIRTH_TIER_CAP);
 
   recomputeMaxAge(c);
   recomputeMaxHp(c);
