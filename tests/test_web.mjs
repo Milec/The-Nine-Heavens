@@ -743,6 +743,20 @@ function testWorldPopulationAndDenizens() {
   for (const s of D.SECTS)
     assert(pop.some(n => n.alive && n.sectKey === s[0]), `sect ${s[0]} is populated`);
 
+  // Every NPC has the five attributes, born low (tiers 1..3) and climbing with realm.
+  for (const stat of ["comprehension", "constitution", "soul", "luck", "charm"]) {
+    for (const n of pop) {
+      assert(typeof E.npcAttr(n, stat) === "number" && E.npcAttr(n, stat) >= 1, `denizen has a ${stat} stat`);
+      assert(n.geno && D.attrTierIndex(n.geno[stat]) <= 2, `denizen's birth ${stat} is tier 1..3`);
+    }
+  }
+  // The cultivation pillars climb with realm: a high-realm master out-stats a novice.
+  const low = { role: "world", alive: true }, high = { role: "world", alive: true };
+  E.ensureNpcProfile(low, new E.RNG(1), { realm: 1 });
+  E.ensureNpcProfile(high, new E.RNG(1), { realm: 9 });
+  assert(E.npcAttr(high, "constitution") > E.npcAttr(low, "constitution") && E.npcAttr(high, "soul") > E.npcAttr(low, "soul"),
+    "a high-realm cultivator's body & soul outstrip a low-realm one's");
+
   // The Heaven Board reports a true standing among the whole population.
   const st = E.rankboardStanding(c);
   assert(st.worldTotal === pop.filter(n => n.alive).length + 1, "world standing counts every living cultivator");
@@ -832,6 +846,13 @@ function testBirthStartsLowOnTheLadder() {
     }
   }
   assert(maxTier === 3, "the very best births do reach tier 3");
+  // Tier 1 is the norm: most rolled stats are ordinary (tier 1), a strong minority
+  // reach tier 2 (the cultivation/sect-family births), and tier 3 is anomalous.
+  { const d = { 1: 0, 2: 0, 3: 0 }; let n = 0;
+    for (let s = 0; s < 3000; s++) { const c = L.bornCharacter(new E.RNG(s + 9000), "D", null); for (const k of stats) { d[D.attrTierIndex(c[k]) + 1]++; n++; } }
+    assert(d[1] / n > 0.6, `tier 1 is the norm (got ${(100 * d[1] / n).toFixed(0)}%)`);
+    assert(d[2] / n > 0.1 && d[2] / n < 0.4, `tier 2 is a strong minority (got ${(100 * d[2] / n).toFixed(0)}%)`);
+    assert(d[3] / n > 0 && d[3] / n < 0.05, `tier 3 is anomalous (got ${(100 * d[3] / n).toFixed(1)}%)`); }
   // A deliberately heavenly birth still lands at tier 3, not the summit.
   for (let s = 0; s < 50; s++) {
     const c = L.bornCharacter(new E.RNG(s), "Heaven", null, { rootKey: "chaos", physiqueKey: "dragon", appearanceKey: "peerless", backgroundKey: "hermit" });

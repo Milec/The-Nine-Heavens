@@ -45,11 +45,16 @@ function rollAttribute(rng, low = 1, high = 100) {
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // Birth lands a soul in the lower reaches of the eight-tier attribute ladder. The
-// full rolled spread (root, omen, physique, upbringing) is preserved in its shape
-// but scaled down into tiers 1..3 and hard-capped at tier 3 — so a heavenly birth
-// is a head start, never a finished cultivator. (See generateCharacter.)
+// raw rolled spread (root, omen, physique, upbringing) is preserved in its shape
+// but bent through a curve so that an ordinary soul is born at tier 1, a strong
+// birth (the sort that runs in cultivation/sect families) at tier 2, and only an
+// anomalous prodigy at tier 3 — never the summit. (See generateCharacter.)
 const BIRTH_TIER_CAP = D.ATTR_TIER_CUTS[2] - 1;   // 44 = the top of tier 3 (band 2 of 0..7)
-const BIRTH_TIER_SCALE = 0.45;
+const BIRTH_PRE_MAX = 124;   // the practical ceiling of the raw roll + birth bonuses
+const BIRTH_GAMMA = 2.1;     // >1 curves most souls down to tier 1; only the gifted climb to 2..3
+const BIRTH_FLOOR = 3;       // even an ordinary soul isn't scraping the very bottom of the ladder
+// Bend a raw birth attribute onto the low tiers (1..3) with the curve above.
+const birthTierValue = raw => clamp(BIRTH_FLOOR + Math.round((BIRTH_TIER_CAP - BIRTH_FLOOR) * Math.pow(Math.min(1, Math.max(0, raw) / BIRTH_PRE_MAX), BIRTH_GAMMA)), 1, BIRTH_TIER_CAP);
 
 /* ------------------------- derived stats --------------------------------- */
 export const realmName = c => D.REALMS[c.realm][0];
@@ -386,7 +391,7 @@ export function generateCharacter(rng, name, opts = {}) {
   // summit. The long climb up tiers 4..8 is the work of a life of cultivation.
   // (Legacy — reincarnation and heirs — layers its own gains above this cap.)
   for (const a of ["comprehension", "constitution", "soul", "luck", "charm"])
-    c[a] = clamp(Math.round(c[a] * BIRTH_TIER_SCALE), 1, BIRTH_TIER_CAP);
+    c[a] = birthTierValue(c[a]);
 
   recomputeMaxAge(c);
   recomputeMaxHp(c);
@@ -409,8 +414,11 @@ export function rollGenome(rng) {
   // talent tends to attract talent: a dao companion's root is the better of two draws.
   const rootKey = [weightedChoice(rng, D.ROOT_TYPES, 4), weightedChoice(rng, D.ROOT_TYPES, 4)]
     .sort((a, b) => (D.ROOT_TIER[b[0]] || 0) - (D.ROOT_TIER[a[0]] || 0))[0][0];
+  // The genome holds a soul's *birth* attributes — low on the ladder (tiers 1..3),
+  // just like a freshly rolled player; a long cultivation life raises them (npcAttr).
   return genomeShape(rootKey, weightedChoice(rng, D.PHYSIQUES, 7)[0], weightedChoice(rng, D.APPEARANCES, 4)[0],
-    rollAttribute(rng), rollAttribute(rng), rollAttribute(rng), rollAttribute(rng), rollAttribute(rng));
+    birthTierValue(rollAttribute(rng)), birthTierValue(rollAttribute(rng)), birthTierValue(rollAttribute(rng)),
+    birthTierValue(rollAttribute(rng)), birthTierValue(rollAttribute(rng)));
 }
 // The player's own heritable genome.
 export const playerGenome = c => genomeShape(c.root ? c.root.key : "waste", c.physiqueKey || "ordinary",
@@ -441,10 +449,19 @@ export function inheritGenome(ga, gb, rng) {
 // Every named NPC is a cultivator in their own right: a spiritual root, physique,
 // realm and techniques — from which their combat power derives (same maths as you).
 const NPC_TECH_POOL = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing");
+// An NPC's effective attributes: a tier-1..3 birth base (kept in the genome) raised
+// by a lifetime of cultivation, so their stats climb with their realm just as yours
+// climb with training. The cultivation pillars (comprehension/constitution/soul)
+// climb fast; fortune and presence drift up only gently. The very top tiers (7–8)
+// stay the preserve of a player who deliberately tempers them.
+const NPC_ATTR_CLIMB = { comprehension: 9, constitution: 9, soul: 9, luck: 3, charm: 3 };
+export function npcAttr(npc, key) {
+  const base = (npc.geno && npc.geno[key] != null) ? npc.geno[key] : 18;
+  return clamp(Math.round(base + (npc.realm || 0) * (NPC_ATTR_CLIMB[key] || 0)), 1, 160);
+}
 export function npcPower(npc) {
   const rf = (npc.realm || 0) * 10 + (npc.stage || 0) + 1;
-  const g = npc.geno || {};
-  const con = g.constitution || 40, soul = g.soul || 40;
+  const con = npcAttr(npc, "constitution"), soul = npcAttr(npc, "soul");
   const techAtk = (npc.techniques || []).reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][3] : 0), 0);
   const p = Math.pow(rf, 2.1) * (1 + con * 0.8 / 100 + soul * 0.5 / 100) + techAtk * rf;
   return Math.max(2, Math.round(p));

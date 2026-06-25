@@ -682,6 +682,12 @@ function openPerson(n) {
       ...cult,
       ...(n.occupation ? [["Occupation", n.occupation]] : []),
     ]));
+    // Their own eight-tier attributes, once their talent is known (a child's is a
+    // mystery until the Awakening; a babe has no profile to read yet).
+    if (n.geno && !hidden && !(isChild && (n.realm == null))) {
+      body.appendChild(el("div", "section-h", "Attributes"));
+      body.appendChild(infoRows(npcAttrRows(n)));
+    }
     const mkActBtn = (act) => {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
       b.onclick = () => {
@@ -752,6 +758,16 @@ function openPerson(n) {
 // A world denizen — a population NPC you don't personally know. Tapping the row
 // opens a read-only dossier (you have no relationship actions with a stranger).
 const DENIZEN_ROLE_LABEL = { sectmaster: "Sect Master", elder: "Elder", disciple: "Sect Disciple", rogue: "Rogue Cultivator", genius: "Wandering Genius", world: "Cultivator" };
+// The five attributes, as [field, label, tier-name key], for NPC dossiers.
+const NPC_ATTRS = [["comprehension", "Comprehension", "comprehension"], ["constitution", "Constitution", "constitution"],
+  ["soul", "Soul Sense", "soul"], ["luck", "Fortune", "luck"], ["charm", "Charm", "charm"]];
+// An NPC's effective (realm-raised) attribute rows, each with its eight-tier banner.
+function npcAttrRows(n) {
+  return NPC_ATTRS.map(([field, label, attr]) => {
+    const v = E.npcAttr(n, field), t = D.attrTier(attr, v);
+    return [label, `${v} · ${t.name} (${t.idx + 1}/${t.of})`, attr];
+  });
+}
 function denizenRow(n) {
   const row = el("div", "listrow");
   const sub = `${n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator"} · ${E.npcRealmName(n)}${n.age != null ? ` · age ${n.age}` : ""}`;
@@ -776,6 +792,8 @@ function openDenizen(n) {
       ["Power", Math.floor(n.power || E.npcPower(n)), "power"],
     ];
     body.appendChild(infoRows(rows));
+    body.appendChild(el("div", "section-h", "Attributes"));
+    body.appendChild(infoRows(npcAttrRows(n)));
     const acts = L.denizenActions(c, n);
     body.appendChild(el("p", "note", acts.length
       ? "A cultivator of the realm, dwelling where you now stand. Seek them out and they may enter your life — as a friend, a rival, even a master — or cross blades to make your name."
