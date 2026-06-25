@@ -204,6 +204,19 @@ export function cultivationSpeed(c) {
 // Martial might from body cultivation — its own power base, independent of qi
 // realm, so a body cultivator (even rootless) can grow truly strong.
 export const bodyMartialBase = c => D.bodyRealmAt(c.bodyRealm || 0)[3];
+
+/* --- the lesser stats given clear identities (Presence / Fortune / Spirit) ---
+ * Charm is your presence and renown: a charismatic cultivator's deeds spread
+ * further, their banner draws followers, and their allies fight the harder for
+ * them. Luck is your fortune: it sweetens what the heavens hand you — loot,
+ * pills, treasures — and softens the bite of ill chance. (Soul, the spirit pillar
+ * opposite Constitution's body, drives the qi pool, qi regen and mental ward in
+ * combat — see combat.js — as well as alchemy, talismans and the forging of arts.) */
+export const presenceMult = c => 1 + (c.charm || 0) / 160;   // 1.0 .. ~2.0
+export const fortuneMult = c => 1 + (c.luck || 0) / 160;     // 1.0 .. ~2.0
+// Award fame for a public deed, amplified by your presence. Returns the gain.
+export function gainFame(c, base) { const g = Math.max(0, Math.round(base * presenceMult(c))); c.reputation += g; return g; }
+
 export function basePower(c) {
   const rf = c.realm * 10 + c.stage + 1;
   const base = Math.pow(rf, 2.1) + bodyMartialBase(c);
@@ -808,8 +821,9 @@ export function daoHeartLabel(v) {
 // Defense a heart demon (and like ordeals) must overcome.
 export const daoHeartWard = c =>
   (c.daoHeart || 0) / 170.0 + c.soul / 320.0 + (c.daos || []).length * 0.035 + c.comprehension / 600.0;
-// In battle, resolve lets you shrug off mind-afflictions (stun/weaken).
-export const mentalResist = c => clamp((c.daoHeart || 0) / 240.0 + c.soul / 700.0, 0, 0.6);
+// In battle, resolve lets you shrug off mind-afflictions (stun/weaken) — steadied
+// by your dao heart and the strength of your spiritual sense (soul).
+export const mentalResist = c => clamp((c.daoHeart || 0) / 240.0 + c.soul / 480.0, 0, 0.6);
 
 // Temper the Dao Heart through stillness — diminishing returns as it deepens,
 // quicker for the soul-keen and the serene.
@@ -905,7 +919,8 @@ export function fight(c, rng, enemy) {
     c.spiritStones += reward; c.reputation += 1; c.hp = Math.max(1.0, c.hp);
     msgs.push(`  You slay the ${name}! (+${reward} spirit stones, +1 reputation)`);
     if (kind === "rogue" && (name.includes("Demonic") || name.includes("Corpse") || name.includes("Bandit") || rng.random() < 0.5)) c.karma += 2;
-    if (rng.random() < 0.14 + c.luck / 900.0) pushAll(msgs, loot(c, rng));
+    // Fortune turns up spoils; spiritual sense (soul) sniffs out what's hidden.
+    if (rng.random() < 0.14 + c.luck / 500.0 + c.soul / 900.0) pushAll(msgs, loot(c, rng));
     if (kind === "beast" && c.beast === null) pushAll(msgs, tryTame(c, name, ePower, rng));
   } else if (c.hp <= 0) {
     if (rng.random() < c.luck / 300.0) { c.hp = c.maxHp * 0.15; msgs.push("  At death's door, blind luck lets you escape with your life!"); }
@@ -922,7 +937,9 @@ export function fight(c, rng, enemy) {
 }
 
 function loot(c, rng) {
-  const roll = rng.random();
+  // Fortune shifts the find toward the richer end of the table — a treasure where
+  // a luckless cultivator would turn up only a herb or a pill.
+  const roll = rng.random() - (c.luck || 0) / 700.0;
   if (roll < 0.22) return acquireArtifact(c, randomArtifact(c, rng));
   if (roll < 0.5) { const n = rng.randint(2, 5); c.herbs += n; return [`  You gather ${n} spirit herbs from the corpse's lair.`]; }
   if (roll < 0.75) { c.pills += 1; return ["  You loot a Qi-Gathering Pill."]; }
@@ -1009,7 +1026,7 @@ export function adventure(c, rng) {
 /* ----------------------------- artifacts --------------------------------- */
 function gradeForRealm(c, rng) {
   let base = Math.min(D.ARTIFACT_GRADES.length - 1, Math.floor(c.realm / 2));
-  const roll = rng.random() + c.luck / 600.0;
+  const roll = rng.random() + c.luck / 450.0;   // fortune meaningfully lifts a treasure's grade
   if (roll > 1.15) base += 2; else if (roll > 0.9) base += 1;
   return D.ARTIFACT_GRADES[Math.min(base, D.ARTIFACT_GRADES.length - 1)];
 }

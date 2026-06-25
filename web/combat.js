@@ -470,10 +470,12 @@ function takeRound(B, actionId) {
     }
   }
 
-  // A bonded companion or disciple fights at your side, the harder the closer your bond.
+  // A bonded companion or disciple fights at your side, the harder the closer your
+  // bond — and the more inspiring your presence (charm lifts an ally's morale).
   if (P.ally && En.hp > 0 && actionId !== "flee") {
     const affMult = 0.6 + (P.ally.affinity / 100) * 0.5;          // 0.6 .. 1.1
-    const ad = Math.round(P.atk * 0.09 * affMult * B.rng.uniform(0.85, 1.15));
+    const morale = 1 + (P.ref && P.ref.charm ? P.ref.charm : 0) / 300;   // up to ~1.5×
+    const ad = Math.round(P.atk * 0.09 * affMult * morale * B.rng.uniform(0.85, 1.15));
     En.hp -= ad; lines.push(`⚔ ${P.ally.name} ${P.ally.role === "companion" ? "fights at your side" : "strikes for the sect"} — ${ad} dmg.`);
   }
 
@@ -506,7 +508,8 @@ function takeRound(B, actionId) {
 
   // --- end of round upkeep ---
   tickStart(B, P, lines);
-  P.qi = Math.min(P.maxQi, P.qi + P.maxQi * 0.10 + 4);
+  // Qi recovers each round; a deep spiritual sea (soul) replenishes it the faster.
+  P.qi = Math.min(P.maxQi, P.qi + P.maxQi * 0.10 + 4 + (P.ref && P.ref.soul ? P.ref.soul : 0) * 0.05);
   B.turn++;
 
   if (P.hp <= 0) {

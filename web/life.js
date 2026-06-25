@@ -11,6 +11,21 @@ const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const cap = (c, k, v) => { c[k] = Math.min(160, c[k] + v); };
 function note(c, t) { c.log.push([c.age, t]); }
 
+// Karma slowly becomes Fortune: deep merit draws the heavens' favour (+Luck) over
+// the years; a black tide of evil karma sours it (−Luck). Returns a feed line or null.
+function karmaFortune(c, rng) {
+  const k = c.karma || 0;
+  if (k >= 30 && (c.luck || 0) < 160 && rng.random() < Math.min(0.5, 0.05 + k / 700)) {
+    cap(c, "luck", 1); note(c, "Accumulated merit ripened into fortune (+Luck).");
+    return "☯ The merit you have gathered ripens into fortune — the heavens look kindlier on you. (+Luck)";
+  }
+  if (k <= -30 && (c.luck || 0) > 1 && rng.random() < Math.min(0.5, 0.05 + (-k) / 700)) {
+    c.luck = Math.max(1, (c.luck || 1) - 1); note(c, "Ill karma soured your fortune (−Luck).");
+    return "☯ The weight of your ill karma sours your fortune; luck turns its face from you. (−Luck)";
+  }
+  return null;
+}
+
 /* ----------------------------- birth ------------------------------------- */
 function augment(c, rng, sex) {
   c.sex = sex || (rng.random() < 0.5 ? "female" : "male");
@@ -427,6 +442,12 @@ export function ageUp(c, rng) {
   if (tidings.length && rng.random() < 0.45)
     events.push({ id: "realm_tidings_" + c.age, auto: true, text: [`☷ Tidings from the wider realm: ${tidings[rng.randint(0, tidings.length - 1)]}`] });
 
+  // Merit ripens into fortune: a deep well of good karma slowly draws the heavens'
+  // favour to you over the years, while a black tide of evil karma bleeds it away.
+  // (Body and Soul you temper by hand; Fortune you earn by how you live.)
+  const km = karmaFortune(c, rng);
+  if (km) events.push({ id: "karma_fortune_" + c.age, auto: true, text: [km] });
+
   // Your spirit beast grows over the year (and its yearly feeding refreshes).
   if (c.beast && c.beast.alive) E.beastGrow(c, rng);
 
@@ -503,6 +524,30 @@ export function studyScriptures(c, rng) {
   if (c.age >= D.COMING_OF_AGE && c.realm >= 1 && c.root && c.root.key !== "none"
       && E.armArc(c, "tutelage", rng, c.comprehension >= 130 ? 1 : 0.04 + c.comprehension / 1600))
     msgs.push("A stranger has been watching you read, three days running now, and saying nothing.");
+  finishYear(c, rng, msgs);
+  return msgs;
+}
+// Temper the SPIRIT, the counterpart to tempering the body: a year of deep
+// meditation in your sea of consciousness sharpens the soul (+Soul).
+export function temperSoul(c, rng) {
+  if (!c.alive) return ["You are dead."];
+  c.age += 1;
+  const msgs = ["You pass the year in deep spiritual meditation, circulating qi through your sea of consciousness to hone your divine sense."];
+  if (rng.random() < 0.6) { cap(c, "soul", rng.randint(1, 3)); msgs.push("Your spiritual sense sharpens, your mind a stiller pool. (+Soul)"); }
+  if (c.awakened && c.root && c.root.key !== "none") { c.qi += E.qiToNext(c) * rng.uniform(0.05, 0.15); advanceStages(c); }
+  c.happiness = clampN(c.happiness + 1, 0, 100);
+  finishYear(c, rng, msgs);
+  return msgs;
+}
+// Refine your PRESENCE: a year moving in cultivator society, sharpening bearing,
+// wit and renown (+Charm, and a little fame).
+export function refinePresence(c, rng) {
+  if (!c.alive) return ["You are dead."];
+  c.age += 1;
+  const msgs = ["You spend the year amid cultivator society — banquets and dao-debates, poetry duels and quiet courtesies — honing your bearing and your name."];
+  if (rng.random() < 0.6) { cap(c, "charm", rng.randint(1, 3)); msgs.push("Your presence grows more compelling; eyes linger when you speak. (+Charm)"); }
+  if (rng.random() < 0.5) { const r = E.gainFame(c, rng.randint(1, 2)); if (r) msgs.push(`Tongues wag of you in the right halls. (+${r} fame)`); }
+  c.happiness = clampN(c.happiness + 3, 0, 100);
   finishYear(c, rng, msgs);
   return msgs;
 }
@@ -843,10 +888,10 @@ export function recruitDenizen(c, npc, rng) {
 // foe (slain or driven off) leaves the realm's roster.
 export function defeatDenizen(c, npc, rng) {
   removeDenizen(c, npc);
-  c.reputation += 4 + (npc.realm || 0);
+  const fame = E.gainFame(c, 4 + (npc.realm || 0));   // a public victory; your presence spreads it
   c.happiness = clampN(c.happiness + 4, 0, 100);
   note(c, `Bested ${npc.name} in a duel.`);
-  return [`✦ You best ${npc.name} before the watching realm; your name carries the further for it. (+Reputation)`];
+  return [`✦ You best ${npc.name} before the watching realm; your name carries the further for it. (+${fame} fame)`];
 }
 
 // Pass one of your techniques to a child / disciple / dao companion (free).
@@ -985,12 +1030,13 @@ function sectYearly(c, rng, events) {
   const cap = sectCapacity(c);
   const coreDisc = c.relationships.filter(n => n.alive && n.role === "disciple").length;
   if (s.members < cap) {
-    const gain = Math.max(1, Math.round((cap - s.members) * (0.04 + c.reputation / 4000 + s.prestige / 9000)));
+    // A charismatic founder draws recruits the faster (presence widens the appeal).
+    const gain = Math.max(1, Math.round((cap - s.members) * (0.04 + c.reputation / 4000 + s.prestige / 9000) * E.presenceMult(c)));
     s.members = Math.min(cap, s.members + gain);
   } else if (s.members > cap) s.members = cap;
-  s.prestige += c.realm * 0.6 + Math.min(6, c.abode || 0) * 0.5 + s.members * 0.02 + coreDisc * 0.5 + Math.max(0, c.reputation) * 0.01 + E.sectLibraryBonus(s);
+  s.prestige += (c.realm * 0.6 + Math.min(6, c.abode || 0) * 0.5 + s.members * 0.02 + coreDisc * 0.5 + Math.max(0, c.reputation) * 0.01 + E.sectLibraryBonus(s)) * E.presenceMult(c);
   const tier = D.sectTier(s.prestige);
-  c.reputation += tier[4];
+  c.reputation += Math.round(tier[4] * E.presenceMult(c));   // your presence spreads the sect's name further
   c.spiritStones += Math.round(s.members * 0.4 * (1 + Math.min(6, c.abode || 0) * 0.2));
   if (s._tier !== tier[1]) {
     if (s._tier) events.push({ id: "sect_rise_" + c.age, auto: true, milestone: true, text: [`✦ Your sect, the ${s.name}, has risen to a ${tier[1]} (${tier[2]})! Its name now carries weight across the land.`] });

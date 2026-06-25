@@ -785,6 +785,36 @@ function testWorldPopulationAndDenizens() {
   assert(pop.filter(n => n.alive).length > 100, "the population stays alive and replenished across the years");
 }
 
+// The lesser stats earn their keep: Soul/Charm are trainable (no longer frozen at
+// birth), Luck grows from karma, and each carries clear mechanical weight.
+function testStatsEarnTheirKeep() {
+  // Presence (charm) and Fortune (luck) helpers scale cleanly from 1.0 to ~2.0.
+  assert(Math.abs(E.presenceMult({ charm: 0 }) - 1) < 1e-9 && E.presenceMult({ charm: 160 }) === 2, "presenceMult spans 1.0..2.0");
+  assert(Math.abs(E.fortuneMult({ luck: 0 }) - 1) < 1e-9 && E.fortuneMult({ luck: 160 }) === 2, "fortuneMult spans 1.0..2.0");
+  // Fame from a public deed is amplified by presence.
+  const a = { charm: 0, reputation: 0 }, b = { charm: 160, reputation: 0 };
+  const fa = E.gainFame(a, 10), fb = E.gainFame(b, 10);
+  assert(fa === 10 && fb === 20 && a.reputation === 10 && b.reputation === 20, "gainFame scales reputation by presence");
+
+  // Soul and Charm are now trainable, so a poor birth roll is not a life sentence.
+  { const c = L.bornCharacter(new E.RNG(41), "Soul", null); c.awakened = true; const s0 = c.soul;
+    for (let i = 0; i < 25 && c.alive; i++) L.temperSoul(c, new E.RNG(100 + i));
+    assert(c.soul > s0, `Temper the Soul raises Soul (${s0} -> ${c.soul})`); }
+  { const c = L.bornCharacter(new E.RNG(42), "Pres", null); const h0 = c.charm;
+    for (let i = 0; i < 25 && c.alive; i++) L.refinePresence(c, new E.RNG(200 + i));
+    assert(c.charm > h0, `Refine your Presence raises Charm (${h0} -> ${c.charm})`); }
+
+  // Luck is no longer frozen: deep merit ripens into fortune over the years, and a
+  // black tide of evil karma bleeds it away.
+  { const good = L.bornCharacter(new E.RNG(43), "Saint", null); good.awakened = true; good.karma = 140; good.luck = 40;
+    const evil = L.bornCharacter(new E.RNG(44), "Fiend", null); evil.awakened = true; evil.karma = -140; evil.luck = 120;
+    const lg0 = good.luck, le0 = evil.luck;
+    const rngg = new E.RNG(7);
+    for (let y = 0; y < 80; y++) { if (good.alive) L.ageUp(good, rngg); if (evil.alive) L.ageUp(evil, rngg); }
+    assert(good.luck > lg0, `good karma ripens into fortune (${lg0} -> ${good.luck})`);
+    assert(evil.luck < le0, `evil karma bleeds fortune away (${le0} -> ${evil.luck})`); }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -806,6 +836,7 @@ try {
   test("action-triggered arcs arm sensibly and thread to their ends", testTriggeredArcs);
   test("new birth options are well-formed and fully integrated", testBirthOptions);
   test("a living realm population fills sects and can be sought out, recruited & challenged", testWorldPopulationAndDenizens);
+  test("the lesser stats (Soul/Luck/Charm) are trainable and carry mechanical weight", testStatsEarnTheirKeep);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);

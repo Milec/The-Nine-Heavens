@@ -18,9 +18,9 @@ const GLOSSARY = {
   happiness: ["Happiness", "Your state of mind (0–100). A serene heart steadies breakthroughs; deep misery invites the heart-demon."],
   comprehension: ["Comprehension 悟性", "How quickly you grasp the dao. Speeds cultivation, eases breakthroughs, and quickens Dao insight. An ordinary mortal sits near 50 (Apt); the banner names your tier, from Dull up to Sage-Minded."],
   constitution: ["Constitution 根骨", "Bodily strength. More battle stamina and damage-reduction, and a sturdier resistance to death. An ordinary mortal sits near 50 (Hardy); tiers run Frail up to Indestructible."],
-  soul: ["Soul Sense 神识", "Spiritual perception. A larger combat qi pool, better dodge, faster Dao insight, and stronger tribulation defence. An ordinary mortal sits near 50 (Aware); tiers run Dim up to Heaven-Spanning."],
-  fortune: ["Fortune 气运", "Luck. Quietly nudges crits, dodges, lucky finds, and clutch escapes from death. An ordinary mortal sits near 50 (Favoured); tiers run Cursed up to Heaven-Chosen."],
-  charm: ["Charm 魅力", "Social grace. Helps you make friends, draw a dao companion, and sway elders and foes alike. An ordinary mortal sits near 50 (Comely); tiers run Plain up to Nation-Toppling."],
+  soul: ["Soul Sense 神识", "Your spiritual sense — the spirit pillar to Constitution's body. A larger combat qi pool that refills faster each round, a steadier ward against mind-afflictions, sharper Dao insight, alchemy and art-forging, and a keener eye for hidden spoils. Temper it through meditation. Near 50 (Aware); tiers run Dim up to Heaven-Spanning."],
+  fortune: ["Fortune 气运", "The heavens' favour. Sweetens crits, lucky finds, treasure grade and pill quality, and pulls you back from death's door. It grows with merit (good Karma ripens into fortune; ill Karma sours it). Near 50 (Favoured); tiers run Cursed up to Heaven-Chosen."],
+  charm: ["Charm 魅力", "Your presence and renown. Wins friends, dao companions and recruits, makes your public deeds spread further (more fame), draws followers to a sect you lead, and steels your allies in battle. Refine it amid cultivator society. Near 50 (Comely); tiers run Plain up to Nation-Toppling."],
   karma: ["Karma 业力", "Merit versus sin. Merit softens the Heavenly Tribulation; deep sin summons a heart-demon and bounty hunters."],
   fame: ["Fame 声望", "How the cultivation world regards your name — Unknown up to Legendary. Fame draws invitations and gifts; infamy brings hunters."],
   monikers: ["Monikers 名号", "Names the world hangs on you, earned through your dao, deeds, fame and nature — a Sword Immortal, a Pill Sage, a Devil Sovereign. Greater fame unlocks grander names; the grandest you hold is how the world speaks of you, shown beneath your name."],
@@ -527,7 +527,7 @@ function challengeGenius(g) {
   logMessages([`You ascend the challenge-platform and call out ${g.name}, ${g.title} — a contest for rank on the Heaven Board!`]);
   startBattle(enemy, { title: `Heaven Board · ${g.name}` }, (outcome) => {
     if (state.c.alive) {
-      if (outcome === "win") { c.reputation += 6; g.power = Math.floor((g.power || 1) * 0.9); logMessages([`✦ You defeat ${g.name} before the watching world! Your name climbs the Heaven Board. (+Reputation)`]); }
+      if (outcome === "win") { const fame = E.gainFame(c, 6); g.power = Math.floor((g.power || 1) * 0.9); logMessages([`✦ You defeat ${g.name} before the watching world! Your name climbs the Heaven Board. (+${fame} fame)`]); }
       else { c.reputation = Math.max(-200, c.reputation - 3); logMessages([`${g.name} bests you. You withdraw, and the board remembers. (−Reputation)`]); }
     }
     renderProfile(); if (!state.c.alive) checkDeath(); else openRankboard();
@@ -580,6 +580,9 @@ function openPeople() {
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
     b.onclick = () => { if (!ageAllows("mingle") || !useAction("social")) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
     body.appendChild(b);
+    const rp = el("button", "mbtn full"); rp.innerHTML = "Refine your Presence<small>a deed · +charm · banquets, debates &amp; renown</small>";
+    rp.onclick = () => { if (!ageAllows("mingle")) return; runTimed(() => L.refinePresence(c, state.rng), "social"); };
+    body.appendChild(rp);
     if (c.realm >= 4 && L.getDisciples(c).length < 3) {
       const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>a deed · pass on your arts</small>";
       d.onclick = () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
@@ -988,7 +991,7 @@ function openActivities() {
     const grid = el("div", "menu-grid");
     const ab = D.abodeAt(c.abode || 0);
     const ni = n => icon(n, { size: 22 });
-    navCard(grid, ni("fist"), "Training", "temper body · study · rest · earn", actTrain);
+    navCard(grid, ni("fist"), "Training", "temper body & soul · study · rest · earn", actTrain);
     navCard(grid, ni("compass"), "Adventure", "travel · wander · hunt · delve", actAdventure);
     navCard(grid, ni("cauldron"), "Crafting", "refine pills · inscribe talismans", actCraft);
     navCard(grid, ni("coin"), "Commerce", "the market 坊市 · buy & sell", actCommerce);
@@ -1004,6 +1007,7 @@ function actTrain() {
     const g = leafGrid(body);
     g.mk("Train the Body", sub("train", "+constitution · tempers your body"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult"); }, { disabled: young("train") });
     g.mk("Study Scriptures", sub("study", "+comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "act"); }, { disabled: young("study") });
+    g.mk("Temper the Soul", sub("study", "+soul · hone your spiritual sense"), () => { if (!ageAllows("study")) return; runTimed(() => L.temperSoul(c, state.rng), "cult"); }, { disabled: young("study") });
     g.mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
     g.mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
     { const art = E.bestMovementArt(c);
@@ -2565,9 +2569,9 @@ function tourneyRound() {
 function tourneyEnd(placement, won) {
   const c = state.c, rng = state.rng;
   const contribution = won * 40 + (placement === 1 ? 120 : 0);
-  const rep = won * 3 + (placement === 1 ? 20 : 0);
+  const rep = E.gainFame(c, won * 3 + (placement === 1 ? 20 : 0));   // glory before the sect, spread by your presence
   const stones = won * 15;
-  c.contribution += contribution; c.reputation += rep; c.spiritStones += stones;
+  c.contribution += contribution; c.spiritStones += stones;
   let title = null;
   for (const [cut, name] of D.TOURNAMENT_TITLES) if (placement <= cut) { title = name; break; }
   const lines = [`The tournament ends — you place in the top ${Math.max(1, placement)}.`,
