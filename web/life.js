@@ -11,6 +11,21 @@ const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const cap = (c, k, v) => { c[k] = Math.min(160, c[k] + v); };
 function note(c, t) { c.log.push([c.age, t]); }
 
+// Karma slowly becomes Fortune: deep merit draws the heavens' favour (+Luck) over
+// the years; a black tide of evil karma sours it (−Luck). Returns a feed line or null.
+function karmaFortune(c, rng) {
+  const k = c.karma || 0;
+  if (k >= 30 && (c.luck || 0) < 160 && rng.random() < Math.min(0.5, 0.05 + k / 700)) {
+    cap(c, "luck", 1); note(c, "Accumulated merit ripened into fortune (+Luck).");
+    return "☯ The merit you have gathered ripens into fortune — the heavens look kindlier on you. (+Luck)";
+  }
+  if (k <= -30 && (c.luck || 0) > 1 && rng.random() < Math.min(0.5, 0.05 + (-k) / 700)) {
+    c.luck = Math.max(1, (c.luck || 1) - 1); note(c, "Ill karma soured your fortune (−Luck).");
+    return "☯ The weight of your ill karma sours your fortune; luck turns its face from you. (−Luck)";
+  }
+  return null;
+}
+
 /* ----------------------------- birth ------------------------------------- */
 function augment(c, rng, sex) {
   c.sex = sex || (rng.random() < 0.5 ? "female" : "male");
@@ -161,7 +176,7 @@ function generateFamily(c, rng) {
     c.relationships.push(newKin("Mother", prof[1], Math.max(0, prof[2] - 1), rng.randint(60, 85)));
   }
   if (rng.random() < 0.45) {
-    const sib = newKin(rng.random() < 0.5 ? "Brother" : "Sister", "a fellow child", 0, rng.randint(40, 70));
+    const sib = newKin(rng.random() < 0.5 ? "Brother" : "Sister", null, 0, rng.randint(40, 70));
     c.relationships.push(sib);
   }
 }
@@ -423,7 +438,15 @@ export function ageUp(c, rng) {
     if (npc.age != null) { npc.age += 1; if (npc.age > npc.maxAge) npcDies(c, npc, events); }
   }
   if (worldUp) events.push({ id: "world_advance", auto: true, text: [`Word reaches you: ${worldUp.name} has broken through to ${E.npcRealmName(worldUp)} (${D.REALMS[worldUp.realm][1]}). The world does not stand still while you cultivate.`] });
-  E.agePopulation(c, rng);   // the realm's cultivators climb (and fall) on their own roads
+  const tidings = E.agePopulation(c, rng);   // the realm's cultivators climb (and fall) on their own roads
+  if (tidings.length && rng.random() < 0.45)
+    events.push({ id: "realm_tidings_" + c.age, auto: true, text: [`☷ Tidings from the wider realm: ${tidings[rng.randint(0, tidings.length - 1)]}`] });
+
+  // Merit ripens into fortune: a deep well of good karma slowly draws the heavens'
+  // favour to you over the years, while a black tide of evil karma bleeds it away.
+  // (Body and Soul you temper by hand; Fortune you earn by how you live.)
+  const km = karmaFortune(c, rng);
+  if (km) events.push({ id: "karma_fortune_" + c.age, auto: true, text: [km] });
 
   // Your spirit beast grows over the year (and its yearly feeding refreshes).
   if (c.beast && c.beast.alive) E.beastGrow(c, rng);
@@ -501,6 +524,30 @@ export function studyScriptures(c, rng) {
   if (c.age >= D.COMING_OF_AGE && c.realm >= 1 && c.root && c.root.key !== "none"
       && E.armArc(c, "tutelage", rng, c.comprehension >= 130 ? 1 : 0.04 + c.comprehension / 1600))
     msgs.push("A stranger has been watching you read, three days running now, and saying nothing.");
+  finishYear(c, rng, msgs);
+  return msgs;
+}
+// Temper the SPIRIT, the counterpart to tempering the body: a year of deep
+// meditation in your sea of consciousness sharpens the soul (+Soul).
+export function temperSoul(c, rng) {
+  if (!c.alive) return ["You are dead."];
+  c.age += 1;
+  const msgs = ["You pass the year in deep spiritual meditation, circulating qi through your sea of consciousness to hone your divine sense."];
+  if (rng.random() < 0.6) { cap(c, "soul", rng.randint(1, 3)); msgs.push("Your spiritual sense sharpens, your mind a stiller pool. (+Soul)"); }
+  if (c.awakened && c.root && c.root.key !== "none") { c.qi += E.qiToNext(c) * rng.uniform(0.05, 0.15); advanceStages(c); }
+  c.happiness = clampN(c.happiness + 1, 0, 100);
+  finishYear(c, rng, msgs);
+  return msgs;
+}
+// Refine your PRESENCE: a year moving in cultivator society, sharpening bearing,
+// wit and renown (+Charm, and a little fame).
+export function refinePresence(c, rng) {
+  if (!c.alive) return ["You are dead."];
+  c.age += 1;
+  const msgs = ["You spend the year amid cultivator society — banquets and dao-debates, poetry duels and quiet courtesies — honing your bearing and your name."];
+  if (rng.random() < 0.6) { cap(c, "charm", rng.randint(1, 3)); msgs.push("Your presence grows more compelling; eyes linger when you speak. (+Charm)"); }
+  if (rng.random() < 0.5) { const r = E.gainFame(c, rng.randint(1, 2)); if (r) msgs.push(`Tongues wag of you in the right halls. (+${r} fame)`); }
+  c.happiness = clampN(c.happiness + 3, 0, 100);
   finishYear(c, rng, msgs);
   return msgs;
 }
@@ -763,6 +810,90 @@ export function takeDisciple(c, rng) {
   return [`You take ${n.name} under your wing as a disciple. They kowtow three times, eyes brimming.`];
 }
 
+/* ----------------- the wider realm: meeting its cultivators --------------- */
+// The world population is not mere scenery: a cultivator dwelling where you stand
+// can be sought out as a bond (or even a master), recruited into a sect you lead,
+// or challenged. Winning them over MOVES them out of the population and into your
+// relationships, where the ordinary relationship system takes over.
+const atYourLocation = (c, npc) => !!(npc && npc.alive && npc.home != null && npc.home === c.location);
+
+function removeDenizen(c, npc) {
+  const pop = c.world && c.world.npcs;
+  if (pop) { const i = pop.indexOf(npc); if (i >= 0) pop.splice(i, 1); }
+}
+
+// The interactions available with a world denizen (only where you both stand).
+export function denizenActions(c, npc) {
+  const acts = [];
+  if (!atYourLocation(c, npc)) return acts;
+  acts.push({ id: "acquaint", label: "Seek their acquaintance" });
+  if (c.ownSect && !npc.sectKey) acts.push({ id: "recruit", label: "Recruit to your sect" });
+  if (c.awakened && c.age >= D.ageMin("duel") && (npc.power || 0) <= E.power(c) * 3.2)
+    acts.push({ id: "challenge", label: "Challenge to a duel" });
+  return acts;
+}
+
+// Try to win a denizen's acquaintance — charm, renown and a near-enough realm help.
+// On success they join your bonds (a friend, a wary rival, or, if far mightier and
+// taken with you, a Master); on failure they remain a stranger of the realm.
+export function acquaintDenizen(c, npc, rng) {
+  if (!atYourLocation(c, npc)) return [`${npc.name} is not here to be met.`];
+  E.ensureNpcProfile(npc, rng);
+  const pull = c.charm + (["striking", "peerless", "immortal"].includes(c.appearanceKey) ? 15 : 0);
+  const gap = (npc.realm || 0) - (c.realm || 0);
+  const chance = clampN(0.42 + pull / 220 + c.reputation / 600 + (npc.sectKey && npc.sectKey === c.sectKey ? 0.2 : 0) - Math.max(0, gap) * 0.07, 0.08, 0.95);
+  if (rng.random() >= chance)
+    return [`${npc.name} hears you out with cool courtesy, but no rapport takes. Raise your renown and seek them again another year.`];
+  removeDenizen(c, npc);
+  delete npc.title;                                   // a bond, not a board-listing
+  let role = "friend", aff = 16 + Math.floor(pull / 8), line;
+  if (gap >= 3 && c.reputation >= 25 && !E.findNpc(c, "master") && rng.random() < 0.55) {
+    role = "master"; aff = 30;
+    line = `✦ ${npc.name} sees rare promise in you and offers to take you in hand — you have found a Master!`;
+  } else if (npc.sectKey === "bloodcult" || rng.random() < 0.12) {
+    role = "rival"; aff = -8;
+    line = `You cross words with ${npc.name}; sparks fly, and a wary rivalry is born.`;
+  }
+  npc.role = role; npc.affinity = clampN(aff, -100, 100); npc.met = true;
+  if (!line) line = `You strike up an acquaintance with ${npc.name}. A new bond enters your life. (${E.npcStatus(npc)})`;
+  c.relationships.push(npc);
+  c.happiness = clampN(c.happiness + 3, 0, 100);
+  note(c, `Made the acquaintance of ${npc.name}${role === "master" ? ", who became your master" : ""}.`);
+  return [line];
+}
+
+// Draw an unaffiliated cultivator into a sect you lead — a named disciple, and a
+// little more prestige and strength for your banner.
+export function recruitDenizen(c, npc, rng) {
+  if (!c.ownSect) return ["You lead no sect to recruit into."];
+  if (!atYourLocation(c, npc)) return [`${npc.name} is not here.`];
+  if (npc.sectKey) return [`${npc.name} already wears another sect's crest.`];
+  const cap = sectCapacity(c);
+  if (c.ownSect.members >= cap) return [`Your halls are full (${c.ownSect.members}/${cap}). Expand your abode to make room for more.`];
+  E.ensureNpcProfile(npc, rng);
+  const chance = clampN(0.4 + c.charm / 250 + c.reputation / 500 + (E.power(c) > (npc.power || 0) ? 0.18 : -0.12), 0.1, 0.92);
+  if (rng.random() >= chance)
+    return [`${npc.name} declines to bend the knee to a fledgling banner. Win greater renown, and such talents will come of their own accord.`];
+  removeDenizen(c, npc);
+  delete npc.title;
+  npc.role = "disciple"; npc.kin = "Disciple"; npc.learned = npc.learned || [];
+  npc.affinity = clampN(42 + Math.floor(c.charm / 10), -100, 100); npc.resides = false;
+  c.relationships.push(npc);
+  c.ownSect.members += 1; c.ownSect.prestige += 2 + (npc.realm || 0);
+  note(c, `Recruited ${npc.name} into the ${c.ownSect.name}.`);
+  return [`✦ ${npc.name} pledges to your banner — a new disciple of the ${c.ownSect.name}. (+1 member, +prestige)`];
+}
+
+// Settle a won challenge against a local cultivator: renown rises, and the bested
+// foe (slain or driven off) leaves the realm's roster.
+export function defeatDenizen(c, npc, rng) {
+  removeDenizen(c, npc);
+  const fame = E.gainFame(c, 4 + (npc.realm || 0));   // a public victory; your presence spreads it
+  c.happiness = clampN(c.happiness + 4, 0, 100);
+  note(c, `Bested ${npc.name} in a duel.`);
+  return [`✦ You best ${npc.name} before the watching realm; your name carries the further for it. (+${fame} fame)`];
+}
+
 // Pass one of your techniques to a child / disciple / dao companion (free).
 export function teachTo(c, npc, techKey) {
   npc.learned = npc.learned || [];
@@ -899,12 +1030,13 @@ function sectYearly(c, rng, events) {
   const cap = sectCapacity(c);
   const coreDisc = c.relationships.filter(n => n.alive && n.role === "disciple").length;
   if (s.members < cap) {
-    const gain = Math.max(1, Math.round((cap - s.members) * (0.04 + c.reputation / 4000 + s.prestige / 9000)));
+    // A charismatic founder draws recruits the faster (presence widens the appeal).
+    const gain = Math.max(1, Math.round((cap - s.members) * (0.04 + c.reputation / 4000 + s.prestige / 9000) * E.presenceMult(c)));
     s.members = Math.min(cap, s.members + gain);
   } else if (s.members > cap) s.members = cap;
-  s.prestige += c.realm * 0.6 + Math.min(6, c.abode || 0) * 0.5 + s.members * 0.02 + coreDisc * 0.5 + Math.max(0, c.reputation) * 0.01 + E.sectLibraryBonus(s);
+  s.prestige += (c.realm * 0.6 + Math.min(6, c.abode || 0) * 0.5 + s.members * 0.02 + coreDisc * 0.5 + Math.max(0, c.reputation) * 0.01 + E.sectLibraryBonus(s)) * E.presenceMult(c);
   const tier = D.sectTier(s.prestige);
-  c.reputation += tier[4];
+  c.reputation += Math.round(tier[4] * E.presenceMult(c));   // your presence spreads the sect's name further
   c.spiritStones += Math.round(s.members * 0.4 * (1 + Math.min(6, c.abode || 0) * 0.2));
   if (s._tier !== tier[1]) {
     if (s._tier) events.push({ id: "sect_rise_" + c.age, auto: true, milestone: true, text: [`✦ Your sect, the ${s.name}, has risen to a ${tier[1]} (${tier[2]})! Its name now carries weight across the land.`] });

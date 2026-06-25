@@ -16,11 +16,11 @@ const GLOSSARY = {
   power: ["Power ✦", "Your overall combat strength, drawn from your realm, body, soul, techniques, bound treasure, beast and Daos."],
   health: ["Health", "Your physical condition (0–100). Wounds and illness lower it; rest, pills and spirit springs restore it. Hit zero and you die."],
   happiness: ["Happiness", "Your state of mind (0–100). A serene heart steadies breakthroughs; deep misery invites the heart-demon."],
-  comprehension: ["Comprehension 悟性", "How quickly you grasp the dao. Speeds cultivation, eases breakthroughs, and quickens Dao insight. An ordinary mortal sits near 50 (Apt); the banner names your tier, from Dull up to Sage-Minded."],
-  constitution: ["Constitution 根骨", "Bodily strength. More battle stamina and damage-reduction, and a sturdier resistance to death. An ordinary mortal sits near 50 (Hardy); tiers run Frail up to Indestructible."],
-  soul: ["Soul Sense 神识", "Spiritual perception. A larger combat qi pool, better dodge, faster Dao insight, and stronger tribulation defence. An ordinary mortal sits near 50 (Aware); tiers run Dim up to Heaven-Spanning."],
-  fortune: ["Fortune 气运", "Luck. Quietly nudges crits, dodges, lucky finds, and clutch escapes from death. An ordinary mortal sits near 50 (Favoured); tiers run Cursed up to Heaven-Chosen."],
-  charm: ["Charm 魅力", "Social grace. Helps you make friends, draw a dao companion, and sway elders and foes alike. An ordinary mortal sits near 50 (Comely); tiers run Plain up to Nation-Toppling."],
+  comprehension: ["Comprehension 悟性", "How quickly you grasp the dao. Speeds cultivation, eases breakthroughs, and quickens Dao insight. Every stat climbs an eight-tier ladder; you are BORN into the first three (a fine birth at tier 2, a heavenly one at tier 3) and climb the rest — Study Scriptures — over a life. Tiers run Dull → Sage-Minded."],
+  constitution: ["Constitution 根骨", "Bodily strength — battle stamina, damage-reduction, a sturdier resistance to death. Born in tiers 1–3 of 8; raised by Training the Body. Tiers run Frail → Indestructible."],
+  soul: ["Soul Sense 神识", "Your spiritual sense — the spirit pillar to Constitution's body: a larger combat qi pool that refills faster each round, a steadier ward against mind-afflictions, sharper Dao insight, alchemy and art-forging, and a keener eye for hidden spoils. Born in tiers 1–3 of 8; raised by Tempering the Soul. Tiers run Dim → Heaven-Spanning."],
+  fortune: ["Fortune 气运", "The heavens' favour: sweetens crits, lucky finds, treasure grade and pill quality, and pulls you back from death's door. Born in tiers 1–3 of 8, it then grows with merit — good Karma ripens into fortune, ill Karma sours it. Tiers run Cursed → Heaven-Chosen."],
+  charm: ["Charm 魅力", "Your presence and renown: wins friends, dao companions and recruits, makes public deeds spread further (more fame), draws followers to a sect you lead, and steels allies in battle. Born in tiers 1–3 of 8; raised by Refining your Presence. Tiers run Plain → Nation-Toppling."],
   karma: ["Karma 业力", "Merit versus sin. Merit softens the Heavenly Tribulation; deep sin summons a heart-demon and bounty hunters."],
   fame: ["Fame 声望", "How the cultivation world regards your name — Unknown up to Legendary. Fame draws invitations and gifts; infamy brings hunters."],
   monikers: ["Monikers 名号", "Names the world hangs on you, earned through your dao, deeds, fame and nature — a Sword Immortal, a Pill Sage, a Devil Sovereign. Greater fame unlocks grander names; the grandest you hold is how the world speaks of you, shown beneath your name."],
@@ -504,9 +504,10 @@ function openRankboard() {
   const c = state.c;
   E.ensurePopulation(c, state.rng);
   openOverlay("Heaven Board 天骄榜", body => {
-    const { ranked, rank, total } = E.rankboardStanding(c);
-    const last = rank === total;
-    const standing = last ? `You do not yet rank among them — you stand <b>last, #${rank} of ${total}</b>` : `You stand <b>#${rank} of ${total}</b>`;
+    const { ranked, rank, total, worldRank, worldTotal } = E.rankboardStanding(c);
+    const onBoard = rank < total;
+    const standing = `Among the realm's <b>${worldTotal}</b> living cultivators you stand <b>#${worldRank}</b>` +
+      (onBoard ? `, and <b>#${rank}</b> on the board itself` : " — not yet among the board's elite");
     body.appendChild(el("p", "note", `The roll of the realm's foremost cultivators, ranked by raw power — drawn from the great sects and the wider world, climbing their own roads whether or not you ever awaken. ${standing}. Climb it by out-cultivating them; challenge a rival above you to test yourself — win and your renown soars, lose and it dims.`));
     ranked.forEach((x, i) => {
       const row = el("div", "listrow" + (x.you ? " bound" : ""));
@@ -526,7 +527,7 @@ function challengeGenius(g) {
   logMessages([`You ascend the challenge-platform and call out ${g.name}, ${g.title} — a contest for rank on the Heaven Board!`]);
   startBattle(enemy, { title: `Heaven Board · ${g.name}` }, (outcome) => {
     if (state.c.alive) {
-      if (outcome === "win") { c.reputation += 6; g.power = Math.floor((g.power || 1) * 0.9); logMessages([`✦ You defeat ${g.name} before the watching world! Your name climbs the Heaven Board. (+Reputation)`]); }
+      if (outcome === "win") { const fame = E.gainFame(c, 6); g.power = Math.floor((g.power || 1) * 0.9); logMessages([`✦ You defeat ${g.name} before the watching world! Your name climbs the Heaven Board. (+${fame} fame)`]); }
       else { c.reputation = Math.max(-200, c.reputation - 3); logMessages([`${g.name} bests you. You withdraw, and the board remembers. (−Reputation)`]); }
     }
     renderProfile(); if (!state.c.alive) checkDeath(); else openRankboard();
@@ -566,9 +567,22 @@ function openPeople() {
     body.appendChild(el("div", "section-h", "Bonds"));
     if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or sworn enemies yet."));
     bonds.forEach(n => body.appendChild(personRow(n)));
+    // Named cultivators of the realm who dwell where you now stand — seek them out
+    // (in their dossier) to win them as bonds, recruit them, or cross blades.
+    const here = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.home === c.location)
+      .sort((a, b) => (b.power || 0) - (a.power || 0));
+    if (here.length) {
+      const hereLoc = W.locById(c, c.location);
+      body.appendChild(el("div", "section-h", `Cultivators Here${hereLoc ? ` · ${escapeHtml(hereLoc.name)}` : ""}`));
+      here.slice(0, 6).forEach(n => body.appendChild(denizenRow(n)));
+      if (here.length > 6) body.appendChild(el("p", "note", `…and ${here.length - 6} more dwell here — see the place itself (Adventure → Travel the Realm) for the full roll.`));
+    }
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
     b.onclick = () => { if (!ageAllows("mingle") || !useAction("social")) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
     body.appendChild(b);
+    const rp = el("button", "mbtn full"); rp.innerHTML = "Refine your Presence<small>a deed · +charm · banquets, debates &amp; renown</small>";
+    rp.onclick = () => { if (!ageAllows("mingle")) return; runTimed(() => L.refinePresence(c, state.rng), "social"); };
+    body.appendChild(rp);
     if (c.realm >= 4 && L.getDisciples(c).length < 3) {
       const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>a deed · pass on your arts</small>";
       d.onclick = () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
@@ -668,6 +682,12 @@ function openPerson(n) {
       ...cult,
       ...(n.occupation ? [["Occupation", n.occupation]] : []),
     ]));
+    // Their own eight-tier attributes, once their talent is known (a child's is a
+    // mystery until the Awakening; a babe has no profile to read yet).
+    if (n.geno && !hidden && !(isChild && (n.realm == null))) {
+      body.appendChild(el("div", "section-h", "Attributes"));
+      body.appendChild(infoRows(npcAttrRows(n)));
+    }
     const mkActBtn = (act) => {
       const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
       b.onclick = () => {
@@ -738,6 +758,16 @@ function openPerson(n) {
 // A world denizen — a population NPC you don't personally know. Tapping the row
 // opens a read-only dossier (you have no relationship actions with a stranger).
 const DENIZEN_ROLE_LABEL = { sectmaster: "Sect Master", elder: "Elder", disciple: "Sect Disciple", rogue: "Rogue Cultivator", genius: "Wandering Genius", world: "Cultivator" };
+// The five attributes, as [field, label, tier-name key], for NPC dossiers.
+const NPC_ATTRS = [["comprehension", "Comprehension", "comprehension"], ["constitution", "Constitution", "constitution"],
+  ["soul", "Soul Sense", "soul"], ["luck", "Fortune", "luck"], ["charm", "Charm", "charm"]];
+// An NPC's effective (realm-raised) attribute rows, each with its eight-tier banner.
+function npcAttrRows(n) {
+  return NPC_ATTRS.map(([field, label, attr]) => {
+    const v = E.npcAttr(n, field), t = D.attrTier(attr, v);
+    return [label, `${v} · ${t.name} (${t.idx + 1}/${t.of})`, attr];
+  });
+}
 function denizenRow(n) {
   const row = el("div", "listrow");
   const sub = `${n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator"} · ${E.npcRealmName(n)}${n.age != null ? ` · age ${n.age}` : ""}`;
@@ -748,6 +778,7 @@ function denizenRow(n) {
   return row;
 }
 function openDenizen(n) {
+  const c = state.c;
   const rootName = k => { const r = D.ROOT_TYPES.find(x => x[0] === k); return r ? r[1] : "—"; };
   openOverlay(n.name, body => {
     const arts = (n.techniques || []).filter(t => t !== "basic_breathing").map(t => D.TECHNIQUES[t][0]);
@@ -761,7 +792,36 @@ function openDenizen(n) {
       ["Power", Math.floor(n.power || E.npcPower(n)), "power"],
     ];
     body.appendChild(infoRows(rows));
-    body.appendChild(el("p", "note", "A cultivator of the wider realm, walking their own road. You are not personally acquainted — seek renown on the Heaven Board to test yourself against the realm's strongest."));
+    body.appendChild(el("div", "section-h", "Attributes"));
+    body.appendChild(infoRows(npcAttrRows(n)));
+    const acts = L.denizenActions(c, n);
+    body.appendChild(el("p", "note", acts.length
+      ? "A cultivator of the realm, dwelling where you now stand. Seek them out and they may enter your life — as a friend, a rival, even a master — or cross blades to make your name."
+      : "A cultivator of the wider realm, walking their own road. Travel to where they dwell to seek them out, or test yourself against the realm's strongest on the Heaven Board."));
+    for (const act of acts) {
+      const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
+      b.onclick = () => {
+        if (act.id === "challenge") {
+          if (!ageAllows("duel") || !useAction("social")) return;
+          const enemy = C.makeEnemyFromNpc(c, n, state.rng, { reward: (c.realm + 1) * 6 });
+          logMessages([`You bar ${n.name}'s path and call them to a duel before the watching realm!`]);
+          startBattle(enemy, { title: `Duel · ${n.name}` }, (outcome) => {
+            if (state.c.alive) {
+              if (outcome === "win") logMessages(L.defeatDenizen(c, n, state.rng));
+              else { c.reputation = Math.max(-200, c.reputation - 2); logMessages([`${n.name} gets the better of the bout and walks on. (−Reputation)`]); }
+            }
+            renderProfile(); if (!state.c.alive) checkDeath(); else closeOverlay();
+          });
+          return;
+        }
+        if (!useAction("social")) return;
+        const res = act.id === "recruit" ? L.recruitDenizen(c, n, state.rng) : L.acquaintDenizen(c, n, state.rng);
+        logMessages(res); renderProfile();
+        if (c.relationships.includes(n)) openPerson(n);   // they joined your life — hand off
+        else openDenizen(n);
+      };
+      body.appendChild(b);
+    }
     backBtn(body, closeOverlay);
   });
 }
@@ -949,7 +1009,7 @@ function openActivities() {
     const grid = el("div", "menu-grid");
     const ab = D.abodeAt(c.abode || 0);
     const ni = n => icon(n, { size: 22 });
-    navCard(grid, ni("fist"), "Training", "temper body · study · rest · earn", actTrain);
+    navCard(grid, ni("fist"), "Training", "temper body & soul · study · rest · earn", actTrain);
     navCard(grid, ni("compass"), "Adventure", "travel · wander · hunt · delve", actAdventure);
     navCard(grid, ni("cauldron"), "Crafting", "refine pills · inscribe talismans", actCraft);
     navCard(grid, ni("coin"), "Commerce", "the market 坊市 · buy & sell", actCommerce);
@@ -965,6 +1025,7 @@ function actTrain() {
     const g = leafGrid(body);
     g.mk("Train the Body", sub("train", "+constitution · tempers your body"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult"); }, { disabled: young("train") });
     g.mk("Study Scriptures", sub("study", "+comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "act"); }, { disabled: young("study") });
+    g.mk("Temper the Soul", sub("study", "+soul · hone your spiritual sense"), () => { if (!ageAllows("study")) return; runTimed(() => L.temperSoul(c, state.rng), "cult"); }, { disabled: young("study") });
     g.mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
     g.mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
     { const art = E.bestMovementArt(c);
@@ -1024,7 +1085,7 @@ function actWorld() {
   const c = state.c;
   openOverlay("The Wider World", body => {
     const g = leafGrid(body);
-    g.mk("The Heaven Board", "天骄榜 · the era's geniuses", openRankboard, { full: true, disabled: !c.awakened });
+    g.mk("The Heaven Board", "天骄榜 · the realm's strongest", openRankboard, { full: true, disabled: !c.awakened });
     g.mk("Achievements & Legacy", "feats across all your lives", () => openAchievements(actWorld), { full: true });
     backBtn(body, openActivities);
   });
@@ -1283,8 +1344,10 @@ function openLocationCard(id) {
     const denizens = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.home === id)
       .sort((a, b) => (b.power || 0) - (a.power || 0));
     if (denizens.length) {
-      body.appendChild(el("div", "section-h", loc.sectKey ? `The ${D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0]}` : "Cultivators Dwelling Here"));
+      const hdr = loc.sectKey ? `The ${D.SECT_BY_KEY[loc.sectKey][1].split(" (")[0]} · ${denizens.length}` : `Cultivators Dwelling Here · ${denizens.length}`;
+      body.appendChild(el("div", "section-h", hdr));
       denizens.slice(0, 12).forEach(n => body.appendChild(denizenRow(n)));
+      if (denizens.length > 12) body.appendChild(el("p", "note", `…and ${denizens.length - 12} more ${loc.sectKey ? "disciples throng its halls" : "make their home here"}.`));
     }
     if (id === c.location) {
       body.appendChild(el("p", "note", "✦ You are here."));
@@ -1640,7 +1703,10 @@ function openSect() {
     body.appendChild(el("div", "section-h", "Hierarchy 品级"));
     renderRankLadder(c, body);
     const fig = E.sectFigures(c.sectKey, c);
-    if (fig) body.appendChild(el("p", "note", `Above you stand Sect Master <b>${escapeHtml(fig.master.name)}</b> (${D.REALMS[fig.master.realm][0]}), and the elders ${fig.elders.map(e => `${escapeHtml(e.name)} (${e.title})`).join(", ")}.`));
+    if (fig) {
+      const strength = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.sectKey === c.sectKey).length;
+      body.appendChild(el("p", "note", `Above you stand Sect Master <b>${escapeHtml(fig.master.name)}</b> (${D.REALMS[fig.master.realm][0]}), and the elders ${fig.elders.map(e => `${escapeHtml(e.name)} (${e.title})`).join(", ")}.${strength ? ` Some <b>${strength}</b> disciples and elders fill its halls in all.` : ""}`));
+    }
     // ---- promotion status ----
     const req = E.nextRankReq(c);
     if (req) {
@@ -1830,7 +1896,7 @@ function openSheet() {
     if (D.PHYSIQUE_EFFECTS[c.physiqueKey] && c.physiqueKey !== "ordinary")
       body.appendChild(el("p", "note", "✦ " + D.physEffect(c).desc));
     body.appendChild(el("div", "section-h", "Attributes"));
-    const attrRow = (label, field, attr, tip) => [label, `${c[field]} · ${D.attrTier(attr, c[field]).name}`, tip];
+    const attrRow = (label, field, attr, tip) => { const t = D.attrTier(attr, c[field]); return [label, `${c[field]} · ${t.name} (${t.idx + 1}/${t.of})`, tip]; };
     body.appendChild(infoRows([
       attrRow("Comprehension 悟性", "comprehension", "comprehension", "comprehension"),
       attrRow("Constitution 根骨", "constitution", "constitution", "constitution"),
@@ -2110,7 +2176,7 @@ function creatorPreviewCard(c) {
   const wrap = el("div", "cr-preview");
   wrap.appendChild(el("span", "chop"));
   wrap.appendChild(el("div", "cr-pv-top", `${D.avatarFor(c, 22)} <b>${escapeHtml(c.name)}</b> · ${c.sex === "female" ? "♀" : "♂"}`));
-  const tg = (field, attr) => `${c[field]} (${D.attrTier(attr, c[field]).name})`;
+  const tg = (field, attr) => { const t = D.attrTier(attr, c[field]); return `${c[field]} · ${t.name} (tier ${t.idx + 1}/${t.of})`; };
   const rows = [
     ["Spiritual Root", `${c.root.display}${c.root.elements.length ? " [" + c.root.elements.join(", ") + "]" : ""}`],
     ["Physique", c.physiqueName], ["Appearance", c.appearanceName], ["Standing", c.backgroundName],
@@ -2521,9 +2587,9 @@ function tourneyRound() {
 function tourneyEnd(placement, won) {
   const c = state.c, rng = state.rng;
   const contribution = won * 40 + (placement === 1 ? 120 : 0);
-  const rep = won * 3 + (placement === 1 ? 20 : 0);
+  const rep = E.gainFame(c, won * 3 + (placement === 1 ? 20 : 0));   // glory before the sect, spread by your presence
   const stones = won * 15;
-  c.contribution += contribution; c.reputation += rep; c.spiritStones += stones;
+  c.contribution += contribution; c.spiritStones += stones;
   let title = null;
   for (const [cut, name] of D.TOURNAMENT_TITLES) if (placement <= cut) { title = name; break; }
   const lines = [`The tournament ends — you place in the top ${Math.max(1, placement)}.`,

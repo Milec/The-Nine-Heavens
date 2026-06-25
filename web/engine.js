@@ -44,6 +44,18 @@ function rollAttribute(rng, low = 1, high = 100) {
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// Birth lands a soul in the lower reaches of the eight-tier attribute ladder. The
+// raw rolled spread (root, omen, physique, upbringing) is preserved in its shape
+// but bent through a curve so that an ordinary soul is born at tier 1, a strong
+// birth (the sort that runs in cultivation/sect families) at tier 2, and only an
+// anomalous prodigy at tier 3 — never the summit. (See generateCharacter.)
+const BIRTH_TIER_CAP = D.ATTR_TIER_CUTS[2] - 1;   // 44 = the top of tier 3 (band 2 of 0..7)
+const BIRTH_PRE_MAX = 124;   // the practical ceiling of the raw roll + birth bonuses
+const BIRTH_GAMMA = 2.1;     // >1 curves most souls down to tier 1; only the gifted climb to 2..3
+const BIRTH_FLOOR = 3;       // even an ordinary soul isn't scraping the very bottom of the ladder
+// Bend a raw birth attribute onto the low tiers (1..3) with the curve above.
+const birthTierValue = raw => clamp(BIRTH_FLOOR + Math.round((BIRTH_TIER_CAP - BIRTH_FLOOR) * Math.pow(Math.min(1, Math.max(0, raw) / BIRTH_PRE_MAX), BIRTH_GAMMA)), 1, BIRTH_TIER_CAP);
+
 /* ------------------------- derived stats --------------------------------- */
 export const realmName = c => D.REALMS[c.realm][0];
 export const realmCn = c => D.REALMS[c.realm][1];
@@ -204,6 +216,19 @@ export function cultivationSpeed(c) {
 // Martial might from body cultivation — its own power base, independent of qi
 // realm, so a body cultivator (even rootless) can grow truly strong.
 export const bodyMartialBase = c => D.bodyRealmAt(c.bodyRealm || 0)[3];
+
+/* --- the lesser stats given clear identities (Presence / Fortune / Spirit) ---
+ * Charm is your presence and renown: a charismatic cultivator's deeds spread
+ * further, their banner draws followers, and their allies fight the harder for
+ * them. Luck is your fortune: it sweetens what the heavens hand you — loot,
+ * pills, treasures — and softens the bite of ill chance. (Soul, the spirit pillar
+ * opposite Constitution's body, drives the qi pool, qi regen and mental ward in
+ * combat — see combat.js — as well as alchemy, talismans and the forging of arts.) */
+export const presenceMult = c => 1 + (c.charm || 0) / 160;   // 1.0 .. ~2.0
+export const fortuneMult = c => 1 + (c.luck || 0) / 160;     // 1.0 .. ~2.0
+// Award fame for a public deed, amplified by your presence. Returns the gain.
+export function gainFame(c, base) { const g = Math.max(0, Math.round(base * presenceMult(c))); c.reputation += g; return g; }
+
 export function basePower(c) {
   const rf = c.realm * 10 + c.stage + 1;
   const base = Math.pow(rf, 2.1) + bodyMartialBase(c);
@@ -360,8 +385,13 @@ export function generateCharacter(rng, name, opts = {}) {
   if (nurture[bk]) { const [a, d] = nurture[bk]; c[a] += d; }
   // A physician's child grows up with a real head start at the furnace.
   if (bk === "physician") c.alchemySkill = (c.alchemySkill || 0) + 10;
+  // A newborn soul begins low on the eight-tier ladder: root, omen, physique and
+  // upbringing decide *where* in the first three tiers you start — a fine birth
+  // lands you at tier 2, a heavenly one at tier 3 — but nothing is born at the
+  // summit. The long climb up tiers 4..8 is the work of a life of cultivation.
+  // (Legacy — reincarnation and heirs — layers its own gains above this cap.)
   for (const a of ["comprehension", "constitution", "soul", "luck", "charm"])
-    c[a] = clamp(c[a], 1, 160);
+    c[a] = birthTierValue(c[a]);
 
   recomputeMaxAge(c);
   recomputeMaxHp(c);
@@ -384,8 +414,11 @@ export function rollGenome(rng) {
   // talent tends to attract talent: a dao companion's root is the better of two draws.
   const rootKey = [weightedChoice(rng, D.ROOT_TYPES, 4), weightedChoice(rng, D.ROOT_TYPES, 4)]
     .sort((a, b) => (D.ROOT_TIER[b[0]] || 0) - (D.ROOT_TIER[a[0]] || 0))[0][0];
+  // The genome holds a soul's *birth* attributes — low on the ladder (tiers 1..3),
+  // just like a freshly rolled player; a long cultivation life raises them (npcAttr).
   return genomeShape(rootKey, weightedChoice(rng, D.PHYSIQUES, 7)[0], weightedChoice(rng, D.APPEARANCES, 4)[0],
-    rollAttribute(rng), rollAttribute(rng), rollAttribute(rng), rollAttribute(rng), rollAttribute(rng));
+    birthTierValue(rollAttribute(rng)), birthTierValue(rollAttribute(rng)), birthTierValue(rollAttribute(rng)),
+    birthTierValue(rollAttribute(rng)), birthTierValue(rollAttribute(rng)));
 }
 // The player's own heritable genome.
 export const playerGenome = c => genomeShape(c.root ? c.root.key : "waste", c.physiqueKey || "ordinary",
@@ -416,10 +449,19 @@ export function inheritGenome(ga, gb, rng) {
 // Every named NPC is a cultivator in their own right: a spiritual root, physique,
 // realm and techniques — from which their combat power derives (same maths as you).
 const NPC_TECH_POOL = Object.keys(D.TECHNIQUES).filter(k => k !== "basic_breathing");
+// An NPC's effective attributes: a tier-1..3 birth base (kept in the genome) raised
+// by a lifetime of cultivation, so their stats climb with their realm just as yours
+// climb with training. The cultivation pillars (comprehension/constitution/soul)
+// climb fast; fortune and presence drift up only gently. The very top tiers (7–8)
+// stay the preserve of a player who deliberately tempers them.
+const NPC_ATTR_CLIMB = { comprehension: 9, constitution: 9, soul: 9, luck: 3, charm: 3 };
+export function npcAttr(npc, key) {
+  const base = (npc.geno && npc.geno[key] != null) ? npc.geno[key] : 18;
+  return clamp(Math.round(base + (npc.realm || 0) * (NPC_ATTR_CLIMB[key] || 0)), 1, 160);
+}
 export function npcPower(npc) {
   const rf = (npc.realm || 0) * 10 + (npc.stage || 0) + 1;
-  const g = npc.geno || {};
-  const con = g.constitution || 40, soul = g.soul || 40;
+  const con = npcAttr(npc, "constitution"), soul = npcAttr(npc, "soul");
   const techAtk = (npc.techniques || []).reduce((a, t) => a + (D.TECHNIQUES[t] ? D.TECHNIQUES[t][3] : 0), 0);
   const p = Math.pow(rf, 2.1) * (1 + con * 0.8 / 100 + soul * 0.5 / 100) + techAtk * rf;
   return Math.max(2, Math.round(p));
@@ -504,6 +546,7 @@ function makeWorldNpc(rng, opts = {}) {
   const rootKey = opts.rootKey || rng.choice(opts.rootPool || NPC_ROOT_POOL);
   const npc = {
     name: npcName(rng), role: opts.role || "world", alive: true, affinity: 0,
+    sex: opts.sex || (rng.random() < 0.5 ? "female" : "male"),
     geno: Object.assign(rollGenome(rng), { rootKey }),
     home: opts.home != null ? opts.home : null,
   };
@@ -592,27 +635,46 @@ function makeReplacement(rng, dead) {
   return makeGenius(rng, rng.randint(2, 3));
 }
 // Advance the whole population a year: each cultivator climbs their own road, and
-// any who die of old age are succeeded by a newcomer in their place.
+// any who die of old age are succeeded by a newcomer in their place. Returns a few
+// notable "tidings" (a great breakthrough, the passing of a famed name) so the
+// caller can let word of the wider realm reach the player.
+const sectShort = key => key && D.SECT_BY_KEY[key] ? D.SECT_BY_KEY[key][1].split(" (")[0] : null;
 export function agePopulation(c, rng) {
   const pop = c.world && c.world.npcs;
-  if (!Array.isArray(pop)) return;
+  if (!Array.isArray(pop)) return [];
+  const tidings = [];
   for (let i = 0; i < pop.length; i++) {
     const n = pop[i];
     if (!n || !n.alive) continue;
-    advanceNpc(n, rng);
-    if (n.age != null) { n.age += 1; if (n.age > n.maxAge) { n.alive = false; pop[i] = makeReplacement(rng, n); } }
+    const step = advanceNpc(n, rng);
+    if (step === "realm" && n.realm >= 7 && tidings.length < 4) {
+      const where = sectShort(n.sectKey);
+      tidings.push(`${n.name}${where ? ` of the ${where}` : ""} has broken through to ${D.REALMS[n.realm][0]} (${D.REALMS[n.realm][1]}).`);
+    }
+    if (n.age != null) {
+      n.age += 1;
+      if (n.age > n.maxAge) {
+        if ((n.title || (n.realm || 0) >= 7) && tidings.length < 4)
+          tidings.push(`${n.title ? `${n.name}, ${n.title},` : n.name} has passed from the world, a lifespan spent at ${D.REALMS[n.realm][0]}.`);
+        n.alive = false; pop[i] = makeReplacement(rng, n);
+      }
+    }
   }
   crownGeniuses(rng, pop);
+  return tidings;
 }
 // The Heaven Board: the realm's foremost living cultivators by raw power, plus
-// you, sorted descending. Returns { ranked, rank, total }.
+// you. Returns { ranked, rank, total } for the board, and { worldRank, worldTotal }
+// for your true standing among every living cultivator of the realm.
 export function rankboardStanding(c, size = 14) {
   const pop = ((c.world && c.world.npcs) || []).filter(n => n && n.alive);
-  const board = pop.sort((a, b) => (b.power || npcPower(b)) - (a.power || npcPower(a))).slice(0, size);
-  const me = { name: c.name, you: true, power: power(c), realm: c.realm, title: "you" };
+  const myPower = power(c);
+  const board = pop.slice().sort((a, b) => (b.power || npcPower(b)) - (a.power || npcPower(a))).slice(0, size);
+  const me = { name: c.name, you: true, power: myPower, realm: c.realm, title: "you" };
   const ranked = [...board.map(g => ({ name: g.name, power: g.power || npcPower(g), realm: g.realm, title: g.title || "a rising cultivator", age: g.age, ref: g })), me]
     .sort((a, b) => b.power - a.power);
-  return { ranked, rank: ranked.findIndex(x => x.you) + 1, total: ranked.length };
+  const stronger = pop.reduce((n, g) => n + ((g.power || npcPower(g)) > myPower ? 1 : 0), 0);
+  return { ranked, rank: ranked.findIndex(x => x.you) + 1, total: ranked.length, worldRank: stronger + 1, worldTotal: pop.length + 1 };
 }
 export function reincarnate(old, rng, name) {
   const c = generateCharacter(rng, name);
@@ -788,8 +850,9 @@ export function daoHeartLabel(v) {
 // Defense a heart demon (and like ordeals) must overcome.
 export const daoHeartWard = c =>
   (c.daoHeart || 0) / 170.0 + c.soul / 320.0 + (c.daos || []).length * 0.035 + c.comprehension / 600.0;
-// In battle, resolve lets you shrug off mind-afflictions (stun/weaken).
-export const mentalResist = c => clamp((c.daoHeart || 0) / 240.0 + c.soul / 700.0, 0, 0.6);
+// In battle, resolve lets you shrug off mind-afflictions (stun/weaken) — steadied
+// by your dao heart and the strength of your spiritual sense (soul).
+export const mentalResist = c => clamp((c.daoHeart || 0) / 240.0 + c.soul / 480.0, 0, 0.6);
 
 // Temper the Dao Heart through stillness — diminishing returns as it deepens,
 // quicker for the soul-keen and the serene.
@@ -885,7 +948,8 @@ export function fight(c, rng, enemy) {
     c.spiritStones += reward; c.reputation += 1; c.hp = Math.max(1.0, c.hp);
     msgs.push(`  You slay the ${name}! (+${reward} spirit stones, +1 reputation)`);
     if (kind === "rogue" && (name.includes("Demonic") || name.includes("Corpse") || name.includes("Bandit") || rng.random() < 0.5)) c.karma += 2;
-    if (rng.random() < 0.14 + c.luck / 900.0) pushAll(msgs, loot(c, rng));
+    // Fortune turns up spoils; spiritual sense (soul) sniffs out what's hidden.
+    if (rng.random() < 0.14 + c.luck / 500.0 + c.soul / 900.0) pushAll(msgs, loot(c, rng));
     if (kind === "beast" && c.beast === null) pushAll(msgs, tryTame(c, name, ePower, rng));
   } else if (c.hp <= 0) {
     if (rng.random() < c.luck / 300.0) { c.hp = c.maxHp * 0.15; msgs.push("  At death's door, blind luck lets you escape with your life!"); }
@@ -902,7 +966,9 @@ export function fight(c, rng, enemy) {
 }
 
 function loot(c, rng) {
-  const roll = rng.random();
+  // Fortune shifts the find toward the richer end of the table — a treasure where
+  // a luckless cultivator would turn up only a herb or a pill.
+  const roll = rng.random() - (c.luck || 0) / 700.0;
   if (roll < 0.22) return acquireArtifact(c, randomArtifact(c, rng));
   if (roll < 0.5) { const n = rng.randint(2, 5); c.herbs += n; return [`  You gather ${n} spirit herbs from the corpse's lair.`]; }
   if (roll < 0.75) { c.pills += 1; return ["  You loot a Qi-Gathering Pill."]; }
@@ -989,7 +1055,7 @@ export function adventure(c, rng) {
 /* ----------------------------- artifacts --------------------------------- */
 function gradeForRealm(c, rng) {
   let base = Math.min(D.ARTIFACT_GRADES.length - 1, Math.floor(c.realm / 2));
-  const roll = rng.random() + c.luck / 600.0;
+  const roll = rng.random() + c.luck / 450.0;   // fortune meaningfully lifts a treasure's grade
   if (roll > 1.15) base += 2; else if (roll > 0.9) base += 1;
   return D.ARTIFACT_GRADES[Math.min(base, D.ARTIFACT_GRADES.length - 1)];
 }

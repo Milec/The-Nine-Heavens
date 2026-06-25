@@ -732,6 +732,142 @@ function testBirthOptions() {
     const g = E.playerGenome(c); assert(g && g.physiqueKey === "dragon", "a special physique enters the heritable genome"); }
 }
 
+// The realm is peopled by a living population that fills sects and locations, and
+// whose cultivators you can seek out where you stand, recruit, or challenge.
+function testWorldPopulationAndDenizens() {
+  const rng = new E.RNG(31);
+  const c = L.bornCharacter(rng, "Founder", null);
+  const pop = c.world.npcs;
+  assert(Array.isArray(pop) && pop.length >= 150, `the realm is densely peopled (got ${pop && pop.length})`);
+  assert(pop.every(n => !n.alive || n.age != null), "every living denizen carries an age");
+  for (const s of D.SECTS)
+    assert(pop.some(n => n.alive && n.sectKey === s[0]), `sect ${s[0]} is populated`);
+
+  // Every NPC has the five attributes, born low (tiers 1..3) and climbing with realm.
+  for (const stat of ["comprehension", "constitution", "soul", "luck", "charm"]) {
+    for (const n of pop) {
+      assert(typeof E.npcAttr(n, stat) === "number" && E.npcAttr(n, stat) >= 1, `denizen has a ${stat} stat`);
+      assert(n.geno && D.attrTierIndex(n.geno[stat]) <= 2, `denizen's birth ${stat} is tier 1..3`);
+    }
+  }
+  // The cultivation pillars climb with realm: a high-realm master out-stats a novice.
+  const low = { role: "world", alive: true }, high = { role: "world", alive: true };
+  E.ensureNpcProfile(low, new E.RNG(1), { realm: 1 });
+  E.ensureNpcProfile(high, new E.RNG(1), { realm: 9 });
+  assert(E.npcAttr(high, "constitution") > E.npcAttr(low, "constitution") && E.npcAttr(high, "soul") > E.npcAttr(low, "soul"),
+    "a high-realm cultivator's body & soul outstrip a low-realm one's");
+
+  // The Heaven Board reports a true standing among the whole population.
+  const st = E.rankboardStanding(c);
+  assert(st.worldTotal === pop.filter(n => n.alive).length + 1, "world standing counts every living cultivator");
+  assert(st.worldRank >= 1 && st.worldRank <= st.worldTotal, "world rank is within range");
+
+  // A denizen where you stand can be won over — and moves into your relationships.
+  c.awakened = true; c.age = 40; c.realm = 4; c.charm = 150; c.reputation = 120;
+  const here = c.location;
+  let d = pop.find(n => n.alive && n.home === here) || pop[0];
+  d.home = here;
+  assert(L.denizenActions(c, d).some(a => a.id === "acquaint"), "a local denizen can be sought out");
+  assert(L.denizenActions(c, { ...d, home: here + 999 }).length === 0, "a far-off denizen offers no interactions");
+  const popBefore = pop.length;
+  let moved = false;
+  for (let i = 0; i < 20 && !moved; i++) {
+    const target = pop.find(n => n.alive && n.home === here);
+    if (!target) break;
+    L.acquaintDenizen(c, target, rng);
+    if (c.relationships.includes(target)) { moved = true; assert(["friend", "rival", "master"].includes(target.role), "an acquaintance takes a bond role"); }
+  }
+  assert(moved, "befriending a denizen moves them from the population into your relationships");
+  assert(pop.length < popBefore, "a befriended denizen leaves the world population");
+
+  // A sect-founder can recruit an unaffiliated denizen as a disciple.
+  c.ownSect = { name: "Test Sect", members: 0, prestige: 20, founded: c.age, alignment: "neutral" };
+  c.abode = 3;
+  let recruited = false;
+  for (let i = 0; i < 20 && !recruited; i++) {
+    const r = pop.find(n => n.alive && n.home === here && !n.sectKey);
+    if (!r) break;
+    L.recruitDenizen(c, r, rng);
+    if (r.role === "disciple" && c.relationships.includes(r)) recruited = true;
+  }
+  assert(recruited && c.ownSect.members >= 1, "recruiting a denizen swells your sect");
+
+  // Ageing the population yields well-formed tidings and never crashes.
+  let tidings = [];
+  for (let y = 0; y < 80; y++) tidings = tidings.concat(E.agePopulation(c, rng));
+  assert(Array.isArray(tidings) && tidings.every(t => typeof t === "string" && t.length), "realm tidings are well-formed strings");
+  assert(pop.filter(n => n.alive).length > 100, "the population stays alive and replenished across the years");
+}
+
+// The lesser stats earn their keep: Soul/Charm are trainable (no longer frozen at
+// birth), Luck grows from karma, and each carries clear mechanical weight.
+function testStatsEarnTheirKeep() {
+  // Presence (charm) and Fortune (luck) helpers scale cleanly from 1.0 to ~2.0.
+  assert(Math.abs(E.presenceMult({ charm: 0 }) - 1) < 1e-9 && E.presenceMult({ charm: 160 }) === 2, "presenceMult spans 1.0..2.0");
+  assert(Math.abs(E.fortuneMult({ luck: 0 }) - 1) < 1e-9 && E.fortuneMult({ luck: 160 }) === 2, "fortuneMult spans 1.0..2.0");
+  // Fame from a public deed is amplified by presence.
+  const a = { charm: 0, reputation: 0 }, b = { charm: 160, reputation: 0 };
+  const fa = E.gainFame(a, 10), fb = E.gainFame(b, 10);
+  assert(fa === 10 && fb === 20 && a.reputation === 10 && b.reputation === 20, "gainFame scales reputation by presence");
+
+  // Soul and Charm are now trainable, so a poor birth roll is not a life sentence.
+  { const c = L.bornCharacter(new E.RNG(41), "Soul", null); c.awakened = true; const s0 = c.soul;
+    for (let i = 0; i < 25 && c.alive; i++) L.temperSoul(c, new E.RNG(100 + i));
+    assert(c.soul > s0, `Temper the Soul raises Soul (${s0} -> ${c.soul})`); }
+  { const c = L.bornCharacter(new E.RNG(42), "Pres", null); const h0 = c.charm;
+    for (let i = 0; i < 25 && c.alive; i++) L.refinePresence(c, new E.RNG(200 + i));
+    assert(c.charm > h0, `Refine your Presence raises Charm (${h0} -> ${c.charm})`); }
+
+  // Luck is no longer frozen: deep merit ripens into fortune over the years, and a
+  // black tide of evil karma bleeds it away.
+  { const good = L.bornCharacter(new E.RNG(43), "Saint", null); good.awakened = true; good.karma = 140; good.luck = 40;
+    const evil = L.bornCharacter(new E.RNG(44), "Fiend", null); evil.awakened = true; evil.karma = -140; evil.luck = 120;
+    const lg0 = good.luck, le0 = evil.luck;
+    const rngg = new E.RNG(7);
+    for (let y = 0; y < 80; y++) { if (good.alive) L.ageUp(good, rngg); if (evil.alive) L.ageUp(evil, rngg); }
+    assert(good.luck > lg0, `good karma ripens into fortune (${lg0} -> ${good.luck})`);
+    assert(evil.luck < le0, `evil karma bleeds fortune away (${le0} -> ${evil.luck})`); }
+}
+
+// Birth sets a low starting rung on the eight-tier ladder (1..3); the climb to the
+// peak is the work of a life, and legacy can carry a soul above the birth cap.
+function testBirthStartsLowOnTheLadder() {
+  const stats = ["comprehension", "constitution", "soul", "luck", "charm"];
+  const cap = D.ATTR_TIER_CUTS[2] - 1;   // top of tier 3
+  // No fresh birth — however lucky the roll — ever exceeds tier 3.
+  let maxTier = 0;
+  for (let s = 0; s < 600; s++) {
+    const c = L.bornCharacter(new E.RNG(s), "B" + s, null);
+    for (const k of stats) {
+      const idx = D.attrTierIndex(c[k]);
+      assert(idx <= 2, `${k}=${c[k]} (tier ${idx + 1}) must be born in tiers 1..3`);
+      assert(c[k] <= cap, `${k} birth value within the tier-3 cap`);
+      maxTier = Math.max(maxTier, idx + 1);
+    }
+  }
+  assert(maxTier === 3, "the very best births do reach tier 3");
+  // Tier 1 is the norm: most rolled stats are ordinary (tier 1), a strong minority
+  // reach tier 2 (the cultivation/sect-family births), and tier 3 is anomalous.
+  { const d = { 1: 0, 2: 0, 3: 0 }; let n = 0;
+    for (let s = 0; s < 3000; s++) { const c = L.bornCharacter(new E.RNG(s + 9000), "D", null); for (const k of stats) { d[D.attrTierIndex(c[k]) + 1]++; n++; } }
+    assert(d[1] / n > 0.6, `tier 1 is the norm (got ${(100 * d[1] / n).toFixed(0)}%)`);
+    assert(d[2] / n > 0.1 && d[2] / n < 0.4, `tier 2 is a strong minority (got ${(100 * d[2] / n).toFixed(0)}%)`);
+    assert(d[3] / n > 0 && d[3] / n < 0.05, `tier 3 is anomalous (got ${(100 * d[3] / n).toFixed(1)}%)`); }
+  // A deliberately heavenly birth still lands at tier 3, not the summit.
+  for (let s = 0; s < 50; s++) {
+    const c = L.bornCharacter(new E.RNG(s), "Heaven", null, { rootKey: "chaos", physiqueKey: "dragon", appearanceKey: "peerless", backgroundKey: "hermit" });
+    for (const k of stats) assert(D.attrTierIndex(c[k]) <= 2, `even a heavenly birth caps ${k} at tier 3`);
+  }
+  // Training climbs past the birth cap into the upper tiers.
+  { const c = L.bornCharacter(new E.RNG(3), "Climber", null); c.awakened = true;
+    for (let i = 0; i < 120 && c.alive; i++) L.temperSoul(c, new E.RNG(900 + i));
+    assert(D.attrTierIndex(c.soul) >= 3, `Tempering the Soul climbs past tier 3 (soul ${c.soul})`); }
+  // Legacy carries a soul above the birth cap (reincarnation's inherited insight).
+  { const old = L.bornCharacter(new E.RNG(8), "Sage", null); old.realm = 9; old.daos = ["sword", "time", "death"];
+    const reborn = L.reincarnateLife(old, new E.RNG(8), "Reborn");
+    assert(reborn.comprehension > cap, `legacy lifts a reborn soul above the birth cap (comp ${reborn.comprehension})`); }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -752,6 +888,9 @@ try {
   test("multi-year storyline arcs thread and branch across the years", testStoryArcs);
   test("action-triggered arcs arm sensibly and thread to their ends", testTriggeredArcs);
   test("new birth options are well-formed and fully integrated", testBirthOptions);
+  test("a living realm population fills sects and can be sought out, recruited & challenged", testWorldPopulationAndDenizens);
+  test("the lesser stats (Soul/Luck/Charm) are trainable and carry mechanical weight", testStatsEarnTheirKeep);
+  test("birth starts low on the eight-tier ladder; the climb is earned", testBirthStartsLowOnTheLadder);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);
