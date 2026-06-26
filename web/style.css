@@ -421,6 +421,50 @@ body {
 .section-h::before { content: "◈"; color: var(--accent2); font-size: .7rem; }
 .section-h::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--accent-dim), transparent); }
 .section-h:first-child { margin-top: 4px; }
+/* A collapsible section header: tap to fold the group away. */
+.section-h.collapsible { cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+.section-h.collapsible::before { content: "\25BE"; display: inline-block; transition: transform .2s ease; }
+.section-h.collapsible.collapsed::before { transform: rotate(-90deg); }
+.section-h.collapsible .sh-count { color: var(--muted); font-weight: 600; letter-spacing: normal; font-size: .82rem; }
+.section-h.collapsible:active { color: var(--ink); }
+/* Animated fold: grid-rows 1fr→0fr collapses the inner wrapper smoothly, and the
+ * content fades in step so it never hard-clips at the folding edge. */
+.collapse-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .26s cubic-bezier(.3,.7,.3,1); }
+.collapse-body.hidden { grid-template-rows: 0fr; }
+.collapse-body > .collapse-inner { overflow: hidden; min-height: 0; opacity: 1; transition: opacity .22s ease .04s; }
+.collapse-body.hidden > .collapse-inner { opacity: 0; transition: opacity .18s ease; }
+/* Newly-revealed rows settle in with a gentle staggered lift (only on expand). */
+.collapse-inner.revealing > * { animation: foldreveal .34s cubic-bezier(.2,.8,.2,1) both; }
+.collapse-inner.revealing > *:nth-child(2) { animation-delay: .04s; }
+.collapse-inner.revealing > *:nth-child(3) { animation-delay: .08s; }
+.collapse-inner.revealing > *:nth-child(n+4) { animation-delay: .11s; }
+@keyframes foldreveal { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* ----- ambient micro-animations (extend the polish everywhere) ----- */
+/* The blurred backdrop fades in with the rising overlay card (fresh opens only). */
+#overlay:not(.hidden) { animation: scrimin .24s ease; }
+@keyframes scrimin { from { opacity: 0; } to { opacity: 1; } }
+/* Event & dialogue cards turn in — each new beat feels like a card laid down. */
+.event-card { animation: cardin .34s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes cardin { from { opacity: 0; transform: translateY(9px) scale(.992); } to { opacity: 1; transform: none; } }
+/* A stat change flashes its colour as it lands in the log. */
+.line.stat.up { animation: statpop-up .6s ease both; }
+.line.stat.down { animation: statpop-down .6s ease both; }
+@keyframes statpop-up { 0% { background: rgba(95,208,138,.22); } 12% { background: rgba(95,208,138,.22); } 100% { background: transparent; } }
+@keyframes statpop-down { 0% { background: rgba(232,115,107,.20); } 12% { background: rgba(232,115,107,.20); } 100% { background: transparent; } }
+/* Milestone log banners (breakthroughs, death, rebirth…) pulse once as they land. */
+.banner { animation: milepop .7s ease both; }
+@keyframes milepop { 0% { opacity: 0; transform: translateY(7px) scale(.97); } 55% { opacity: 1; transform: scale(1.015); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .collapse-body, .collapse-body > .collapse-inner, .section-h.collapsible::before { transition: none; }
+  .collapse-inner.revealing > *, #overlay:not(.hidden), .event-card,
+  .line.stat.up, .line.stat.down, .banner { animation: none; }
+}
+/* Expand / collapse-all control, sitting top-right of a foldable screen. */
+.fold-all {
+  display: block; margin: 2px 0 6px auto; padding: 4px 11px; font-size: .72rem; letter-spacing: .08em;
+  color: var(--accent); background: var(--panel2); border: 1px solid var(--line2); border-radius: 999px; cursor: pointer;
+}
+.fold-all:active { background: var(--panel); color: var(--ink); }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: .9rem; }
 .kv:last-child { border-bottom: none; }
 .kv .k { color: var(--muted); } .kv .v { text-align: right; color: var(--ink); font-weight: 600; }

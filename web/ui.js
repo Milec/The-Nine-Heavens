@@ -435,64 +435,68 @@ function openCultivate() {
     if (!c.awakened) { body.appendChild(el("p", "note", `Your spiritual root has not yet awakened. The Awakening Ceremony comes at age ${D.AWAKENING_AGE} — keep aging up.`)); return; }
     const hasRoot = c.root.key !== "none";
     const addBtn = (grid, l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
+    foldControl(body, [...(hasRoot ? ["cult.qi"] : []), "cult.body", "cult.daoheart"], openCultivate);
 
     // ---- Qi cultivation (only with a spiritual root) ----
     if (hasRoot) {
-      body.appendChild(el("div", "section-h", "Qi Cultivation 修炼"));
-      body.appendChild(infoRows([
-        ["Realm", `${E.realmLabel(c)} (${E.realmCn(c)})`, "realm"],
-        ["Power", Math.floor(E.power(c)), "power"],
-      ]));
-      const atWall = E.canBreakthrough(c);
-      progress(body, atWall ? "Qi — at the realm wall" : "Qi to next stage", c.qi, E.qiToNext(c), "qi",
-        atWall ? `<b class="pb-ready">breakthrough ready</b>` : `${Math.floor(c.qi)} / ${Math.floor(E.qiToNext(c))}`);
-      if (c.root.elements && c.root.elements.length) {
-        const attune = Math.round(Math.min(0.45, Math.max(0.12, 0.10 + c.root.multiplier * 0.07)) * 100);
-        const matchups = c.root.elements.map(e => { const m = C.elementMatchup(e); return m && (m.strong || m.weak) ? `${e} (▲${m.strong || "—"} ▼${m.weak || "—"})` : `${e} (exotic ▲all)`; }).join(", ");
-        const plural = c.root.elements.length > 1;
-        body.appendChild(el("p", "note", `Element${plural ? "s" : ""}: ${matchups}. Your arts of ${plural ? "these elements" : "this element"} strike +${attune}% (attuned) and you resist ${plural ? "them" : "it"}. ▲ strong vs · ▼ weak vs.`));
-      }
-      const g = el("div", "menu-grid");
-      if (atWall)
-        addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
-      addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult"));
-      addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult"), { disabled: c.pills <= 0 });
-      {
-        const tgt = E.canMeditate(c) ? E.meditationTarget(c) : null;
-        const sub = !E.canMeditate(c) ? "needs Nascent Soul"
-          : tgt && tgt.mode === "deepen" ? `deepen the ${D.DAO_BY_KEY[tgt.key][1].split(" (")[0]}`
-          : "seek a new Law";
-        addBtn(g, "Comprehend the Dao", sub, () => runTimed(() => E.meditate(c, state.rng, 1), "cult"), { disabled: !E.canMeditate(c) });
-      }
-      if (c.realm >= E.DAO_MIN_REALM) addBtn(g, "The Daos 道之境界", c.daos.length ? `${c.daos.length} comprehended` : "the Laws of heaven", openDaos);
-      body.appendChild(g);
+      collapsibleSection(body, "Qi Cultivation 修炼", "cult.qi", w => {
+        w.appendChild(infoRows([
+          ["Realm", `${E.realmLabel(c)} (${E.realmCn(c)})`, "realm"],
+          ["Power", Math.floor(E.power(c)), "power"],
+        ]));
+        const atWall = E.canBreakthrough(c);
+        progress(w, atWall ? "Qi — at the realm wall" : "Qi to next stage", c.qi, E.qiToNext(c), "qi",
+          atWall ? `<b class="pb-ready">breakthrough ready</b>` : `${Math.floor(c.qi)} / ${Math.floor(E.qiToNext(c))}`);
+        if (c.root.elements && c.root.elements.length) {
+          const attune = Math.round(Math.min(0.45, Math.max(0.12, 0.10 + c.root.multiplier * 0.07)) * 100);
+          const matchups = c.root.elements.map(e => { const m = C.elementMatchup(e); return m && (m.strong || m.weak) ? `${e} (▲${m.strong || "—"} ▼${m.weak || "—"})` : `${e} (exotic ▲all)`; }).join(", ");
+          const plural = c.root.elements.length > 1;
+          w.appendChild(el("p", "note", `Element${plural ? "s" : ""}: ${matchups}. Your arts of ${plural ? "these elements" : "this element"} strike +${attune}% (attuned) and you resist ${plural ? "them" : "it"}. ▲ strong vs · ▼ weak vs.`));
+        }
+        const g = el("div", "menu-grid");
+        if (atWall)
+          addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
+        addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult"));
+        addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult"), { disabled: c.pills <= 0 });
+        {
+          const tgt = E.canMeditate(c) ? E.meditationTarget(c) : null;
+          const sub = !E.canMeditate(c) ? "needs Nascent Soul"
+            : tgt && tgt.mode === "deepen" ? `deepen the ${D.DAO_BY_KEY[tgt.key][1].split(" (")[0]}`
+            : "seek a new Law";
+          addBtn(g, "Comprehend the Dao", sub, () => runTimed(() => E.meditate(c, state.rng, 1), "cult"), { disabled: !E.canMeditate(c) });
+        }
+        if (c.realm >= E.DAO_MIN_REALM) addBtn(g, "The Daos 道之境界", c.daos.length ? `${c.daos.length} comprehended` : "the Laws of heaven", openDaos);
+        w.appendChild(g);
+      });
     } else {
       body.appendChild(el("p", "note", "The heavens have shut the gate of qi to you — but the road of the body remains open. Temper your flesh until even immortals must take notice."));
       body.appendChild(infoRows([["Power", Math.floor(E.power(c)), "power"]]));
     }
 
     // ---- Body cultivation (open to all; the rootless walk it alone) ----
-    body.appendChild(el("div", "section-h", "Body Cultivation 炼体"));
-    const br = D.bodyRealmAt(c.bodyRealm || 0), nb = E.canTemperMore(c) ? D.BODY_REALMS[(c.bodyRealm || 0) + 1] : null;
-    const cap = E.bodyRealmCap(c);
-    body.appendChild(infoRows([
-      ["Body Realm", `${br[0]} (${br[1]})`, "body"],
-      ["Limit (physique)", D.bodyRealmName(cap)],
-    ]));
-    if (nb) progress(body, `Tempering → ${nb[0]}`, c.temper, nb[2], "body");
-    else body.appendChild(el("p", "note", `Your body has reached the limit your ${c.physiqueName} can bear — the ${D.bodyRealmName(c.bodyRealm)}.`));
-    const bg = el("div", "menu-grid");
-    addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5), "cult"), { full: true, primary: !hasRoot });
-    body.appendChild(bg);
+    collapsibleSection(body, "Body Cultivation 炼体", "cult.body", w => {
+      const br = D.bodyRealmAt(c.bodyRealm || 0), nb = E.canTemperMore(c) ? D.BODY_REALMS[(c.bodyRealm || 0) + 1] : null;
+      const cap = E.bodyRealmCap(c);
+      w.appendChild(infoRows([
+        ["Body Realm", `${br[0]} (${br[1]})`, "body"],
+        ["Limit (physique)", D.bodyRealmName(cap)],
+      ]));
+      if (nb) progress(w, `Tempering → ${nb[0]}`, c.temper, nb[2], "body");
+      else w.appendChild(el("p", "note", `Your body has reached the limit your ${c.physiqueName} can bear — the ${D.bodyRealmName(c.bodyRealm)}.`));
+      const bg = el("div", "menu-grid");
+      addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5), "cult"), { full: true, primary: !hasRoot });
+      w.appendChild(bg);
+    });
 
-    // ---- shared ----
-    body.appendChild(el("div", "section-h", "Dao Heart 道心"));
-    body.appendChild(infoRows([["Resolve", `${E.daoHeartLabel(c.daoHeart || 0)} (${Math.round(c.daoHeart || 0)}/${E.DAO_HEART_MAX})`]]));
-    progress(body, "Dao Heart", c.daoHeart || 0, E.DAO_HEART_MAX, "dao");
-    body.appendChild(el("p", "note", "Your resolve wards the soul against heart demons, illusion and temptation, and shrugs off mind-afflictions in battle. Stillness tempers it."));
-    const hg = el("div", "menu-grid");
-    addBtn(hg, "Still the Heart 静心", "a deed · temper your resolve", () => runTimed(() => E.stillHeart(c, state.rng), "cult"), { full: true });
-    body.appendChild(hg);
+    // ---- Dao Heart ----
+    collapsibleSection(body, "Dao Heart 道心", "cult.daoheart", w => {
+      w.appendChild(infoRows([["Resolve", `${E.daoHeartLabel(c.daoHeart || 0)} (${Math.round(c.daoHeart || 0)}/${E.DAO_HEART_MAX})`]]));
+      progress(w, "Dao Heart", c.daoHeart || 0, E.DAO_HEART_MAX, "dao");
+      w.appendChild(el("p", "note", "Your resolve wards the soul against heart demons, illusion and temptation, and shrugs off mind-afflictions in battle. Stillness tempers it."));
+      const hg = el("div", "menu-grid");
+      addBtn(hg, "Still the Heart 静心", "a deed · temper your resolve", () => runTimed(() => E.stillHeart(c, state.rng), "cult"), { full: true });
+      w.appendChild(hg);
+    });
 
     const sg = el("div", "menu-grid");
     addBtn(sg, "Techniques & Mastery", "drill your learned arts", openTechniques, { full: true });
@@ -543,6 +547,40 @@ const REL_ACTION_CATS = [
   { label: "Household", ids: ["invite", "sendaway"] },
   { label: "Strain the Bond", ids: ["taunt", "harsh", "insult", "breakup", "expel"] },
 ];
+// A foldaway section: tap the header to collapse/expand the group in place. The
+// open/closed state lives in a session-scoped map so it survives re-renders.
+// opts: { count, startCollapsed }. Returns the (already-filled) body wrapper.
+const sectionCollapsed = {};
+const sectionFolded = (key, opts = {}) => sectionCollapsed[key] != null ? sectionCollapsed[key] : !!opts.startCollapsed;
+function collapsibleSection(parent, title, key, fill, opts = {}) {
+  const collapsed = sectionFolded(key, opts);
+  const h = el("div", "section-h collapsible" + (collapsed ? " collapsed" : ""));
+  h.innerHTML = `<span>${escapeHtml(title)}</span>${opts.count != null ? `<span class="sh-count">${opts.count}</span>` : ""}`;
+  // An inner wrapper lets the body animate its fold (grid-rows 1fr→0fr).
+  const wrap = el("div", "collapse-body" + (collapsed ? " hidden" : ""));
+  const inner = el("div", "collapse-inner");
+  wrap.appendChild(inner);
+  if (fill) fill(inner);
+  h.onclick = () => {
+    const now = !sectionFolded(key, opts); sectionCollapsed[key] = now;
+    h.classList.toggle("collapsed", now);
+    wrap.classList.toggle("hidden", now);
+    if (!now) {   // expanding: replay the staggered content reveal
+      inner.classList.remove("revealing"); void inner.offsetWidth; inner.classList.add("revealing");
+    }
+  };
+  parent.appendChild(h); parent.appendChild(wrap);
+  return inner;
+}
+// A one-tap Expand-all / Collapse-all control for a screen's foldable sections.
+function foldControl(parent, keys, rerender) {
+  if (!keys || keys.length < 2) return;
+  const anyOpen = keys.some(k => !sectionCollapsed[k]);   // undefined counts as open
+  const b = el("button", "fold-all");
+  b.innerHTML = anyOpen ? "⊟ Collapse all" : "⊞ Expand all";
+  b.onclick = () => { for (const k of keys) sectionCollapsed[k] = anyOpen; rerender(); };
+  parent.appendChild(b);
+}
 function openPeople() {
   const c = state.c;
   openOverlay("Relationships", body => {
@@ -554,28 +592,33 @@ function openPeople() {
     const kids = all.filter(n => n.kin === "Son" || n.kin === "Daughter");
     const bonds = all.filter(n => n.role !== "family" && n.role !== "companion");
     body.appendChild(el("p", "note", all.length
-      ? `You are bound to <b>${all.length}</b> living souls — ${family.length} family, ${loves.length} love${loves.length === 1 ? "" : "s"}, ${kids.length} child${kids.length === 1 ? "" : "ren"}, ${bonds.length} other bond${bonds.length === 1 ? "" : "s"}.`
+      ? `You are bound to <b>${all.length}</b> living souls — ${family.length} family, ${loves.length} love${loves.length === 1 ? "" : "s"}, ${kids.length} child${kids.length === 1 ? "" : "ren"}, ${bonds.length} other bond${bonds.length === 1 ? "" : "s"}. Tap a heading to fold it away.`
       : "You walk the world alone — for now. Go out and mingle to forge your first bonds."));
-    const section = (title, list) => { if (list.length) { body.appendChild(el("div", "section-h", title)); list.forEach(n => body.appendChild(personRow(n))); } };
-    section("Family", family);
-    if (loves.length) {
-      const sp = loves.filter(n => n.married).length;
-      body.appendChild(el("div", "section-h", `Spouses & Lovers${sp ? ` · ${sp} wed` : ""}`));
-      loves.forEach(n => body.appendChild(personRow(n)));
-    }
-    section(kids.length ? `Children · ${kids.length}` : "Children", kids);
-    body.appendChild(el("div", "section-h", "Bonds"));
-    if (!bonds.length) body.appendChild(el("p", "note", "You have no friends, rivals, or sworn enemies yet."));
-    bonds.forEach(n => body.appendChild(personRow(n)));
+    const rows = (list, wrap) => list.forEach(n => wrap.appendChild(personRow(n)));
     // Named cultivators of the realm who dwell where you now stand — seek them out
     // (in their dossier) to win them as bonds, recruit them, or cross blades.
     const here = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.home === c.location)
       .sort((a, b) => (b.power || 0) - (a.power || 0));
+    { const keys = [];
+      if (family.length) keys.push("rel.family");
+      if (loves.length) keys.push("rel.loves");
+      if (kids.length) keys.push("rel.kids");
+      keys.push("rel.bonds");
+      if (here.length) keys.push("rel.here");
+      foldControl(body, keys, openPeople); }
+    if (family.length) collapsibleSection(body, "Family", "rel.family", w => rows(family, w), { count: family.length });
+    if (loves.length) { const sp = loves.filter(n => n.married).length; collapsibleSection(body, `Spouses & Lovers${sp ? ` · ${sp} wed` : ""}`, "rel.loves", w => rows(loves, w), { count: loves.length }); }
+    if (kids.length) collapsibleSection(body, "Children", "rel.kids", w => rows(kids, w), { count: kids.length });
+    collapsibleSection(body, "Bonds", "rel.bonds", w => {
+      if (!bonds.length) w.appendChild(el("p", "note", "You have no friends, rivals, or sworn enemies yet."));
+      else rows(bonds, w);
+    }, { count: bonds.length });
     if (here.length) {
       const hereLoc = W.locById(c, c.location);
-      body.appendChild(el("div", "section-h", `Cultivators Here${hereLoc ? ` · ${escapeHtml(hereLoc.name)}` : ""}`));
-      here.slice(0, 6).forEach(n => body.appendChild(denizenRow(n)));
-      if (here.length > 6) body.appendChild(el("p", "note", `…and ${here.length - 6} more dwell here — see the place itself (Adventure → Travel the Realm) for the full roll.`));
+      collapsibleSection(body, `Cultivators Here${hereLoc ? ` · ${escapeHtml(hereLoc.name)}` : ""}`, "rel.here", w => {
+        here.slice(0, 6).forEach(n => w.appendChild(denizenRow(n)));
+        if (here.length > 6) w.appendChild(el("p", "note", `…and ${here.length - 6} more dwell here — see the place itself (Adventure → Travel the Realm) for the full roll.`));
+      }, { count: here.length });
     }
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
     b.onclick = () => { if (!ageAllows("mingle") || !useAction("social")) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
@@ -913,14 +956,15 @@ function openSagas() {
       }
     }
     if (resolved.length) {
-      body.appendChild(el("div", "section-h", `Resolved (${resolved.length})`));
-      for (const s of resolved) {
-        const r = el("div", "listrow");
-        r.innerHTML = `<div class="lr-ava" style="opacity:.6">✓</div><div class="lr-main">
-          <div class="lr-title" style="opacity:.75">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(s.cn)}</span></div>
-          <div class="lr-sub">A saga brought to its close.</div></div>`;
-        body.appendChild(r);
-      }
+      collapsibleSection(body, "Resolved", "sagas.resolved", w => {
+        for (const s of resolved) {
+          const r = el("div", "listrow");
+          r.innerHTML = `<div class="lr-ava" style="opacity:.6">✓</div><div class="lr-main">
+            <div class="lr-title" style="opacity:.75">${escapeHtml(s.name)} <span class="lr-sub" style="display:inline">· ${escapeHtml(s.cn)}</span></div>
+            <div class="lr-sub">A saga brought to its close.</div></div>`;
+          w.appendChild(r);
+        }
+      }, { count: resolved.length, startCollapsed: true });
     }
   });
 }
@@ -1101,11 +1145,11 @@ function genMarket(c) {
   const move = unknownMoves.length && rng.random() < 0.7 ? rng.choice(unknownMoves) : null;
   return { year: c.age, loc: c.location, tech, move, treasures, sold: {} };
 }
-function marketDo(fn) {
+function marketDo(fn, refresh) {
   if (!state.c.alive) return;
   logMessages(fn());
   renderProfile(); save();
-  openMarket();
+  (refresh || openMarket)();
 }
 function openMarket() {
   const c = state.c;
@@ -1121,46 +1165,59 @@ function openMarket() {
   if (!state.market || state.market.year !== c.age || state.market.loc !== c.location) state.market = genMarket(c);
   const M = state.market;
   openOverlay("Market 坊市", body => {
-    const pm = E.eraPriceMult(c), here = W.currentLoc(c);
-    const locNote = (c.priceMult || 1) > 1.05 ? " This remote market charges a premium." : (c.priceMult || 1) < 0.95 ? " This prosperous market trades cheap." : "";
-    body.appendChild(el("p", "note", `${here ? here.name + " market — " : ""}spirit stones: ${c.spiritStones} · herbs: ${c.herbs}. Prices ${pm > 1.05 ? "run high" : pm < 0.95 ? "are low" : "are fair"} in the ${D.eraAt(c.era)[1]}.${locNote}`));
-    const row = (emoji, title, sub, btnLabel, can, fn) => {
+    marketHeader(c, body);
+    const grid = el("div", "menu-grid"); body.appendChild(grid);
+    const ni = n => icon(n, { size: 22 });
+    navCard(grid, ni("cauldron"), "Pills 丹药", `${D.PILL_RECIPES.length} medicines — qi, body, soul & fate`, () => openMarketSection("pills"));
+    navCard(grid, ni("seal"), "Talismans 符箓", "one-use spirit-charms for battle", () => openMarketSection("talismans"));
+    const artsStocked = (M.tech && !c.techniques.includes(M.tech)) || (M.move && !(c.movementArts || []).includes(M.move));
+    navCard(grid, ni("scroll"), "Manuals & Arts 功法", artsStocked ? "a rare technique or movement art in stock" : "nothing in stock this year", () => openMarketSection("arts"));
+    const treasures = M.treasures.filter(k => !M.sold[k]);
+    navCard(grid, ni("blade"), "Treasures 法宝", treasures.length ? `${treasures.length} bound treasure${treasures.length > 1 ? "s" : ""} for sale` : "nothing in stock this year", () => openMarketSection("treasures"));
+    navCard(grid, ni("herbs"), "Herbs & Stones", `buy spirit herbs · you hold ${c.herbs}`, () => openMarketSection("herbs"));
+    const spare = c.artifacts.filter(k => !E.isEquipped(c, k));
+    if (c.herbs >= 5 || spare.length) navCard(grid, ni("coin"), "Sell 售卖", "turn spare herbs & treasures to stones", () => openMarketSection("sell"));
+    backBtn(body, actCommerce);
+  });
+}
+function marketHeader(c, body) {
+  const pm = E.eraPriceMult(c), here = W.currentLoc(c);
+  const locNote = (c.priceMult || 1) > 1.05 ? " This remote market charges a premium." : (c.priceMult || 1) < 0.95 ? " This prosperous market trades cheap." : "";
+  body.appendChild(el("p", "note", `${here ? here.name + " market — " : ""}spirit stones: ${c.spiritStones} · herbs: ${c.herbs}. Prices ${pm > 1.05 ? "run high" : pm < 0.95 ? "are low" : "are fair"} in the ${D.eraAt(c.era)[1]}.${locNote}`));
+}
+// One category of the market, drilled into from the hub.
+function openMarketSection(kind) {
+  const c = state.c, M = state.market;
+  if (!M) { openMarket(); return; }
+  const TITLES = { pills: "Pills 丹药", talismans: "Talismans 符箓", arts: "Manuals & Arts 功法", treasures: "Treasures 法宝", herbs: "Herbs & Stones", sell: "Sell 售卖" };
+  const refresh = () => openMarketSection(kind);
+  openOverlay(TITLES[kind] || "Market 坊市", body => {
+    marketHeader(c, body);
+    let any = false;
+    const row = (emoji, title, sub, can, fn) => {
+      any = true;
       const r = el("div", "listrow" + (can ? "" : " disabled"));
       r.innerHTML = `<div class="lr-ava">${emoji}</div><div class="lr-main"><div class="lr-title">${escapeHtml(title)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
-      if (can) r.onclick = () => marketDo(fn);
+      if (can) r.onclick = () => marketDo(fn, refresh);
       body.appendChild(r);
     };
-    body.appendChild(el("div", "section-h", "Buy"));
-    row("🌿", "Spirit Herbs ×5", `${E.priceHerbs(c, 5)} stones`, "", c.spiritStones >= E.priceHerbs(c, 5), () => E.buyHerbs(c, 5));
-    for (const p of D.PILL_RECIPES) {
-      const price = E.pricePill(c, p[0]);
-      row("⚗️", p[1], `${price} stones · ${p[4]}`, "", c.spiritStones >= price, () => E.buyPill(c, p[0], state.rng));
+    if (kind === "pills") {
+      for (const p of D.PILL_RECIPES) { const price = E.pricePill(c, p[0]); row("⚗️", p[1], `${price} stones · ${p[4]}`, c.spiritStones >= price, () => E.buyPill(c, p[0], state.rng)); }
+    } else if (kind === "talismans") {
+      for (const key of D.TALISMAN_ORDER) { const t = D.TALISMANS[key], price = E.priceTalisman(c, key); row("🧧", `${t.name} (have ${(c.talismans && c.talismans[key]) || 0})`, `${price} stones · ${t.desc}`, c.spiritStones >= price, () => E.buyTalisman(c, key, state.rng)); }
+    } else if (kind === "arts") {
+      if (M.tech && !c.techniques.includes(M.tech)) { const price = E.priceTech(c, D.TECHNIQUES[M.tech][1]); row("📖", D.TECHNIQUES[M.tech][0] + " (manual)", `${price} stones · ${D.TECHNIQUES[M.tech][4]}`, c.spiritStones >= price, () => E.buyTech(c, M.tech, state.rng)); }
+      if (M.move && !(c.movementArts || []).includes(M.move)) { const m = D.MOVEMENT_BY_KEY[M.move], price = E.priceMovement(c, M.move); row("🌀", `${m[1]} · 轻功 (${m[2]})`, `${price} stones · +${m[4]} stages/deed · ${m[5]}`, c.spiritStones >= price, () => E.buyMovementArt(c, M.move)); }
+    } else if (kind === "treasures") {
+      for (const k of M.treasures) { if (M.sold[k]) continue; const price = E.priceTreasure(c, k), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(k)]; row(si ? si[3] : "⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.artifactGrade(k)} ${si ? si[1] : ""})`, `${price} stones · ${E.artifactEffectText(k)} · ${D.ARTIFACT_BY_KEY[k][5]}`, c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); }); }
+    } else if (kind === "herbs") {
+      row("🌿", "Spirit Herbs ×5", `${E.priceHerbs(c, 5)} stones`, c.spiritStones >= E.priceHerbs(c, 5), () => E.buyHerbs(c, 5));
+    } else if (kind === "sell") {
+      if (c.herbs >= 5) row("🌿", "Sell Spirit Herbs ×5", `+${E.sellHerbs(c, 5)} stones`, true, () => E.sellSpareHerbs(c, 5));
+      for (const k of c.artifacts.filter(k => !E.isEquipped(c, k))) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.artifactGrade(k)})`, true, () => E.sellTreasure(c, k));
     }
-    for (const key of D.TALISMAN_ORDER) {
-      const t = D.TALISMANS[key], price = E.priceTalisman(c, key);
-      row("🧧", `${t.name} (have ${(c.talismans && c.talismans[key]) || 0})`, `${price} stones · ${t.desc}`, "", c.spiritStones >= price, () => E.buyTalisman(c, key, state.rng));
-    }
-    if (M.tech && !c.techniques.includes(M.tech)) {
-      const price = E.priceTech(c, D.TECHNIQUES[M.tech][1]);
-      row("📖", D.TECHNIQUES[M.tech][0] + " (manual)", `${price} stones · ${D.TECHNIQUES[M.tech][4]}`, "", c.spiritStones >= price, () => E.buyTech(c, M.tech, state.rng));
-    }
-    if (M.move && !(c.movementArts || []).includes(M.move)) {
-      const m = D.MOVEMENT_BY_KEY[M.move], price = E.priceMovement(c, M.move);
-      row("🌀", `${m[1]} · 轻功 (${m[2]})`, `${price} stones · +${m[4]} stages/deed · ${m[5]}`, "", c.spiritStones >= price, () => E.buyMovementArt(c, M.move));
-    }
-    for (const k of M.treasures) {
-      if (M.sold[k]) continue;
-      const price = E.priceTreasure(c, k), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(k)];
-      row(si ? si[3] : "⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.artifactGrade(k)} ${si ? si[1] : ""})`, `${price} stones · ${E.artifactEffectText(k)} · ${D.ARTIFACT_BY_KEY[k][5]}`, "", c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); });
-    }
-    // Sell
-    const spareTreasures = c.artifacts.filter(k => !E.isEquipped(c, k));
-    if (c.herbs >= 5 || spareTreasures.length) {
-      body.appendChild(el("div", "section-h", "Sell"));
-      if (c.herbs >= 5) row("🌿", "Sell Spirit Herbs ×5", `+${E.sellHerbs(c, 5)} stones`, "", true, () => E.sellSpareHerbs(c, 5));
-      for (const k of spareTreasures) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.artifactGrade(k)})`, "", true, () => E.sellTreasure(c, k));
-    }
-    backBtn(body, actCommerce);
+    if (!any) body.appendChild(el("p", "note", "Nothing on offer here just now — come back another year, or in another town."));
+    backBtn(body, openMarket);
   });
 }
 function openAbode() {
@@ -1537,37 +1594,37 @@ function openAssets() {
     if (gearEls.length) body.appendChild(el("p", "note", "灵 Attuned: " + gearEls.map(e => `${C.elementIcon(e)} ${e}`).join(" · ") + " — matching arts strike harder; you resist these elements."));
 
     // ── Treasure Trove — grid of owned artifacts ──────────────────────────
-    body.appendChild(el("div", "section-h", "Treasure Trove 法宝库"));
-    const filled = c.artifacts.length;
-    const totalCells = Math.max(8, Math.ceil((filled + 1) / 4) * 4);
-    const grid = el("div", "trove-grid");
-    for (const key of c.artifacts) {
-      const equipped = E.isEquipped(c, key);
-      const si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];
-      const lv = E.refineLevel(c, key);
-      const grade = D.artifactGrade(key);
-      const cell = el("div", "trove-cell" + (equipped ? " equipped" : " filled"));
-      cell.innerHTML = `<span class="tc-icon">${si ? si[3] : "⚔️"}</span><span class="tc-name">${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}</span><span class="grade-cn">${lv ? "+" + lv : (GRADE_CN[grade] || grade)}</span>`;
-      cell.onclick = () => openTreasureCard(key);
-      grid.appendChild(cell);
-    }
-    for (let i = 0; i < totalCells - filled; i++) grid.appendChild(el("div", "trove-cell empty"));
-    body.appendChild(grid);
+    foldControl(body, ["assets.trove", "assets.sundries"], openAssets);
+    collapsibleSection(body, "Treasure Trove 法宝库", "assets.trove", w => {
+      const filled = c.artifacts.length;
+      const totalCells = Math.max(8, Math.ceil((filled + 1) / 4) * 4);
+      const grid = el("div", "trove-grid");
+      for (const key of c.artifacts) {
+        const equipped = E.isEquipped(c, key);
+        const si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(key)];
+        const lv = E.refineLevel(c, key);
+        const grade = D.artifactGrade(key);
+        const cell = el("div", "trove-cell" + (equipped ? " equipped" : " filled"));
+        cell.innerHTML = `<span class="tc-icon">${si ? si[3] : "⚔️"}</span><span class="tc-name">${escapeHtml(D.ARTIFACT_BY_KEY[key][1])}</span><span class="grade-cn">${lv ? "+" + lv : (GRADE_CN[grade] || grade)}</span>`;
+        cell.onclick = () => openTreasureCard(key);
+        grid.appendChild(cell);
+      }
+      for (let i = 0; i < totalCells - filled; i++) grid.appendChild(el("div", "trove-cell empty"));
+      w.appendChild(grid);
+    }, { count: c.artifacts.length });
 
     // ── Sundries — described items ────────────────────────────────────────
-    body.appendChild(el("div", "section-h", "Sundries 杂物"));
-    if (!c.inventory.length) {
-      body.appendChild(el("p", "note", "(empty)"));
-    } else {
-      const counts = {};
-      for (const item of c.inventory) counts[item] = (counts[item] || 0) + 1;
+    const counts = {};
+    for (const item of c.inventory) counts[item] = (counts[item] || 0) + 1;
+    collapsibleSection(body, "Sundries 杂物", "assets.sundries", w => {
+      if (!c.inventory.length) { w.appendChild(el("p", "note", "(empty)")); return; }
       for (const [name, qty] of Object.entries(counts)) {
         const info = D.SUNDRY_DESCRIPTIONS[name] || { icon: "📦", desc: "A miscellaneous item of uncertain purpose." };
         const card = el("div", "sundry-card");
         card.innerHTML = `<span class="sc-icon">${info.icon}</span><div class="sc-body"><div class="sc-top"><span class="sc-name">${escapeHtml(name)}</span>${qty > 1 ? `<span class="sc-qty">×${qty}</span>` : ""}</div><div class="sc-desc">${escapeHtml(info.desc)}</div></div>`;
-        body.appendChild(card);
+        w.appendChild(card);
       }
-    }
+    }, { count: Object.keys(counts).length, startCollapsed: true });
     backBtn(body, actHome);
   });
 }
@@ -1887,50 +1944,56 @@ function openSheet() {
       ["Standing", `${c.reputation} (${D.standingLabel(c.reputation)})`, "fame"], ["Karma", `${c.karma >= 0 ? "+" : ""}${c.karma} (${E.karmaLabelFor(c)})`, "karma"],
       ...(c.era ? [["World Era", `${D.eraAt(c.era)[1]} (${D.eraAt(c.era)[2]})`, "era"]] : []),
     ]));
-    body.appendChild(el("div", "section-h", "Born With"));
-    body.appendChild(infoRows([
-      ["Spiritual Root", c.awakened ? `${c.root.display}${c.root.elements.length ? " [" + c.root.elements.join(", ") + "]" : ""}` : "Unknown — awakens at age 6 (未测)", "root"],
-      ["Physique", c.physiqueName, "physique"], ["Appearance", c.appearanceName], ["Standing", c.backgroundName],
-    ]));
-    // Spell out what this physique actually does, so it visibly matters.
-    if (D.PHYSIQUE_EFFECTS[c.physiqueKey] && c.physiqueKey !== "ordinary")
-      body.appendChild(el("p", "note", "✦ " + D.physEffect(c).desc));
-    body.appendChild(el("div", "section-h", "Attributes"));
-    const attrRow = (label, field, attr, tip) => { const t = D.attrTier(attr, c[field]); return [label, `${c[field]} · ${t.name} (${t.idx + 1}/${t.of})`, tip]; };
-    body.appendChild(infoRows([
-      attrRow("Comprehension 悟性", "comprehension", "comprehension", "comprehension"),
-      attrRow("Constitution 根骨", "constitution", "constitution", "constitution"),
-      attrRow("Soul Sense 神识", "soul", "soul", "soul"),
-      attrRow("Fortune 气运", "luck", "luck", "fortune"),
-      attrRow("Charm 魅力", "charm", "charm", "charm"),
-    ]));
-    body.appendChild(el("div", "section-h", "Path"));
-    const ab = D.abodeAt(c.abode || 0);
-    const rows = [["Sect", c.ownSect ? `${c.ownSect.name} — Founder (${D.sectTier(c.ownSect.prestige)[1]})` : c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
-      ["Abode", ab ? `${ab[1]} (${ab[2]})${c.ownSect ? " · sect seat" : ""}` : "None", "abode"],
-      ["Equipment", E.equipmentSummary(c)]];
-    if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
-    if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
-    if (c.daos.length) rows.push(["Daos", c.daos.map(d => `${D.DAO_BY_KEY[d][1].split(" (")[0]} · ${D.daoTierName(E.daoTierOf(c, d))}`).join(", ")]);
-    rows.push(["Dao Heart 道心", `${E.daoHeartLabel(c.daoHeart || 0)} (${Math.round(c.daoHeart || 0)}/${E.DAO_HEART_MAX})`]);
-    { const art = E.bestMovementArt(c), bd = Math.round(E.movementDodge(c) * 100); rows.push(["Movement 轻功", `${art ? `${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : "—"} · ${E.hopsPerDeed(c)} stage${E.hopsPerDeed(c) > 1 ? "s" : ""}/deed${bd > 0 ? ` · +${bd}% battle dodge` : ""}`]); }
-    if ((c.epithets || []).length) rows.push(["Monikers 名号", c.epithets.map(e => `「${e.text}」`).join(" "), "monikers"]);
-    if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
-    body.appendChild(infoRows(rows));
-    body.appendChild(el("div", "section-h", "Resources"));
-    body.appendChild(infoRows([
-      ["Spirit Stones", c.spiritStones], ["Spirit Herbs", c.herbs],
-      ["Qi / Healing / Breakthrough Pills", `${c.pills} / ${c.healingPills} / ${c.breakthroughPills}`],
-      ...(c.talismans && Object.values(c.talismans).some(n => n > 0) ? [["Talismans 符箓", D.TALISMAN_ORDER.filter(k => (c.talismans[k] || 0) > 0).map(k => `${D.TALISMANS[k].name.split(" ")[0]}×${c.talismans[k]}`).join(", ")]] : []),
-      ["Techniques", [...c.techniques.map(t => D.TECHNIQUES[t][0]), ...(c.customTechs || []).map(ct => ct.name + " ✦")].join(", ")],
-    ]));
+    foldControl(body, ["sheet.born", "sheet.attrs", "sheet.path", "sheet.res", "sheet.chron"], openSheet);
+    collapsibleSection(body, "Born With", "sheet.born", w => {
+      w.appendChild(infoRows([
+        ["Spiritual Root", c.awakened ? `${c.root.display}${c.root.elements.length ? " [" + c.root.elements.join(", ") + "]" : ""}` : "Unknown — awakens at age 6 (未测)", "root"],
+        ["Physique", c.physiqueName, "physique"], ["Appearance", c.appearanceName], ["Standing", c.backgroundName],
+      ]));
+      // Spell out what this physique actually does, so it visibly matters.
+      if (D.PHYSIQUE_EFFECTS[c.physiqueKey] && c.physiqueKey !== "ordinary")
+        w.appendChild(el("p", "note", "✦ " + D.physEffect(c).desc));
+    }, { startCollapsed: true });
+    collapsibleSection(body, "Attributes", "sheet.attrs", w => {
+      const attrRow = (label, field, attr, tip) => { const t = D.attrTier(attr, c[field]); return [label, `${c[field]} · ${t.name} (${t.idx + 1}/${t.of})`, tip]; };
+      w.appendChild(infoRows([
+        attrRow("Comprehension 悟性", "comprehension", "comprehension", "comprehension"),
+        attrRow("Constitution 根骨", "constitution", "constitution", "constitution"),
+        attrRow("Soul Sense 神识", "soul", "soul", "soul"),
+        attrRow("Fortune 气运", "luck", "luck", "fortune"),
+        attrRow("Charm 魅力", "charm", "charm", "charm"),
+      ]));
+    });
+    collapsibleSection(body, "Path", "sheet.path", w => {
+      const ab = D.abodeAt(c.abode || 0);
+      const rows = [["Sect", c.ownSect ? `${c.ownSect.name} — Founder (${D.sectTier(c.ownSect.prestige)[1]})` : c.sectKey ? `${E.sectName(c)} — ${E.rankName(c)}` : "Rogue Cultivator"],
+        ["Abode", ab ? `${ab[1]} (${ab[2]})${c.ownSect ? " · sect seat" : ""}` : "None", "abode"],
+        ["Equipment", E.equipmentSummary(c)]];
+      if (c.beast) rows.push(["Beast", `${c.beast.name} the ${c.beast.species}`]);
+      if (c.legacySect && !c.ownSect) rows.push(["Past Sect", `${c.legacySect.name} (awaits your return)`]);
+      if (c.daos.length) rows.push(["Daos", c.daos.map(d => `${D.DAO_BY_KEY[d][1].split(" (")[0]} · ${D.daoTierName(E.daoTierOf(c, d))}`).join(", ")]);
+      rows.push(["Dao Heart 道心", `${E.daoHeartLabel(c.daoHeart || 0)} (${Math.round(c.daoHeart || 0)}/${E.DAO_HEART_MAX})`]);
+      { const art = E.bestMovementArt(c), bd = Math.round(E.movementDodge(c) * 100); rows.push(["Movement 轻功", `${art ? `${D.MOVEMENT_BY_KEY[art][1]} (${E.moveRankName(E.moveFraction(c, art))})` : "—"} · ${E.hopsPerDeed(c)} stage${E.hopsPerDeed(c) > 1 ? "s" : ""}/deed${bd > 0 ? ` · +${bd}% battle dodge` : ""}`]); }
+      if ((c.epithets || []).length) rows.push(["Monikers 名号", c.epithets.map(e => `「${e.text}」`).join(" "), "monikers"]);
+      if (c.titles.length) rows.push(["Titles", c.titles.join(", ")]);
+      w.appendChild(infoRows(rows));
+    });
+    collapsibleSection(body, "Resources", "sheet.res", w => {
+      w.appendChild(infoRows([
+        ["Spirit Stones", c.spiritStones], ["Spirit Herbs", c.herbs],
+        ["Qi / Healing / Breakthrough Pills", `${c.pills} / ${c.healingPills} / ${c.breakthroughPills}`],
+        ...(c.talismans && Object.values(c.talismans).some(n => n > 0) ? [["Talismans 符箓", D.TALISMAN_ORDER.filter(k => (c.talismans[k] || 0) > 0).map(k => `${D.TALISMANS[k].name.split(" ")[0]}×${c.talismans[k]}`).join(", ")]] : []),
+        ["Techniques", [...c.techniques.map(t => D.TECHNIQUES[t][0]), ...(c.customTechs || []).map(ct => ct.name + " ✦")].join(", ")],
+      ]));
+    });
     { const nActive = Ev.activeSagas(c).length, sg = el("button", "mbtn full");
       sg.innerHTML = `机 Sagas 机缘${nActive ? `<small>${nActive} unfolding now</small>` : "<small>your multi-year storylines</small>"}`;
       sg.onclick = openSagas; body.appendChild(sg); }
     const ach = el("button", "mbtn full"); ach.innerHTML = "✦ Achievements & Legacy";
     ach.onclick = () => openAchievements(openSheet); body.appendChild(ach);
-    body.appendChild(el("div", "section-h", "Life Chronicle"));
-    for (const [age, text] of c.log.slice(-30)) body.appendChild(el("div", "chron-line", `<b>Age ${age}</b> — ${escapeHtml(text)}`));
+    collapsibleSection(body, "Life Chronicle", "sheet.chron", w => {
+      for (const [age, text] of c.log.slice(-30)) w.appendChild(el("div", "chron-line", `<b>Age ${age}</b> — ${escapeHtml(text)}`));
+    }, { count: Math.min(30, c.log.length), startCollapsed: true });
   });
 }
 function infoRows(rows) {
