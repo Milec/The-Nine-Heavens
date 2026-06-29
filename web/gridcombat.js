@@ -38,6 +38,32 @@ const terr = (B, x, y) => TERRAIN[B.cells[y * GW + x]] || TERRAIN.floor;
 const passable = (B, x, y) => inb(x, y) && terr(B, x, y).pass;
 const unitAt = (B, x, y) => B.units.find(u => u.alive && u.x === x && u.y === y) || null;
 
+// Each kind of fight has its own field. A duel or tournament is a clean ring; a
+// boss waits in a pillared arena; the Heavenly Tribulation strikes a storm-blasted
+// peak; a demon lairs amid black flame; sect wars are fought over broken siege
+// ground; a secret realm twists to its own element; the wilds are the wilds.
+function genMap(rng, spec) {
+  const map = spec.map || "wilds";
+  if (map === "wilds") return genTerrain(rng, spec.danger || 0);
+  const cells = new Array(GW * GH).fill("floor");
+  const free = (x, y) => y >= 2 && y <= GH - 3;
+  const put = (t, n) => { let p = 0; for (let i = 0; i < n * 5 && p < n; i++) { const x = rng.randint(1, GW - 2), y = rng.randint(2, GH - 3); if (free(x, y) && cells[y * GW + x] === "floor") { cells[y * GW + x] = t; p++; } } };
+  const d = clampN(spec.danger || 0, 0, 4);
+  switch (map) {
+    case "ring": break;                                       // a clean duelling ring — pure skill, no terrain
+    case "arena": put("wall", 2 + rng.randint(0, 1)); break;  // pillars to circle
+    case "tribulation": put("flame", 2 + rng.randint(0, 1)); break;   // lightning-scorched ground
+    case "lair": put("wall", 2); put("flame", 1 + rng.randint(0, 1)); break;
+    case "battlefield": put("rubble", 3); put("wall", 1 + rng.randint(0, 1)); break;
+    case "realm":
+      put("wall", 2);
+      put(spec.element === "Fire" || spec.element === "Lightning" ? "flame" : spec.element === "Wood" || spec.element === "Earth" ? "thicket" : "flame", 1 + (d > 2 ? 1 : 0));
+      if (rng.random() < 0.5) put("spring", 1);
+      break;
+    default: return genTerrain(rng, d);
+  }
+  return cells;
+}
 // Generate a battlefield, its feature density rising with the land's danger.
 function genTerrain(rng, danger) {
   const cells = new Array(GW * GH).fill("floor");
@@ -68,7 +94,7 @@ function addStatus(u, type, turns, value) { u.statuses.push({ type, turns, value
 
 // The player avatar as a grid unit — every existing system (power, physique,
 // gear, root attunement, Dao manifestations, 轻功, Dao Heart) folded in.
-function buildPlayerUnit(c) {
+function buildPlayerUnit(c, startHpFrac) {
   const P = E.power(c), ph = D.physEffect(c), eq = E.equipmentEffects(c);
   const maxHp = P * 1.9 * (1 + (ph.hp || 0) + (eq.hp || 0));
   const rootEls = (c.awakened && c.root && c.root.elements && c.root.elements.length) ? c.root.elements.slice() : [];
@@ -90,7 +116,9 @@ function buildPlayerUnit(c) {
     move: clampN(3 + (E.hopsPerDeed(c) - 1) + Math.round(E.movementDodge(c) * 3), 3, 7),
   };
   const dm = E.daoBattleMods(c);
-  if (dm.hp) { u.maxHp *= (1 + dm.hp); u.hp = u.maxHp; }
+  if (dm.hp) { u.maxHp *= (1 + dm.hp); }
+  if (startHpFrac != null) u.hp = u.maxHp * clampN(startHpFrac, 0.1, 1);
+  else u.hp = u.maxHp;
   u.crit = clampN(u.crit + (dm.crit || 0), 0, 0.85);
   u.dodge = clampN(u.dodge + (dm.dodge || 0), 0, 0.7);
   u.equipLifesteal += dm.lifesteal || 0;
@@ -366,11 +394,16 @@ function aiTurn(B, u, lines) {
 /* ------------------------------- the battle ------------------------------ */
 // spec: { enemies:[enemyDef...], danger, title, nonLethal, tribulation }
 export function createGridBattle(c, spec, rng) {
-  const cells = genTerrain(rng, spec.danger || 0);
-  const B = { cells, rng, units: [], round: 1, over: false, outcome: null, feed: [], opts: spec, ref: c, def: spec };
-  const player = buildPlayerUnit(c); B.units.push(player); B.player = player;
-  const beast = buildBeastUnit(c); if (beast) B.units.push(beast);
-  const comp = buildCompanionUnit(c, spec); if (comp) B.units.push(comp);
+  const cells = genMap(rng, spec);
+  const B = { cells, rng, units: [], round: 1, over: false, outcome: null, feed: [], opts: spec, ref: c, def: spec,
+    tribulation: !!spec.tribulation, nonLethal: !!spec.nonLethal, noSpoils: !!spec.noSpoils,
+    canFlee: !spec.tribulation && spec.canFlee !== false };
+  const player = buildPlayerUnit(c, spec.startHpFrac); B.units.push(player); B.player = player;
+  // Honour duels, tournaments and the lone Tribulation are fought without allies.
+  if (!spec.noAllies && !spec.tribulation) {
+    const beast = buildBeastUnit(c); if (beast) B.units.push(beast);
+    const comp = buildCompanionUnit(c, spec); if (comp) B.units.push(comp);
+  }
   for (const def of spec.enemies) B.units.push(buildEnemyUnit(def));
   // Place allies along the bottom edge, foes along the top, on open ground.
   const placeRow = (list, ys) => {
@@ -397,8 +430,10 @@ export function createGridBattle(c, spec, rng) {
 }
 function livingEnemies(B) { return B.units.filter(u => u.alive && u.side === "enemy"); }
 function checkOver(B) {
-  if (!B.player.alive || B.player.hp <= 0) { B.player.alive = B.player.hp > 0; if (B.player.hp <= 0) { B.over = true; B.outcome = "lose"; } }
-  else if (!livingEnemies(B).length) { B.over = true; B.outcome = "win"; }
+  if (B.player.hp <= 0) {
+    if (B.nonLethal) { B.player.hp = 1; B.player.alive = true; B.over = true; B.outcome = "yield"; }   // a spar/trial ends in a yield, not a death
+    else { B.player.alive = false; B.over = true; B.outcome = "lose"; }
+  } else if (!livingEnemies(B).length) { B.over = true; B.outcome = "win"; }
   return B.over;
 }
 // Advance the initiative queue, auto-running AI turns, until it is the player's
@@ -410,6 +445,7 @@ export function advance(B) {
     B.idx++;
     if (B.idx >= B.order.length) {
       B.idx = -1; B.round++; B.order = B.units.filter(u => u.alive);
+      if (B.tribulation) for (const u of B.units) if (u.alive && u.side === "enemy") addStatus(u, "empower", 99, 0.06);   // the heavens' wrath mounts
       if (B.round > 30) {   // a battle cannot drag forever — terrain stalemates end in a withdrawal
         B.over = true; B.outcome = B.player.hp > 0 ? "flee" : "lose";
         B.feed.push("The battle grinds to a stalemate across the broken ground; you disengage from the field.");
@@ -483,6 +519,23 @@ export function finishGridBattle(B) {
   const frac = clampN(B.player.hp / B.player.maxHp, 0, 1);
   const slain = B.units.filter(u => u.side === "enemy");
   const boss = slain.find(u => u.boss);
+  // The Heavenly Tribulation is its own kind of trial — no spoils, only survival.
+  if (B.tribulation) {
+    if (B.outcome === "win") {
+      c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac));
+      c.qi += E.qiToNext(c) * 0.3;
+      c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + rng.randint(2, 5));
+      lines.push("⚡ You weather the Heavenly Tribulation! The clouds disperse and your new realm settles, unshakable.");
+    } else {
+      if (rng.random() < c.luck / 320 + (D.physEffect(c).deathSave || 0)) { c.hp = c.maxHp * 0.1; lines.push("⚡ The final bolt should have ended you — but your undying flesh drags you back from oblivion!"); }
+      else { c.alive = false; c.causeOfDeath = `struck down by the ${E.realmName(c)} tribulation`; c.hp = 0; c.log.push([c.age, "Died crossing the Heavenly Tribulation."]); lines.push("☠ The tribulation lightning scatters your soul. You die crossing the heavens."); }
+    }
+    E.recomputeMaxHp(c);
+    return lines;
+  }
+  // A non-lethal bout (spar, rank trial, tournament) leaves only bruises.
+  if (B.outcome === "yield") { c.hp = Math.max(1, c.maxHp * 0.25); E.recomputeMaxHp(c); return ["The bout ends. You tend your bruises, a little wiser for it."]; }
+  if (B.outcome === "win" && B.noSpoils) { c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac)); E.recomputeMaxHp(c); return ["🏆 You win the bout!"]; }
   if (B.outcome === "win") {
     c.hp = Math.max(1, c.maxHp * Math.max(0.15, frac));
     const reward = slain.reduce((a, u) => a + (u.reward || 0), 0);

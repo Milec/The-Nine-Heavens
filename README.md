@@ -118,8 +118,8 @@ always drops a treasure. And from the Golden Core up, every **breakthrough
 summons an interactive Heavenly Tribulation**: a survival battle against
 escalating lightning you must endure with shields, heals and nerve.
 
-**Tactical grid combat (战阵).** Open-field battles are fought on a **TTRPG-style
-square grid** where **multiple foes** close on you at once and your **spirit
+**Tactical grid combat (战阵).** *Every* fight plays out on a **TTRPG-style
+square grid** where **multiple foes** can close on you at once and your **spirit
 beast and a bonded companion fight at your side** as allies. Units act in
 **initiative order** to **move and act** — your **movement-art (轻功) sets how
 far you stride** across the field each turn. The **terrain matters**: rock walls
@@ -130,9 +130,16 @@ square, **multi-sword arts fall as a blast** over an area, **piercing arts carve
 a line** through everything in their path, and ranged arts need a clear line of
 sight (mind the walls). Everything you have built still bites here — element
 attunement, mastery, Dao manifestations, physique, gear and beast all carry
-over. Reach a **tactical skirmish (群战)** or stumble into a **beast pack (兽群)**
-from **Adventure**; the solo **Heavenly Tribulation** remains its own intimate
-trial.
+over.
+
+**Each kind of fight has its own field.** A **duel, tournament, spar or rank
+trial** is a **clean ring (擂台)** — no terrain, no allies, pure skill; a **boss
+or nemesis showdown** waits in a **pillared arena**; the **Heavenly Tribulation**
+strikes a **storm-blasted peak** you cross alone with no escape; a **demon lairs
+amid black flame**; **sect wars (出征 / 御敌)** are fought over broken **siege
+ground**; a **secret realm** twists to its **own element**; and the **wilds** are
+the wilds. Reach a flagship **tactical skirmish (群战)** or a **beast pack (兽群)**
+from **Adventure** — or simply pick any fight, and step onto its field.
 
 Your techniques have **mastery** that deepens every time you use them in battle
 (or drill them) — Untrained → Novice → … → Perfected — raising their power, so a

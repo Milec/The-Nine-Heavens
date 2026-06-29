@@ -530,7 +530,7 @@ function challengeGenius(g) {
   if (!ageAllows("duel") || !useAction("social")) return;
   const enemy = C.makeEnemyFromNpc(c, g, state.rng, { reward: (c.realm + 1) * 8 });
   logMessages([`You ascend the challenge-platform and call out ${g.name}, ${g.title} — a contest for rank on the Heaven Board!`]);
-  startBattle(enemy, { title: `Heaven Board · ${g.name}` }, (outcome) => {
+  startBattle(enemy, { title: `Heaven Board · ${g.name}`, map: "ring", solo: true }, (outcome) => {
     if (state.c.alive) {
       if (outcome === "win") { const fame = E.gainFame(c, 6); g.power = Math.floor((g.power || 1) * 0.9); logMessages([`✦ You defeat ${g.name} before the watching world! Your name climbs the Heaven Board. (+${fame} fame)`]); }
       else { c.reputation = Math.max(-200, c.reputation - 3); logMessages([`${g.name} bests you. You withdraw, and the board remembers. (−Reputation)`]); }
@@ -760,7 +760,7 @@ function openPerson(n) {
           logMessages([isNemesis
             ? `At long last you stand against your nemesis ${n.name}. One of you will not walk away.`
             : `You challenge ${n.name} to settle things with qi and steel!`]);
-          startBattle(enemy, { title: isNemesis ? `Showdown · ${n.name}` : `Duel · ${n.name}` }, (outcome) => {
+          startBattle(enemy, { title: isNemesis ? `Showdown · ${n.name}` : `Duel · ${n.name}`, map: isNemesis ? "arena" : "ring", solo: true }, (outcome) => {
             if (state.c.alive && outcome === "win") {
               n.alive = false;
               if (isNemesis) {
@@ -876,7 +876,7 @@ function openDenizen(n) {
           if (!ageAllows("duel") || !useAction("social")) return;
           const enemy = C.makeEnemyFromNpc(c, n, state.rng, { reward: (c.realm + 1) * 6 });
           logMessages([`You bar ${n.name}'s path and call them to a duel before the watching realm!`]);
-          startBattle(enemy, { title: `Duel · ${n.name}` }, (outcome) => {
+          startBattle(enemy, { title: `Duel · ${n.name}`, map: "ring", solo: true }, (outcome) => {
             if (state.c.alive) {
               if (outcome === "win") logMessages(L.defeatDenizen(c, n, state.rng));
               else { c.reputation = Math.max(-200, c.reputation - 2); logMessages([`${n.name} gets the better of the bout and walks on. (−Reputation)`]); }
@@ -2469,15 +2469,23 @@ function unitPanel(u, isPlayer) {
   p.innerHTML = html;
   return p;
 }
+// Every fight is now a tactical grid battle. This shim wraps an enemy stat-block
+// (or a pre-built group via opts.enemies) into a grid spec with a map themed to
+// the encounter, so all the old call sites flow onto the field unchanged.
 function startBattle(enemyDef, opts, onDone) {
-  const B = C.createBattle(state.c, enemyDef, state.rng, opts || {});
-  if (enemyDef.tribulation)
-    B.feed = ["⚡ The Heavenly Tribulation descends! Endure the lightning and disperse the cloud before it scatters your soul — there is no fleeing this."];
-  else if (enemyDef.boss)
-    B.feed = [`☠ The ${enemyDef.name} looms before you — a foe far beyond common rabble. (power ≈ ${Math.round(enemyDef.power)}, you ≈ ${Math.round(E.power(state.c))})`];
-  else
-    B.feed = [`⚔ A ${enemyDef.name} faces you!  (foe ≈ ${Math.round(enemyDef.power)}, you ≈ ${Math.round(E.power(state.c))})`];
-  renderBattleScreen(B, onDone);
+  opts = opts || {};
+  const c = state.c, tribulation = !!enemyDef.tribulation;
+  const map = opts.map || (tribulation ? "tribulation" : opts.nonLethal ? "ring" : enemyDef.boss ? "arena" : "wilds");
+  // Honour duels, tournaments, trials and the lone Tribulation are fought solo.
+  const solo = opts.solo != null ? opts.solo : (tribulation || opts.nonLethal);
+  startGridBattle({
+    enemies: opts.enemies || [enemyDef],
+    map, danger: opts.danger != null ? opts.danger : biomeIdx(c.region),
+    element: opts.element != null ? opts.element : enemyDef.element,
+    title: opts.title, intro: opts.intro,
+    nonLethal: !!opts.nonLethal, tribulation, noSpoils: !!opts.noSpoils,
+    startHpFrac: opts.startHpFrac, noAllies: !!solo,
+  }, onDone);
 }
 function doBreakthrough() {
   const c = state.c; if (!c.alive || !E.canBreakthrough(c)) return; closeOverlay();
@@ -2573,7 +2581,7 @@ function doNemesisReckoning() {
   nem.encounters = (nem.encounters || 0) + 1;
   const foe = C.makeEnemyFromNpc(c, nem, state.rng, { boss: true, reward: (c.realm + 2) * 10 });
   logMessages([`You hunt down ${nem.name} and bar their road. "${nem.grudge ? "For " + nem.grudge + "," : "This ends today,"}" you say. "One of us does not walk away." Steel and killing intent fill the air.`]);
-  startBattle(foe, { title: `Reckoning · ${nem.name}` }, o => {
+  startBattle(foe, { title: `Reckoning · ${nem.name}`, map: "arena", solo: true }, o => {
     const cc = state.c;
     if (o === "win") { logMessages(E.defeatNemesis(cc, nem, state.rng)); if (cc.titles.some(x => x.startsWith("Nemesis Slain"))) award("nemesis"); }
     else if (cc.alive) { nem.power *= 1.2; logMessages([`${nem.name} stands over you and laughs, then turns their back and walks away — sparing you, the cruelest cut of all. Their power swells, and your shame burns.`]); }
@@ -2597,7 +2605,7 @@ function doCallToArms() {
   const foe = champ ? C.makeEnemyFromNpc(c, champ, state.rng, { boss: true, reward: (c.realm + 1) * 8 })
     : C.makeBoss(c, state.rng, { name: "Enemy Champion", factorMult: 1 });
   logMessages([`You ride to the front, where the ${E.sectName(c).split(" (")[0]} and the ${foeSect[1].split(" (")[0]} clash upon the slopes. ${champ ? champ.name : "An enemy champion"} strides out to meet you, blade bared!`]);
-  startBattle(foe, { title: `出征 · ${champ ? champ.name : foeSect[1].split(" (")[0]}` }, o => {
+  startBattle(foe, { title: `出征 · ${champ ? champ.name : foeSect[1].split(" (")[0]}`, map: "battlefield" }, o => {
     const cc = state.c;
     if (o === "win") logMessages(E.callToArmsSpoils(cc, foeKey, state.rng));
     else if (cc.alive) logMessages(E.callToArmsLoss(cc));
@@ -2616,7 +2624,7 @@ function doDefendSect() {
   const foe = champ ? C.makeEnemyFromNpc(c, champ, state.rng, { boss: true, reward: (c.realm + 1) * 9 })
     : C.makeBoss(c, state.rng, { name: "Raid Commander", factorMult: 1 });
   logMessages([`The ${rs[1].split(" (")[0]} storms the gates of the ${own.name}! You stride out before your watching disciples to meet ${champ ? champ.name : "their commander"} in single combat.`]);
-  startBattle(foe, { title: `御敌 · ${champ ? champ.name : rs[1].split(" (")[0]}` }, o => {
+  startBattle(foe, { title: `御敌 · ${champ ? champ.name : rs[1].split(" (")[0]}`, map: "battlefield" }, o => {
     const cc = state.c;
     if (cc.alive) logMessages(E.resolveOwnSectRaid(cc, state.rng, o === "win"));
     endActivityYear();
@@ -2629,7 +2637,7 @@ function doSlayDemon(demon) {
   closeOverlay();
   const foe = C.makeEnemyFromNpc(c, demon, state.rng, { boss: true, reward: (c.realm + 2) * 12 });
   logMessages([`You set out to end ${demon.title || demon.name}, the demon that haunts this land. The people watch from afar, scarcely daring to hope.`]);
-  startBattle(foe, { title: `除魔 · ${demon.name}` }, o => {
+  startBattle(foe, { title: `除魔 · ${demon.name}`, map: "lair" }, o => {
     const cc = state.c;
     if (o === "win") {
       E.slayDemon(cc, demon, state.rng);
@@ -2726,14 +2734,14 @@ function realmStage() {
   if (last) {
     const guardian = C.makeBoss(c, state.rng, { name: theme.guardian, factor: 1.4 + state.rng.random() * 0.2, element: theme.element, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — ${guardian.name} bars the inner sanctum!`]);
-    startBattle(guardian, { title: `${theme.name} · Guardian`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+    startBattle(guardian, { title: `${theme.name} · Guardian`, map: "realm", element: theme.element, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
     return;
   }
   const roll = state.rng.random();
   if (roll < 0.55) {
     const enemy = C.makeEnemy(c, state.rng, { kind: theme.kind || undefined, name: state.rng.choice(theme.foes), element: theme.element, factor: 0.8 + R.idx * 0.15, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — a ${enemy.name} lurks in the mist.`]);
-    startBattle(enemy, { title: `${theme.name} · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+    startBattle(enemy, { title: `${theme.name} · Stage ${stageNo}`, map: "realm", element: theme.element, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
   } else if (roll < 0.80) {
     logMessages([`Stage ${stageNo}/${R.depth} —`].concat(realmFortune(c)));
     R.idx++;
@@ -2928,13 +2936,22 @@ function renderBattleScreen(B, onDone) {
 }
 
 /* ----------------------- tactical grid combat (战阵) --------------------- */
+const GRID_INTRO = {
+  ring: n => `The ring is drawn. ${n > 1 ? `${n} opponents face you` : "Your opponent faces you"} across the dueling ground — no terrain, no allies, only skill.`,
+  arena: n => `You step into the arena. ${n > 1 ? `${n} foes` : "Your foe"} await amid the pillars.`,
+  tribulation: () => `⚡ The Heavenly Tribulation descends upon the storm-blasted peak! Endure the lightning and disperse the cloud — there is no fleeing, and you stand alone.`,
+  lair: n => `You breach the lair, black flame guttering in the dark. ${n > 1 ? `${n} horrors stir` : "The horror stirs"}.`,
+  battlefield: n => `The lines clash across broken siege-ground — ${n > 1 ? `${n} foes` : "a champion"} before you.`,
+  realm: n => `The secret realm warps to meet you — ${n > 1 ? `${n} guardians` : "a guardian"} bar the way.`,
+  wilds: n => `⚔ ${n > 1 ? `A band of ${n} foes closes` : "A foe closes"} across the wilds. Place your steps, and let your arts find them.`,
+};
 function startGridBattle(spec, onDone) {
   const B = GC.createGridBattle(state.c, spec, state.rng);
-  B.feed.push(spec.intro || `⚔ The field is set — ${GC.unitAtCell ? "" : ""}${spec.enemies.length} foe${spec.enemies.length > 1 ? "s" : ""} stand against you. Move with your 轻功, and let your arts reach across the line.`);
+  const intro = spec.intro || (GRID_INTRO[spec.map || "wilds"] || GRID_INTRO.wilds)(spec.enemies.length);
+  B.feed.push(intro);
   B.ui = { phase: "choose", skill: null };
-  const first = GC.advance(B);          // run any faster foes/allies until your turn (or a swift end)
+  GC.advance(B);          // run any faster foes/allies until your turn (or a swift end)
   renderGridBattle(B, onDone);
-  void first;
 }
 const TERRAIN_GLYPH = { wall: "▰", rubble: "▩", flame: "✺", chasm: "▢", thicket: "❉", spring: "❖" };
 function unitGlyph(u) {
@@ -2992,7 +3009,7 @@ function renderGridBattle(B, onDone) {
     // --- controls ---
     if (B.over) {
       const cont = el("button", "mbtn full primary");
-      cont.innerHTML = `Continue<small>${B.outcome === "win" ? "victory!" : B.outcome === "lose" ? "defeat..." : "you withdraw"}</small>`;
+      cont.innerHTML = `Continue<small>${B.outcome === "win" ? "victory!" : B.outcome === "lose" ? "defeat..." : B.outcome === "yield" ? "you yield" : "you withdraw"}</small>`;
       cont.onclick = () => { const sum = GC.finishGridBattle(B); closeOverlay(); logMessages(sum); if (B.outcome === "win") award("first_blood"); if (onDone) onDone(B.outcome); };
       body.appendChild(cont);
     } else if (B.cur && B.cur.side === "player") {
@@ -3014,7 +3031,7 @@ function renderGridBattle(B, onDone) {
         body.appendChild(acts);
         const row = el("div", "gc-btnrow");
         if ((c.healingPills || 0) > 0 && !B.cur.acted) { const pb = el("button", "mbtn"); pb.innerHTML = `💊 Pill (${c.healingPills})`; pb.onclick = () => { GC.playerPill(B); afterPlayer(B, onDone); }; row.appendChild(pb); }
-        const wb = el("button", "mbtn"); wb.innerHTML = "🏃 Withdraw"; wb.onclick = () => { const r = GC.playerWithdraw(B); if (r.fled) renderGridBattle(B, onDone); else afterPlayer(B, onDone); }; row.appendChild(wb);
+        if (B.canFlee) { const wb = el("button", "mbtn"); wb.innerHTML = "🏃 Withdraw"; wb.onclick = () => { const r = GC.playerWithdraw(B); if (r.fled) renderGridBattle(B, onDone); else afterPlayer(B, onDone); }; row.appendChild(wb); }
         const eb = el("button", "mbtn primary"); eb.innerHTML = "End Turn"; eb.onclick = () => afterPlayer(B, onDone); row.appendChild(eb);
         body.appendChild(row);
       }

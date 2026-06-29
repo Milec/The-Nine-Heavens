@@ -1081,6 +1081,29 @@ function testGridCombat() {
     const B4 = G.createGridBattle(c4, { enemies: [C.makeEnemy(c4, r, { factor: 0.5 })], danger: 0 }, r);
     assert(B4.units.some(u => u.side === "ally"), "a bonded spirit beast fights at your side on the grid"); }
 
+  // Every encounter type has its own field: a duel is a clean ring (no terrain,
+  // no allies), the Tribulation a solo peak you cannot flee, and so on.
+  { const r = new E.RNG(21), cc = L.bornCharacter(r, "M", null); cc.awakened = true; cc.realm = 5; cc.techniques = ["basic_breathing"];
+    cc.beast = { name: "Bai", alive: true, rank: 3, bond: 80, element: "Fire", power: E.basePower(cc) * 0.4 };
+    for (const map of ["ring", "arena", "tribulation", "lair", "battlefield", "realm", "wilds"]) {
+      const spec = { enemies: [C.makeEnemy(cc, r, { factor: 0.5 })], map, danger: 3, tribulation: map === "tribulation", noAllies: map === "ring" || map === "tribulation" };
+      const BM = G.createGridBattle(cc, spec, r);
+      assert(BM.cells.length === G.GW * G.GH && BM.cells.every(t => G.TERRAIN[t]), `map ${map} has valid terrain`);
+    }
+    const ring = G.createGridBattle(cc, { enemies: [C.makeEnemy(cc, r, { factor: 0.5 })], map: "ring", noAllies: true }, r);
+    assert(ring.cells.every(t => t === "floor"), "a dueling ring is clean ground — no terrain features");
+    assert(!ring.units.some(u => u.side === "ally"), "a solo duel is fought without allies");
+    const trib = G.createGridBattle(cc, { enemies: [C.makeTribulation(cc, r)], map: "tribulation", tribulation: true }, r);
+    assert(!trib.units.some(u => u.side === "ally") && trib.canFlee === false, "the Tribulation is faced alone, with no escape"); }
+
+  // A non-lethal bout (spar/trial/tournament) ends in a yield, never a death.
+  { const r = new E.RNG(22), cc = L.bornCharacter(r, "Y", null); cc.awakened = true; cc.realm = 1; cc.techniques = ["basic_breathing"];
+    const BN = G.createGridBattle(cc, { enemies: [C.makeEnemy(cc, r, { factor: 3 })], map: "ring", nonLethal: true, noAllies: true }, r);
+    let st = G.advance(BN), g = 0;
+    while (!st.over && g++ < 60) { G.playerAct(BN, C.SKILLS.guard); st = G.endPlayerTurn(BN); }
+    assert(BN.outcome === "yield" || BN.outcome === "win", "a non-lethal bout resolves to a yield or a win, not death");
+    assert(cc.alive !== false, "a yielded spar never kills you"); }
+
   // Robustness: many battles must always resolve (the round-cap forbids stalemates).
   let resolved = 0;
   for (let i = 0; i < 60; i++) {
