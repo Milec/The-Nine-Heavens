@@ -13,6 +13,7 @@ import * as E from "../web/engine.js";
 import * as L from "../web/life.js";
 import * as D from "../web/data.js";
 import * as C from "../web/combat.js";
+import * as G from "../web/gridcombat.js";
 import * as Ev from "../web/events.js";
 const { EVENTS } = Ev;
 
@@ -1034,6 +1035,75 @@ function testPlayerInSectWars() {
   assert(lapse && lapse.length && c.ownSect.prestige < presBefore && !c.ownSect.threat, "an unanswered raid is pressed home, costing prestige");
 }
 
+// Tactical GRID combat (战阵): a TTRPG-style battle on a terrain grid where you,
+// your beast and a companion stand against a band of foes — movement set by your
+// 轻功, arts that reach across squares (melee, ranged, blast, line), and terrain
+// (walls block sight & step) that all bite. It reuses the whole combat vocabulary.
+function testGridCombat() {
+  const rng = new E.RNG(7);
+  const c = L.bornCharacter(rng, "Grid", null);
+  c.awakened = true; c.realm = 4; c.techniques = ["basic_breathing", "sword_rain", "mountain_seal", "great_void", "frost_lotus"];
+  const enemies = [C.makeEnemy(c, rng, { factor: 0.5 }), C.makeEnemy(c, rng, { factor: 0.5 })];
+  const B = G.createGridBattle(c, { enemies, danger: 3 }, rng);
+  assert(B.cells.length === G.GW * G.GH, "the field is a proper grid");
+  assert(B.cells.every(t => G.TERRAIN[t]), "every square is valid terrain");
+  const pl = B.units.filter(u => u.side === "player"), en = B.units.filter(u => u.side === "enemy");
+  assert(pl.length === 1 && en.length === 2, "the player and the foes are placed on the field");
+  assert(en.every(u => u.y <= 1) && pl[0].y >= G.GH - 2, "the foes form up opposite the player");
+  assert(new Set(B.units.map(u => u.x + "," + u.y)).size === B.units.length, "no two combatants share a square");
+  G.advance(B);
+  assert(B.over || B.cur.side === "player", "the initiative queue runs the foes, then yields to you");
+  if (!B.over) { const reach = G.reachable(B); assert(reach.size > 0, "you can step onto open ground"); for (const v of reach.values()) assert(v <= B.cur.move, "movement never exceeds your range"); }
+
+  // A blast art strikes every foe clustered in its footprint.
+  { const r = new E.RNG(3), c2 = L.bornCharacter(r, "A", null); c2.awakened = true; c2.realm = 5; c2.techniques = ["basic_breathing", "sword_rain"];
+    const es = [C.makeEnemy(c2, r, { factor: 0.5 }), C.makeEnemy(c2, r, { factor: 0.5 })];
+    const B2 = G.createGridBattle(c2, { enemies: es, danger: 0 }, r); B2.cells = new Array(G.GW * G.GH).fill("floor");
+    let st = G.advance(B2); while (!st.over && B2.cur.side !== "player") st = G.endPlayerTurn(B2);
+    const P = B2.player; P.x = 3; P.y = 5; P.moved = true; P.acted = false; P.qi = P.maxQi;
+    const f = B2.units.filter(u => u.side === "enemy"); f[0].x = 3; f[0].y = 2; f[1].x = 4; f[1].y = 2; f[0].hp = f[0].maxHp; f[1].hp = f[1].maxHp;
+    assert(new Set(G.skillTargets(B2, C.SKILLS.sword_rain)).has("3,2"), "a ranged art can target a foe within range and sight");
+    assert(G.targetCells(B2, P, C.SKILLS.sword_rain, 3, 2).some(([x, y]) => x === 4 && y === 2), "a blast art covers the squares around its mark");
+    const h0 = [f[0].hp, f[1].hp]; G.playerAct(B2, C.SKILLS.sword_rain, 3, 2);
+    assert(f[0].hp < h0[0] && f[1].hp < h0[1], "one blast strikes multiple clustered foes"); }
+
+  // A wall blocks a ranged art's line of sight.
+  { const r = new E.RNG(9), c3 = L.bornCharacter(r, "W", null); c3.awakened = true; c3.realm = 6; c3.techniques = ["basic_breathing", "great_void"];
+    const B3 = G.createGridBattle(c3, { enemies: [C.makeEnemy(c3, r, { factor: 0.5 })], danger: 0 }, r);
+    B3.cells = new Array(G.GW * G.GH).fill("floor"); B3.cells[3 * G.GW + 3] = "wall";
+    let st = G.advance(B3); while (!st.over && B3.cur.side !== "player") st = G.endPlayerTurn(B3);
+    const P = B3.player; P.x = 3; P.y = 5; P.moved = true; const f = B3.units.find(u => u.side === "enemy"); f.x = 3; f.y = 1;
+    assert(!new Set(G.skillTargets(B3, C.SKILLS.great_void)).has("3,1"), "a rock wall blocks a ranged art's line of sight"); }
+
+  // Your spirit beast joins the field as an ally.
+  { const r = new E.RNG(11), c4 = L.bornCharacter(r, "B", null); c4.awakened = true; c4.realm = 4;
+    c4.beast = { name: "Bai", alive: true, rank: 3, bond: 80, element: "Fire", species: "Lion", power: E.basePower(c4) * 0.4 };
+    const B4 = G.createGridBattle(c4, { enemies: [C.makeEnemy(c4, r, { factor: 0.5 })], danger: 0 }, r);
+    assert(B4.units.some(u => u.side === "ally"), "a bonded spirit beast fights at your side on the grid"); }
+
+  // Robustness: many battles must always resolve (the round-cap forbids stalemates).
+  let resolved = 0;
+  for (let i = 0; i < 60; i++) {
+    const r = new E.RNG(i + 500), cc = L.bornCharacter(r, "R", null);
+    cc.awakened = true; cc.realm = 4; cc.luck = 60; cc.healingPills = 1; cc.techniques = ["basic_breathing", "azure_cloud", "sword_rain", "mountain_seal"];
+    const es = []; const ne = 2 + r.randint(0, 2); for (let k = 0; k < ne; k++) es.push(C.makeEnemy(cc, r, { factor: 0.45 }));
+    const BB = G.createGridBattle(cc, { enemies: es, danger: r.randint(0, 4) }, r);
+    let st = G.advance(BB), g = 0;
+    while (!st.over && g++ < 200) {
+      const u = BB.cur, foes = BB.units.filter(t => t.alive && t.side === "enemy");
+      const sk = G.playerSkills(cc).find(x => x.dmg && u.qi >= (x.qi || 0)) || C.SKILLS.strike;
+      const tg = G.skillTargets(BB, sk).filter(kk => { const [x, y] = kk.split(",").map(Number); return foes.some(f => G.targetCells(BB, u, sk, x, y).some(([cx, cy]) => cx === f.x && cy === f.y)); });
+      if (tg.length) { const [tx, ty] = tg[0].split(",").map(Number); G.playerAct(BB, sk, tx, ty); }
+      else { const rc = [...G.reachable(BB).keys()]; if (rc.length) { const [x, y] = rc[0].split(",").map(Number); G.playerMove(BB, x, y); } G.playerAct(BB, C.SKILLS.guard); }
+      st = G.endPlayerTurn(BB);
+    }
+    const sum = G.finishGridBattle(BB);
+    assert(Array.isArray(sum) && sum.every(x => typeof x === "string" && x.length), "a finished battle yields a well-formed summary");
+    if (BB.over) resolved++;
+  }
+  assert(resolved === 60, `every grid battle resolves — no infinite fights (got ${resolved}/60)`);
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -1058,6 +1128,7 @@ try {
   test("the realm is socially alive: temperament, NPC-to-NPC bonds, feuds & a Chronicle", testLivingSociety);
   test("the great sects are living institutions: alliances, rivalries & shattering wars", testSectPolitics);
   test("the player's own banner is drawn into the sect wars: call to arms & raids", testPlayerInSectWars);
+  test("tactical grid combat: terrain, movement, ranged & blast arts, allies, no stalemates", testGridCombat);
   test("the lesser stats (Soul/Luck/Charm) are trainable and carry mechanical weight", testStatsEarnTheirKeep);
   test("birth starts low on the eight-tier ladder; the climb is earned", testBirthStartsLowOnTheLadder);
   console.log(`\nAll ${passed} web tests passed.`);

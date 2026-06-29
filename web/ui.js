@@ -3,6 +3,7 @@ import * as E from "./engine.js";
 import * as D from "./data.js";
 import * as L from "./life.js";
 import * as C from "./combat.js";
+import * as GC from "./gridcombat.js";
 import * as meta from "./meta.js";
 import * as W from "./world.js";
 import * as Ev from "./events.js";
@@ -1116,6 +1117,7 @@ function actAdventure() {
     g.mk("Travel the Realm", here ? "now at " + here.name : "the world map", openWorldMap, { full: true });
     g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander });
     g.mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
+    g.mk("Tactical Skirmish 群战", !canHunt ? "needs cultivation" : sub("hunt", "grid battle · many foes & allies"), doSkirmish, { disabled: !canHunt || young("hunt") });
     g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
     g.mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
     g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
@@ -2925,6 +2927,121 @@ function renderBattleScreen(B, onDone) {
   }, false);
 }
 
+/* ----------------------- tactical grid combat (战阵) --------------------- */
+function startGridBattle(spec, onDone) {
+  const B = GC.createGridBattle(state.c, spec, state.rng);
+  B.feed.push(spec.intro || `⚔ The field is set — ${GC.unitAtCell ? "" : ""}${spec.enemies.length} foe${spec.enemies.length > 1 ? "s" : ""} stand against you. Move with your 轻功, and let your arts reach across the line.`);
+  B.ui = { phase: "choose", skill: null };
+  const first = GC.advance(B);          // run any faster foes/allies until your turn (or a swift end)
+  renderGridBattle(B, onDone);
+  void first;
+}
+const TERRAIN_GLYPH = { wall: "▰", rubble: "▩", flame: "✺", chasm: "▢", thicket: "❉", spring: "❖" };
+function unitGlyph(u) {
+  if (u.side === "player") return icon("lotus", { size: 20 });
+  if (u.side === "ally") return icon(u.kind === "beast" ? "wild" : "people", { size: 18 });
+  return C.elementIcon(u.element);
+}
+function renderGridBattle(B, onDone) {
+  const c = state.c;
+  openOverlay(B.opts.title || "战阵 · Tactical Battle", body => {
+    // --- enemy roster strip ---
+    const foes = B.units.filter(u => u.side === "enemy");
+    const roster = el("div", "gc-roster");
+    foes.forEach(f => {
+      const pct = Math.max(0, Math.round(f.hp / f.maxHp * 100));
+      const chip = el("div", "gc-foe" + (f.alive ? "" : " dead"));
+      chip.innerHTML = `<span>${C.elementIcon(f.element)} ${escapeHtml(f.name)}${f.boss ? " ☠" : ""}</span><div class="gc-hp"><div style="width:${f.alive ? pct : 0}%"></div></div>`;
+      roster.appendChild(chip);
+    });
+    body.appendChild(roster);
+
+    // --- the grid ---
+    const reach = (!B.over && B.cur && B.cur.side === "player" && B.ui.phase === "choose" && !B.cur.moved) ? GC.reachable(B) : new Map();
+    const targets = (!B.over && B.cur && B.cur.side === "player" && B.ui.phase === "target" && B.ui.skill) ? new Set(GC.skillTargets(B, B.ui.skill)) : new Set();
+    const grid = el("div", "gc-grid");
+    grid.style.gridTemplateColumns = `repeat(${GC.GW}, 1fr)`;
+    for (let y = 0; y < GC.GH; y++) for (let x = 0; x < GC.GW; x++) {
+      const t = GC.terrainAt(B, x, y), u = GC.unitAtCell(B, x, y), k = x + "," + y;
+      const cell = el("div", "gc-cell t-" + t + (reach.has(k) ? " reach" : "") + (targets.has(k) ? " target" : ""));
+      if (TERRAIN_GLYPH[t]) cell.appendChild(el("span", "gc-terr", TERRAIN_GLYPH[t]));
+      if (u) {
+        const tok = el("div", "gc-token side-" + u.side + (u === B.cur ? " active" : ""));
+        tok.innerHTML = unitGlyph(u);
+        const hp = el("div", "gc-thp"); hp.appendChild(el("i")).style.width = Math.max(0, Math.round(u.hp / u.maxHp * 100)) + "%";
+        tok.appendChild(hp);
+        cell.appendChild(tok);
+      }
+      cell.onclick = () => onCellTap(B, x, y, onDone);
+      grid.appendChild(cell);
+    }
+    body.appendChild(grid);
+
+    // --- your status line ---
+    const P = B.player;
+    const status = el("div", "gc-status");
+    status.innerHTML = `<span>${escapeHtml(P.name)}</span><div class="gc-bar hp"><i style="width:${Math.max(0, Math.round(P.hp / P.maxHp * 100))}%"></i><b>${Math.round(P.hp)}/${Math.round(P.maxHp)}</b></div>`
+      + `<div class="gc-bar qi"><i style="width:${Math.round((P.qi || 0) / (P.maxQi || 1) * 100)}%"></i><b>⊙${Math.round(P.qi || 0)}</b></div>`;
+    body.appendChild(status);
+
+    // --- feed ---
+    const feed = el("div", "cbt-feed gc-feed");
+    (B.feed || []).slice(-7).forEach(l => feed.appendChild(el("div", "line " + classify(l), escapeHtml(l))));
+    body.appendChild(feed);
+
+    // --- controls ---
+    if (B.over) {
+      const cont = el("button", "mbtn full primary");
+      cont.innerHTML = `Continue<small>${B.outcome === "win" ? "victory!" : B.outcome === "lose" ? "defeat..." : "you withdraw"}</small>`;
+      cont.onclick = () => { const sum = GC.finishGridBattle(B); closeOverlay(); logMessages(sum); if (B.outcome === "win") award("first_blood"); if (onDone) onDone(B.outcome); };
+      body.appendChild(cont);
+    } else if (B.cur && B.cur.side === "player") {
+      if (B.ui.phase === "target") {
+        body.appendChild(el("p", "note", `Choose where to loose ${escapeHtml(B.ui.skill.name)} — tap a highlighted square.`));
+        const cancel = el("button", "mbtn full"); cancel.innerHTML = "← Cancel"; cancel.onclick = () => { B.ui.phase = "choose"; renderGridBattle(B, onDone); };
+        body.appendChild(cancel);
+      } else {
+        body.appendChild(el("p", "note gc-hint", B.cur.moved ? "Choose an art (and its target), or end your turn." : "Tap a glowing square to move (your 轻功 sets the range), then choose an art."));
+        const acts = el("div", "cbt-actions gc-acts");
+        for (const s of GC.playerSkills(c)) {
+          const sh = GC.shapeOf(s), disabled = B.cur.acted || (B.player.qi || 0) < (s.qi || 0);
+          const tag = sh.self ? "self" : sh.shape === "blast" ? `blast r${sh.range}` : sh.shape === "line" ? `line ${sh.range}` : sh.range > 1 ? `ranged ${sh.range}` : "melee";
+          const b = el("button", "cbt-skill" + (disabled ? " off" : ""));
+          b.innerHTML = `<span class="cs-name">${s.element ? C.elementIcon(s.element) + " " : ""}${escapeHtml(s.name)}</span><span class="cs-desc">${escapeHtml(s.desc || "")}</span><span class="cs-cost">${s.qi ? "⊙" + s.qi : "free"} · ${tag}</span>`;
+          if (!disabled) b.onclick = () => onSkillPick(B, s, onDone);
+          acts.appendChild(b);
+        }
+        body.appendChild(acts);
+        const row = el("div", "gc-btnrow");
+        if ((c.healingPills || 0) > 0 && !B.cur.acted) { const pb = el("button", "mbtn"); pb.innerHTML = `💊 Pill (${c.healingPills})`; pb.onclick = () => { GC.playerPill(B); afterPlayer(B, onDone); }; row.appendChild(pb); }
+        const wb = el("button", "mbtn"); wb.innerHTML = "🏃 Withdraw"; wb.onclick = () => { const r = GC.playerWithdraw(B); if (r.fled) renderGridBattle(B, onDone); else afterPlayer(B, onDone); }; row.appendChild(wb);
+        const eb = el("button", "mbtn primary"); eb.innerHTML = "End Turn"; eb.onclick = () => afterPlayer(B, onDone); row.appendChild(eb);
+        body.appendChild(row);
+      }
+    }
+    feed.scrollTop = feed.scrollHeight;
+  }, false);
+}
+function onCellTap(B, x, y, onDone) {
+  if (B.over || !B.cur || B.cur.side !== "player") return;
+  if (B.ui.phase === "choose" && !B.cur.moved) {
+    if (GC.reachable(B).has(x + "," + y)) { GC.playerMove(B, x, y); renderGridBattle(B, onDone); }
+  } else if (B.ui.phase === "target" && B.ui.skill) {
+    if (new Set(GC.skillTargets(B, B.ui.skill)).has(x + "," + y)) { GC.playerAct(B, B.ui.skill, x, y); B.ui.phase = "choose"; B.ui.skill = null; afterPlayer(B, onDone); }
+  }
+}
+function onSkillPick(B, skill, onDone) {
+  const sh = GC.shapeOf(skill);
+  if (sh.self) { GC.playerAct(B, skill); afterPlayer(B, onDone); }
+  else { B.ui.phase = "target"; B.ui.skill = skill; renderGridBattle(B, onDone); }
+}
+// After the player has acted (or ended their turn), run the AI to the next turn.
+function afterPlayer(B, onDone) {
+  if (!B.over) GC.endPlayerTurn(B);
+  B.ui.phase = "choose"; B.ui.skill = null;
+  renderGridBattle(B, onDone);
+}
+
 /* entry points that spend a year, then resolve old-age before continuing */
 function endActivityYear() {   // an action concluded -- no time passes
   renderProfile(); save(); checkDeath();
@@ -2943,9 +3060,31 @@ function doWander() {
 function doHunt() {
   if (!ageAllows("hunt") || !useAction()) return;
   const c = state.c; closeOverlay();
+  // Sometimes you corner a lone beast (a classic duel); sometimes a whole pack,
+  // fought across the field on the tactical grid.
+  if (state.rng.random() < 0.5) {
+    const n = 2 + state.rng.randint(0, 1), enemies = [];
+    for (let i = 0; i < n; i++) enemies.push(C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.uniform(0.5, 0.8), factorMult: worldDanger(c) }));
+    startGridBattle({ enemies, danger: biomeIdx(c.region), title: "兽群 · Beast Pack",
+      intro: `You track a pack of ${n} spirit-beasts into the wilds, and they wheel to fight.` }, () => endActivityYear());
+    return;
+  }
   const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]), factorMult: worldDanger(c) });
   logMessages([`You track a ${enemy.name} through the spirit-wilds and corner it.`]);
   startBattle(enemy, { title: "Beast Hunt" }, () => endActivityYear());
+}
+// A pitched, multi-foe battle on the tactical grid — the flagship of grid combat.
+function doSkirmish() {
+  if (!ageAllows("hunt") || !useAction()) return;
+  const c = state.c; closeOverlay();
+  const dgr = worldDanger(c), n = 2 + state.rng.randint(0, 2), enemies = [];
+  for (let i = 0; i < n; i++) {
+    const beast = state.rng.random() < 0.5;
+    enemies.push(C.makeEnemy(c, state.rng, { kind: beast ? "beast" : "rogue", factor: state.rng.uniform(0.4, 0.6), factorMult: dgr }));
+  }
+  startGridBattle({ enemies, danger: biomeIdx(c.region), title: "群战 · Skirmish",
+    intro: `⚔ A band of ${n} foes closes across the broken ground. Hold the line — place your steps, and let your arts find them.` },
+    () => endActivityYear());
 }
 function doArena() {
   if (!ageAllows("arena") || !useAction()) return;

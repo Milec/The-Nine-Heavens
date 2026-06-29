@@ -118,6 +118,22 @@ always drops a treasure. And from the Golden Core up, every **breakthrough
 summons an interactive Heavenly Tribulation**: a survival battle against
 escalating lightning you must endure with shields, heals and nerve.
 
+**Tactical grid combat (战阵).** Open-field battles are fought on a **TTRPG-style
+square grid** where **multiple foes** close on you at once and your **spirit
+beast and a bonded companion fight at your side** as allies. Units act in
+**initiative order** to **move and act** — your **movement-art (轻功) sets how
+far you stride** across the field each turn. The **terrain matters**: rock walls
+**block sight and step**, broken ground slows, **spirit-flame** burns those who
+linger, thickets give cover, and **spirit-springs** restore qi. Your existing
+techniques **reach across the field** by their nature — some strike a single
+square, **multi-sword arts fall as a blast** over an area, **piercing arts carve
+a line** through everything in their path, and ranged arts need a clear line of
+sight (mind the walls). Everything you have built still bites here — element
+attunement, mastery, Dao manifestations, physique, gear and beast all carry
+over. Reach a **tactical skirmish (群战)** or stumble into a **beast pack (兽群)**
+from **Adventure**; the solo **Heavenly Tribulation** remains its own intimate
+trial.
+
 Your techniques have **mastery** that deepens every time you use them in battle
 (or drill them) — Untrained → Novice → … → Perfected — raising their power, so a
 favoured art grows with you. And early in life a **destined nemesis (宿敌)** is
@@ -557,6 +573,7 @@ web/              # mobile-first PWA port (iOS & Android)
   events.js       # branching year-by-year life events
   life.js         # family, vitals, awakening, the "age up" loop, activities
   combat.js       # turn-based combat minigame (technique skills, elements)
+  gridcombat.js   # tactical grid combat (战阵): terrain, movement, allies, AoE
   ui.js           # BitLife-style tabbed touch UI, event modals, save/resume
   icons/          # generated app icons (+ generate_icons.py)
 ```

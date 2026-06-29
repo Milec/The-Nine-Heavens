@@ -561,6 +561,47 @@ body {
 .cbt-skill.flee { background: linear-gradient(180deg, #2c2030, #241a26); border-color: #5a3a4a; }
 .cbt-skill.flee .cs-cost { color: var(--muted); }
 
+/* ========================= tactical grid combat ====================== */
+.gc-roster { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.gc-foe { flex: 1 1 44%; background: rgba(40,18,22,.5); border: 1px solid #4a2b30; border-radius: var(--r-sm); padding: 3px 7px; font-size: .72rem; color: var(--ink2); }
+.gc-foe.dead { opacity: .35; filter: grayscale(1); text-decoration: line-through; }
+.gc-foe .gc-hp { height: 4px; background: #2a1418; border-radius: 3px; margin-top: 3px; overflow: hidden; }
+.gc-foe .gc-hp > div { height: 100%; background: linear-gradient(90deg, var(--red), #b8534a); transition: width .3s ease; }
+.gc-grid { display: grid; gap: 3px; margin: 4px 0 10px; touch-action: manipulation; }
+.gc-cell { position: relative; aspect-ratio: 1; border-radius: 5px; background: #10141f; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.gc-cell.t-wall { background: repeating-linear-gradient(45deg, #2a2f3e, #2a2f3e 4px, #232838 4px, #232838 8px); border-color: #3a4257; }
+.gc-cell.t-rubble { background: #1b1d24; }
+.gc-cell.t-flame { background: radial-gradient(circle, rgba(224,116,108,.34), #1a0f12); border-color: #6a3530; }
+.gc-cell.t-chasm { background: #05070c; border-color: #0c1018; box-shadow: inset 0 0 8px #000; }
+.gc-cell.t-thicket { background: radial-gradient(circle, rgba(116,220,180,.18), #101a16); border-color: #2c5446; }
+.gc-cell.t-spring { background: radial-gradient(circle, rgba(127,182,232,.22), #0e1622); border-color: #2f4a66; }
+.gc-terr { position: absolute; font-size: .8rem; opacity: .5; color: var(--ink2); pointer-events: none; }
+.gc-cell.reach { box-shadow: inset 0 0 0 2px rgba(127,182,232,.55); cursor: pointer; }
+.gc-cell.reach::after { content: ""; position: absolute; width: 7px; height: 7px; border-radius: 50%; background: rgba(127,182,232,.5); }
+.gc-cell.target { box-shadow: inset 0 0 0 2px var(--red); background: rgba(224,116,108,.16); cursor: pointer; }
+.gc-token { position: relative; width: 84%; height: 84%; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #0b0f18; z-index: 2; }
+.gc-token.side-player { background: radial-gradient(circle at 40% 35%, var(--jade), #2f7a5e); box-shadow: 0 0 7px rgba(116,220,180,.5); }
+.gc-token.side-ally { background: radial-gradient(circle at 40% 35%, var(--blue), #2f5a82); }
+.gc-token.side-enemy { background: radial-gradient(circle at 40% 35%, var(--red), #7a2f2f); }
+.gc-token.active { outline: 2px solid var(--gold); outline-offset: 1px; }
+.gc-token > svg { width: 62%; height: 62%; }
+.gc-thp { position: absolute; left: 8%; right: 8%; bottom: -2px; height: 3px; background: rgba(0,0,0,.6); border-radius: 2px; overflow: hidden; }
+.gc-thp > i { display: block; height: 100%; background: var(--jade); }
+.gc-token.side-enemy + .gc-thp, .side-enemy .gc-thp > i { background: var(--red); }
+.gc-status { display: flex; align-items: center; gap: 7px; font-size: .74rem; margin-bottom: 7px; }
+.gc-status > span { font-weight: 700; color: var(--ink); white-space: nowrap; }
+.gc-bar { position: relative; flex: 1; height: 15px; border-radius: 8px; background: #0c1018; border: 1px solid var(--line); overflow: hidden; }
+.gc-bar > i { display: block; height: 100%; transition: width .3s ease; }
+.gc-bar.hp > i { background: linear-gradient(90deg, #2f7a5e, var(--jade)); }
+.gc-bar.qi { flex: 0 0 88px; }
+.gc-bar.qi > i { background: linear-gradient(90deg, #2f5a82, var(--blue)); }
+.gc-bar > b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: .62rem; color: var(--ink); text-shadow: 0 1px 2px #000; }
+.gc-feed { height: 96px; margin-bottom: 8px; }
+.gc-hint { margin: 2px 0 7px; }
+.gc-acts { margin-bottom: 8px; }
+.gc-btnrow { display: flex; gap: 7px; }
+.gc-btnrow .mbtn { flex: 1; }
+
 /* ============================ alchemy minigame ======================== */
 .brew { margin: 12px 0 6px; }
 .brew-gauge { position: relative; height: 28px; border-radius: 9px; background: linear-gradient(90deg,#13233a,#3a2417); border: 1px solid var(--line2); overflow: hidden; }
