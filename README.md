@@ -310,6 +310,15 @@ Three more systems round out a cultivator's life:
   land around their lair — and you can ride out as the realm's **hero to slay
   them (除魔)** for great renown and karma, your deed written into the Annals
   under your own name.
+- **Living great sects (宗门录)** — the six great sects are **institutions that
+  live and feud**, not fixed scenery. Their might rises and falls year by year;
+  they **forge alliances and nurse rivalries** (the orthodox sects stand
+  together, the Blood Demon Cult against them all); and rivalries boil over into
+  **multi-year wars** whose disciples clash blade to blade — until the loser is
+  **shattered and scattered for a generation** before slowly rebuilding. A new
+  **Sects of the Realm (宗门录)** screen shows each sect's standing, its master
+  and elders, and the whole web of who is **allied, rival, or at war** with whom,
+  every shift recorded in the Annals.
 - **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
   home base, from a Humble Cave Dwelling all the way to a legendary **Cave
   Heaven**. The abode is the **hub that ties the world together**: it is **rooted

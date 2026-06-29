@@ -1161,6 +1161,8 @@ function actWorld() {
     g.mk("The Heaven Board", "天骄榜 · the realm's strongest", openRankboard, { full: true, disabled: !c.awakened });
     const nAnnals = (c.world && c.world.chronicle && c.world.chronicle.length) || 0;
     g.mk("Annals of the Realm 风云录", nAnnals ? `the unfolding deeds of ${nAnnals} recorded turns` : "the realm's history, as it is written", openAnnals, { full: true });
+    const wars = E.sectWarsActive(c).length;
+    g.mk("Sects of the Realm 宗门录", wars ? `the six great sects · ${wars} war${wars > 1 ? "s" : ""} raging` : "the six great sects & their feuds", openSectsRealm, { full: true });
     g.mk("Achievements & Legacy", "feats across all your lives", () => openAchievements(actWorld), { full: true });
     backBtn(body, openActivities);
   });
@@ -1172,6 +1174,7 @@ const ANNAL_KIND = {
   feud: { glyph: "flame", tint: "tint-jade" }, bond: { glyph: "couple", tint: "tint-gold" },
   love: { glyph: "heart", tint: "tint-gold" }, demon: { glyph: "flame", tint: "tint-jade" },
   hero: { glyph: "lotus", tint: "tint-gold" }, fortune: { glyph: "key", tint: "tint-gold" },
+  sect: { glyph: "sect", tint: "" }, sectwar: { glyph: "blade", tint: "tint-jade" },
 };
 function openAnnals() {
   const c = state.c;
@@ -1197,6 +1200,73 @@ function openAnnals() {
       body.appendChild(row);
     }
     backBtn(body, actWorld);
+  });
+}
+// Sects of the Realm (宗门录): the six great sects as living institutions — their
+// standing, their masters, and the web of alliance, rivalry and war between them.
+const SECT_ALIGN_LABEL = { righteous: "Orthodox 正道", neutral: "Neutral 中立", demonic: "Demonic 魔道" };
+const SECT_REL_TAG = { ally: "🤝 allied", rival: "● rival", war: "⚔ AT WAR" };
+function openSectsRealm() {
+  const c = state.c;
+  E.ensurePopulation(c, state.rng);
+  E.ensureSectWorld(c);
+  openOverlay("Sects of the Realm 宗门录", body => {
+    const wars = E.sectWarsActive(c);
+    body.appendChild(el("p", "note", `The six great sects are living powers, rising and falling on their own fortunes — forging alliances, nursing rivalries, and waging wars that shatter the loser for a generation.${wars.length ? ` <b style="color:var(--jade2)">${wars.length} war${wars.length > 1 ? "s" : ""} now rage${wars.length > 1 ? "" : "s"} across the realm.</b>` : ""}`));
+    const ranked = D.SECTS.map(s => s[0]).sort((a, b) => E.sectStanding(c, b).ratio - E.sectStanding(c, a).ratio);
+    for (const key of ranked) {
+      const s = D.SECT_BY_KEY[key], st = E.sectStanding(c, key), fig = E.sectFigures(key, c);
+      const mine = c.sectKey === key || (c.ownSect && c.ownSect.key === key);
+      const rels = D.SECTS.map(o => o[0]).filter(o => o !== key && E.sectRelOf(c, key, o) !== "neutral")
+        .map(o => `${SECT_REL_TAG[E.sectRelOf(c, key, o)]} ${E.sectName ? D.SECT_BY_KEY[o][1].split(" (")[0] : o}`);
+      const row = el("div", "listrow" + (mine ? " bound" : ""));
+      const master = fig && fig.master ? `${fig.master.name} · ${D.REALMS[fig.master.realm][0]}` : "—";
+      const tint = s[2] === "demonic" ? "tint-jade" : st.broken ? "" : "tint-gold";
+      row.innerHTML = `<div class="lr-ava ${tint}">${icon(st.broken ? "ruin" : "sect", { size: 22 })}</div><div class="lr-main">
+        <div class="lr-title">${escapeHtml(s[1].split(" (")[0])}${mine ? " · your sect" : ""} <span class="sh-count">${st.broken ? `In Ruins (${st.broken}y)` : st.label}</span></div>
+        <div class="lr-sub">${SECT_ALIGN_LABEL[s[2]] || s[2]} · Master ${escapeHtml(master)}</div>
+        ${rels.length ? `<div class="lr-sub">${rels.map(escapeHtml).join(" · ")}</div>` : ""}</div>`;
+      row.onclick = () => openSectDossier(key);
+      body.appendChild(row);
+    }
+    backBtn(body, actWorld);
+  });
+}
+// One sect's standing-page: its nature, leadership, current standing & relations.
+function openSectDossier(key) {
+  const c = state.c;
+  const s = D.SECT_BY_KEY[key]; if (!s) { openSectsRealm(); return; }
+  openOverlay(s[1].split(" (")[0], body => {
+    const st = E.sectStanding(c, key), fig = E.sectFigures(key, c);
+    const seat = W.sectSeat ? W.sectSeat(c, key) : null;
+    body.appendChild(infoRows([
+      ["Nature", SECT_ALIGN_LABEL[s[2]] || s[2]],
+      ["Standing", st.broken ? `In Ruins — rebuilding (${st.broken}y)` : `${st.label} (${st.cn || ""})`],
+      ...(seat ? [["Seat", seat.name]] : []),
+      ...(fig && fig.master ? [["Sect Master", `${fig.master.name} · ${D.REALMS[fig.master.realm][0]}`, "realm"]] : []),
+    ]));
+    body.appendChild(el("p", "note", s[9] || s[s.length - 1]));
+    if (fig && fig.elders && fig.elders.length) {
+      body.appendChild(el("div", "section-h", "Elders"));
+      for (const e of fig.elders) {
+        const row = el("div", "listrow");
+        row.innerHTML = `<div class="lr-ava">${icon("avSage", { size: 20 })}</div><div class="lr-main"><div class="lr-title">${escapeHtml(e.name)}</div><div class="lr-sub">${e.title} · ${D.REALMS[e.realm][0]}</div></div>`;
+        body.appendChild(row);
+      }
+    }
+    const rels = D.SECTS.map(o => o[0]).filter(o => o !== key && E.sectRelOf(c, key, o) !== "neutral");
+    if (rels.length) {
+      body.appendChild(el("div", "section-h", "Relations"));
+      for (const o of rels) {
+        const rel = E.sectRelOf(c, key, o), row = el("div", "listrow");
+        const tint = rel === "war" ? "tint-jade" : rel === "ally" ? "tint-gold" : "";
+        row.innerHTML = `<div class="lr-ava ${tint}">${icon(rel === "ally" ? "couple" : "blade", { size: 20 })}</div><div class="lr-main">
+          <div class="lr-title">${escapeHtml(D.SECT_BY_KEY[o][1].split(" (")[0])}</div><div class="lr-sub">${SECT_REL_TAG[rel]}</div></div>`;
+        row.onclick = () => openSectDossier(o);
+        body.appendChild(row);
+      }
+    }
+    backBtn(body, openSectsRealm);
   });
 }
 function genMarket(c) {

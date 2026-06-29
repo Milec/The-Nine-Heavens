@@ -938,6 +938,51 @@ function testLivingSociety() {
   }
 }
 
+// The great sects are living institutions: they begin with seeded relations
+// (the orthodox stand together; the demon cult against them all), then ally,
+// feud and wage multi-year WARS that shatter the loser — all woven into the
+// society sim and the Annals, independent of whether the player leads a sect.
+function testSectPolitics() {
+  const rng = new E.RNG(123);
+  const c = L.bornCharacter(rng, "Diplomat", null);
+  E.ensureSectWorld(c);
+
+  // Seeded relations: righteous sects allied; the Blood Demon Cult a rival to them.
+  const ALIGN = Object.fromEntries(D.SECTS.map(s => [s[0], s[2]]));
+  const righteous = D.SECTS.filter(s => s[2] === "righteous").map(s => s[0]);
+  if (righteous.length >= 2)
+    assert(E.sectRelOf(c, righteous[0], righteous[1]) === "ally", "orthodox sects begin as allies");
+  const demon = D.SECTS.find(s => s[2] === "demonic");
+  if (demon && righteous.length)
+    assert(E.sectRelOf(c, demon[0], righteous[0]) === "rival", "the demon cult begins at odds with the orthodox");
+  // Relations are symmetric.
+  for (const a of D.SECTS) for (const b of D.SECTS)
+    if (a[0] !== b[0]) assert(E.sectRelOf(c, a[0], b[0]) === E.sectRelOf(c, b[0], a[0]), "sect relations are symmetric");
+  // Every sect reports a well-formed standing.
+  for (const s of D.SECTS) { const st = E.sectStanding(c, s[0]); assert(st && (st.label || st.broken != null) && typeof st.ratio === "number", `sect ${s[0]} has a standing`); }
+
+  // Drive many years: wars must erupt and resolve, the Annals must fill with sect
+  // news, and a sect must at some point be shattered — without ever crashing.
+  let everWar = false, sectAnnals = 0, everBroken = false, validPairs = true;
+  for (let y = 0; y < 200; y++) {
+    c.age = 14 + y;
+    const fresh = E.simulateSociety(c, rng);
+    sectAnnals += fresh.filter(e => e.kind === "sect" || e.kind === "sectwar").length;
+    const wars = E.sectWarsActive(c);
+    if (wars.length) {
+      everWar = true;
+      for (const wpair of wars) if (E.sectRelOf(c, wpair.a, wpair.b) !== "war") validPairs = false;
+    }
+    if (D.SECTS.some(s => E.sectStanding(c, s[0]).broken)) everBroken = true;
+  }
+  assert(everWar, "wars erupt between the great sects over the years");
+  assert(validPairs, "every reported war pair is genuinely at war");
+  assert(sectAnnals > 0, "sect diplomacy and war are written into the Annals");
+  assert(everBroken, "a defeated sect is at some point shattered and left in ruins");
+  // Concurrent wars stay bounded — the realm is contentious, not in total chaos.
+  assert(E.sectWarsActive(c).length <= D.SECTS.length, "concurrent wars stay bounded");
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -960,6 +1005,7 @@ try {
   test("new birth options are well-formed and fully integrated", testBirthOptions);
   test("a living realm population fills sects and can be sought out, recruited & challenged", testWorldPopulationAndDenizens);
   test("the realm is socially alive: temperament, NPC-to-NPC bonds, feuds & a Chronicle", testLivingSociety);
+  test("the great sects are living institutions: alliances, rivalries & shattering wars", testSectPolitics);
   test("the lesser stats (Soul/Luck/Charm) are trainable and carry mechanical weight", testStatsEarnTheirKeep);
   test("birth starts low on the eight-tier ladder; the climb is earned", testBirthStartsLowOnTheLadder);
   console.log(`\nAll ${passed} web tests passed.`);

@@ -736,7 +736,8 @@ export function simulateSociety(c, rng) {
   };
   const living = () => pop.filter(n => n && n.alive);
   const pool = living();
-  if (pool.length < 8) return [];
+  tickSectPolitics(c, rng, record);            // the great sects ally, feud and war among themselves
+  if (pool.length < 8) return fresh;
   const placeName = id => { const l = world.locations && world.locations[id]; return l ? l.name : "the wilds"; };
   const pickAt = () => {                       // a random inhabited settlement's roster
     const homes = {};
@@ -887,6 +888,17 @@ export function simulateSociety(c, rng) {
       gainRenown(a, 3);
       record("feud", `${a.name} has betrayed sworn brother ${b.name}, seizing their fortune and leaving a blood-feud in the dust.`, "mask");
       return true;
+    } },
+    // Disciples of two warring sects clash on the field — the human cost of the
+    // great-sect wars, fought blade to blade.
+    { w: 10, go: () => {
+      const wars = sectWarsActive(c);
+      if (!wars.length) return false;
+      const { a, b } = rng.choice(wars);
+      const da = living().filter(n => n.sectKey === a), db = living().filter(n => n.sectKey === b);
+      if (!da.length || !db.length) return false;
+      const x = rng.choice(da), y = rng.choice(db);
+      return duel(x, y, c.age, 0.25, `as the ${sectShort(a)} and ${sectShort(b)} clash`) || true;
     } },
     // An ambitious, merciless cultivator strays onto the demon path. Demons stay
     // rare and dreadful: no more than a handful may stalk the realm at once.
@@ -2014,9 +2026,42 @@ export function sectFigures(sectKey, c) {
  * sect you shatter rebuilds over a decade or so — so the war map keeps shifting. */
 const sectBaseMight = s => (s[4] || 1) * 60 + 100;
 export function ensureSectWorld(c) {
-  if (!c.sectWorld) { c.sectWorld = {}; for (const s of D.SECTS) c.sectWorld[s[0]] = { strength: sectBaseMight(s), broken: 0 }; }
-  for (const s of D.SECTS) if (!c.sectWorld[s[0]]) c.sectWorld[s[0]] = { strength: sectBaseMight(s), broken: 0 };
-  return c.sectWorld;
+  if (!c.sectWorld) c.sectWorld = {};
+  const w = c.sectWorld;
+  for (const s of D.SECTS) if (!w[s[0]]) w[s[0]] = { strength: sectBaseMight(s), broken: 0 };
+  for (const s of D.SECTS) { const st = w[s[0]]; if (!st.rel) st.rel = {}; if (!st.warYears) st.warYears = {}; }
+  // Seed the standing relations once: the orthodox sects stand together, and the
+  // Blood Demon Cult stands against all of them — the realm's oldest fault line.
+  if (!w._seeded) {
+    const align = k => (D.SECT_BY_KEY[k] || [])[2], keys = D.SECTS.map(s => s[0]);
+    for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
+      const a = keys[i], b = keys[j], aa = align(a), ab = align(b);
+      let rel = null;
+      if (aa === "righteous" && ab === "righteous") rel = "ally";
+      else if ((aa === "demonic") !== (ab === "demonic")) rel = "rival";
+      if (rel) { w[a].rel[b] = rel; w[b].rel[a] = rel; }
+    }
+    w._seeded = true;
+  }
+  return w;
+}
+export const sectRelOf = (c, a, b) => { const w = c.sectWorld; return (w && w[a] && w[a].rel && w[a].rel[b]) || "neutral"; };
+// The sect wars currently raging in the realm, as unique {a, b} pairs.
+export function sectWarsActive(c) {
+  const w = c.sectWorld; if (!w) return [];
+  const keys = D.SECTS.map(s => s[0]), out = [];
+  for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++)
+    if (sectRelOf(c, keys[i], keys[j]) === "war") out.push({ a: keys[i], b: keys[j] });
+  return out;
+}
+// A sect's standing, from its current might against its founding base.
+export function sectStanding(c, key) {
+  const w = ensureSectWorld(c), st = w[key], s = D.SECT_BY_KEY[key];
+  if (!st || !s) return { label: "—", ratio: 1 };
+  if (st.broken > 0) return { label: "In Ruins", cn: "残破", ratio: 0, broken: st.broken };
+  const ratio = st.strength / sectBaseMight(s);
+  const L = ratio >= 1.8 ? ["Ascendant", "鼎盛"] : ratio >= 1.3 ? ["Flourishing", "兴盛"] : ratio >= 0.85 ? ["Steady", "平稳"] : ratio >= 0.5 ? ["Waning", "衰微"] : ["Faltering", "凋零"];
+  return { label: L[0], cn: L[1], ratio };
 }
 // One year for the world's sects: the broken slowly rebuild, the rest rise and
 // fall on their own fortunes. Called from the yearly tick when you lead a sect.
@@ -2025,7 +2070,57 @@ export function tickSectWorld(c, rng) {
   for (const s of D.SECTS) {
     const st = w[s[0]], base = sectBaseMight(s);
     if (st.broken > 0) { st.broken -= 1; if (st.broken <= 0) st.strength = base * 0.7; }   // risen from the ashes
-    else st.strength = clamp(st.strength * rng.uniform(0.95, 1.06), base * 0.5, base * 2.6);
+    // Floor sits below the shatter threshold so a losing war can grind a sect to ruin.
+    else st.strength = clamp(st.strength * rng.uniform(0.95, 1.06), base * 0.22, base * 2.6);
+  }
+}
+// The realm's sects are living institutions: their might drifts, alliances form
+// and fracture, rivalries boil into multi-year WARS, and the loser is shattered
+// and scattered for a decade. Driven every year by the society sim, independent
+// of whether the player leads a sect. `record` writes the turns into the Annals.
+export function tickSectPolitics(c, rng, record) {
+  const w = ensureSectWorld(c);
+  tickSectWorld(c, rng);                                   // strengths drift; the broken rebuild
+  const keys = D.SECTS.map(s => s[0]).filter(k => w[k]);
+  const short = k => sectShort(k) || k;
+  const align = k => (D.SECT_BY_KEY[k] || [])[2];
+  const relSet = (a, b, kind) => { w[a].rel[b] = kind; w[b].rel[a] = kind; };
+  // 1) Diplomacy drifts: alliances and rivalries form, and rivalries can boil over.
+  if (keys.length >= 2 && rng.random() < 0.55) {
+    const a = rng.choice(keys); let b = rng.choice(keys), g = 0;
+    while (b === a && g++ < 5) b = rng.choice(keys);
+    if (a !== b && !w[a].broken && !w[b].broken) {
+      const cur = sectRelOf(c, a, b), same = align(a) === align(b), opposed = (align(a) === "demonic") !== (align(b) === "demonic");
+      if (cur === "neutral") {
+        if (same && rng.random() < 0.5) { relSet(a, b, "ally"); record("sect", `The ${short(a)} and the ${short(b)} have sworn an alliance.`, "sect"); }
+        else if (rng.random() < (opposed ? 0.8 : 0.22)) { relSet(a, b, "rival"); record("sect", `Bad blood rises between the ${short(a)} and the ${short(b)} — now open rivals.`, "sect"); }
+      } else if (cur === "rival" && rng.random() < (opposed ? 0.45 : 0.18)) {
+        relSet(a, b, "war"); w[a].warYears[b] = 0; w[b].warYears[a] = 0;
+        record("sectwar", `⚔ War erupts between the ${short(a)} and the ${short(b)}!`, "blade");
+      } else if (cur === "rival" && !opposed && rng.random() < 0.16) {
+        relSet(a, b, "neutral"); record("sect", `The ${short(a)} and the ${short(b)} have set aside their old rivalry.`, "scroll");
+      } else if (cur === "ally" && rng.random() < 0.12) {
+        relSet(a, b, "rival"); record("sect", `The alliance of the ${short(a)} and the ${short(b)} has fractured into rivalry.`, "mask");
+      }
+    }
+  }
+  // 2) Resolve each raging war: the stronger grinds the weaker down, until one is
+  //    routed and shattered, or exhaustion brings a wary truce.
+  for (const { a, b } of sectWarsActive(c)) {
+    const sa = w[a], sb = w[b];
+    sa.warYears[b] = (sa.warYears[b] || 0) + 1; sb.warYears[a] = sa.warYears[b];
+    const strong = sa.strength >= sb.strength ? a : b, weak = strong === a ? b : a;
+    w[weak].strength *= rng.uniform(0.86, 0.95);
+    w[strong].strength = Math.min(sectBaseMight(D.SECT_BY_KEY[strong]) * 2.6, w[strong].strength * rng.uniform(1.0, 1.04));
+    if (w[weak].strength < sectBaseMight(D.SECT_BY_KEY[weak]) * 0.32) {        // routed and shattered
+      w[weak].broken = rng.randint(8, 15); w[weak].strength = sectBaseMight(D.SECT_BY_KEY[weak]) * 0.25;
+      w[strong].strength *= 1.12;
+      relSet(a, b, "rival");
+      record("sectwar", `The ${short(strong)} has shattered the ${short(weak)}, scattering its disciples to the winds.`, "blade");
+    } else if (sa.warYears[b] >= rng.randint(4, 9)) {                          // exhaustion → truce
+      relSet(a, b, "rival");
+      record("sect", `A weary truce ends the long war between the ${short(a)} and the ${short(b)}.`, "scroll");
+    }
   }
 }
 // The named sects your own founded sect may come to blows with, each with the
