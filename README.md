@@ -118,6 +118,29 @@ always drops a treasure. And from the Golden Core up, every **breakthrough
 summons an interactive Heavenly Tribulation**: a survival battle against
 escalating lightning you must endure with shields, heals and nerve.
 
+**Tactical grid combat (战阵).** *Every* fight plays out on a **TTRPG-style
+square grid** where **multiple foes** can close on you at once and your **spirit
+beast and a bonded companion fight at your side** as allies. Units act in
+**initiative order** to **move and act** — your **movement-art (轻功) sets how
+far you stride** across the field each turn. The **terrain matters**: rock walls
+**block sight and step**, broken ground slows, **spirit-flame** burns those who
+linger, thickets give cover, and **spirit-springs** restore qi. Your existing
+techniques **reach across the field** by their nature — some strike a single
+square, **multi-sword arts fall as a blast** over an area, **piercing arts carve
+a line** through everything in their path, and ranged arts need a clear line of
+sight (mind the walls). Everything you have built still bites here — element
+attunement, mastery, Dao manifestations, physique, gear and beast all carry
+over.
+
+**Each kind of fight has its own field.** A **duel, tournament, spar or rank
+trial** is a **clean ring (擂台)** — no terrain, no allies, pure skill; a **boss
+or nemesis showdown** waits in a **pillared arena**; the **Heavenly Tribulation**
+strikes a **storm-blasted peak** you cross alone with no escape; a **demon lairs
+amid black flame**; **sect wars (出征 / 御敌)** are fought over broken **siege
+ground**; a **secret realm** twists to its **own element**; and the **wilds** are
+the wilds. Reach a flagship **tactical skirmish (群战)** or a **beast pack (兽群)**
+from **Adventure** — or simply pick any fight, and step onto its field.
+
 Your techniques have **mastery** that deepens every time you use them in battle
 (or drill them) — Untrained → Novice → … → Perfected — raising their power, so a
 favoured art grows with you. And early in life a **destined nemesis (宿敌)** is
@@ -295,6 +318,34 @@ Three more systems round out a cultivator's life:
   the **Heaven Board (天骄榜)** ranks the strongest of them all by power, so you
   can see where you stand and **challenge rivals above you** to climb the roll of
   heaven's pride.
+- **A realm that lives among itself (风云录)** — the world's cultivators don't
+  merely climb in isolation: each carries a **temperament (性情)** — righteous,
+  ruthless, ambitious, cunning, loyal, vengeful and more — that steers how they
+  act toward **one another**. Year by year they **kindle rivalries, swear
+  brotherhood, take lovers and disciples, duel** (sometimes to the death),
+  **betray sworn allies, avenge the slain, stumble onto fortunes, and fall to the
+  demon path** — and the most striking turns are set down in the **Annals of the
+  Realm (风云录)**, a living chronicle you can read from the Wider World. Every
+  dossier shows a cultivator's temperament, their **renown (名望)** and tally of
+  **deeds**, and the **web of ties (缘)** they've woven — who they rival, who
+  they've sworn to, who they call master. When an ambitious, merciless cultivator
+  **falls to the demon path**, they become a named **menace** that darkens the
+  land around their lair — and you can ride out as the realm's **hero to slay
+  them (除魔)** for great renown and karma, your deed written into the Annals
+  under your own name.
+- **Living great sects (宗门录)** — the six great sects are **institutions that
+  live and feud**, not fixed scenery. Their might rises and falls year by year;
+  they **forge alliances and nurse rivalries** (the orthodox sects stand
+  together, the Blood Demon Cult against them all); and rivalries boil over into
+  **multi-year wars** whose disciples clash blade to blade — until the loser is
+  **shattered and scattered for a generation** before slowly rebuilding. A new
+  **Sects of the Realm (宗门录)** screen shows each sect's standing, its master
+  and elders, and the whole web of who is **allied, rival, or at war** with whom,
+  every shift recorded in the Annals. And your own banner is no bystander: when
+  the sect you serve goes to war, word reaches you to **ride to the front
+  (出征)** — felling an enemy champion wins contribution and fame and **tips the
+  war your sect's way**; and the sect you **found** can be **raided by a hostile
+  rival (御敌)**, a threat you must answer in battle or watch them sack your halls.
 - **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
   home base, from a Humble Cave Dwelling all the way to a legendary **Cave
   Heaven**. The abode is the **hub that ties the world together**: it is **rooted
@@ -529,6 +580,7 @@ web/              # mobile-first PWA port (iOS & Android)
   events.js       # branching year-by-year life events
   life.js         # family, vitals, awakening, the "age up" loop, activities
   combat.js       # turn-based combat minigame (technique skills, elements)
+  gridcombat.js   # tactical grid combat (战阵): terrain, movement, allies, AoE
   ui.js           # BitLife-style tabbed touch UI, event modals, save/resume
   icons/          # generated app icons (+ generate_icons.py)
 ```

@@ -442,6 +442,33 @@ export function ageUp(c, rng) {
   if (tidings.length && rng.random() < 0.45)
     events.push({ id: "realm_tidings_" + c.age, auto: true, text: [`☷ Tidings from the wider realm: ${tidings[rng.randint(0, tidings.length - 1)]}`] });
 
+  // The living society turns: rivalries, oaths, duels, betrayals, demonic falls
+  // and heroes' risings thread through the realm — recorded in the Annals (风云录),
+  // and the most striking carried to your ears as word from afar.
+  const annals = E.simulateSociety(c, rng);
+  if (annals.length) {
+    const loud = annals.find(a => a.kind === "demon" || a.kind === "hero") || annals[rng.randint(0, annals.length - 1)];
+    if (loud && (loud.kind === "demon" || loud.kind === "hero" || rng.random() < 0.5))
+      events.push({ id: "annal_" + c.age, auto: true, milestone: loud.kind === "demon", text: [`☷ Word from the realm: ${loud.text}`] });
+  }
+
+  // Your own banner is drawn into the realm's wars. If the sect you serve goes to
+  // war, word reaches you to ride to the front; if it is shattered, you feel it.
+  if (c.sectKey) {
+    c._warNoted = c._warNoted || {};
+    for (const foe of E.playerSectWarFoes(c)) {
+      if (!c._warNoted[foe]) {
+        c._warNoted[foe] = c.age;
+        const fs = D.SECT_BY_KEY[foe];
+        events.push({ id: `sectwar_${foe}_${c.age}`, auto: true, text: [`⚔ War! Your sect, the ${E.sectName(c)}, has taken up arms against the ${fs ? fs[1] : "a rival sect"}. Answer the call to arms in the Sect hall (出征) and win glory at the front.`] });
+      }
+    }
+    for (const k of Object.keys(c._warNoted)) if (!E.playerSectWarFoes(c).includes(k)) delete c._warNoted[k];   // war ended; allow future notice
+    const st = E.sectStanding(c, c.sectKey);
+    if (st.broken && !c._sectFallNoted) { c._sectFallNoted = true; events.push({ id: "sectfall_" + c.age, auto: true, milestone: true, text: [`☷ Calamity: the ${E.sectName(c)}, the sect you serve, has been shattered in war and lies in ruins. Its survivors scatter; its halls fall silent.`] }); }
+    else if (!st.broken && c._sectFallNoted) c._sectFallNoted = false;   // rebuilt
+  }
+
   // Merit ripens into fortune: a deep well of good karma slowly draws the heavens'
   // favour to you over the years, while a black tide of evil karma bleeds it away.
   // (Body and Soul you temper by hand; Fortune you earn by how you live.)
@@ -1026,7 +1053,8 @@ export function foundSect(c, rng, name) {
 // from your strength and following, spreads your name, and pays a stipend.
 function sectYearly(c, rng, events) {
   const s = c.ownSect; if (!s) return;
-  E.tickSectWorld(c, rng);   // the realm's rival sects rise, fall and rebuild
+  // (The realm's sects rise, fall, ally and war every year via the society sim —
+  //  engine.tickSectPolitics — so they evolve whether or not you lead one.)
   const cap = sectCapacity(c);
   const coreDisc = c.relationships.filter(n => n.alive && n.role === "disciple").length;
   if (s.members < cap) {
@@ -1041,6 +1069,18 @@ function sectYearly(c, rng, events) {
   if (s._tier !== tier[1]) {
     if (s._tier) events.push({ id: "sect_rise_" + c.age, auto: true, milestone: true, text: [`✦ Your sect, the ${s.name}, has risen to a ${tier[1]} (${tier[2]})! Its name now carries weight across the land.`] });
     s._tier = tier[1];
+  }
+  // A hostile rival may march on your sect — a raid you must answer in the Sect
+  // hall (御敌), or it presses home to your cost if you leave it standing.
+  if (s.threat) {
+    const lapse = E.lapseOwnSectThreat(c, rng);
+    if (lapse) events.push({ id: "raid_lapse_" + c.age, auto: true, milestone: true, text: lapse });
+  } else {
+    const raider = E.maybeRaidOwnSect(c, rng);
+    if (raider) {
+      const rs = D.SECT_BY_KEY[raider];
+      events.push({ id: "raid_" + c.age, auto: true, milestone: true, text: [`⚔ The ${rs ? rs[1] : "a rival sect"} marches on the ${s.name}! Rally your disciples and meet them on the slopes — answer in the Sect hall (御敌) before they press the attack.`] });
+    }
   }
 }
 

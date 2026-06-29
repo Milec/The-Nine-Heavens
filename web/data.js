@@ -922,3 +922,28 @@ export const PHYSIQUE_EFFECTS = {
   immortal: { mitig: 0.18, hp: 0.50, deathSave: 0.25, desc: "Undying Golden Body: heavy damage-reduction, +50% battle stamina, and a chance to cheat death." },
 };
 export const physEffect = c => PHYSIQUE_EFFECTS[c.physiqueKey] || PHYSIQUE_EFFECTS.ordinary;
+
+/* ------------------------- NPC temperament (性情) ------------------------- *
+ * Every cultivator of the realm carries a temperament — the bent of their
+ * character — which steers how they act in the living society: who they feud
+ * with, who they swear brotherhood to, whether a won duel ends in mercy or a
+ * corpse, and whether ambition curdles into the demon path. The weights are
+ * read by engine.simulateSociety. `glyph` names an icon for the dossier.
+ *   aggression — how readily they pick fights and press them to the death
+ *   sociability — how readily they forge bonds (sworn kin, lovers, disciples)
+ *   honor — restraint: high spares foes & keeps oaths; low betrays & murders
+ *   ambition — drive to climb, take risks, and grasp at forbidden power      */
+export const TEMPERAMENTS = {
+  righteous: { name: "Righteous", cn: "正直", glyph: "lotus", aggression: 0.35, sociability: 0.6, honor: 0.95, ambition: 0.45, blurb: "Upright and principled — a shield to the weak, a sworn foe to the cruel." },
+  ambitious: { name: "Ambitious", cn: "雄心", glyph: "crown", aggression: 0.6, sociability: 0.45, honor: 0.5, ambition: 0.95, blurb: "Eyes ever on the summit; every rival is a rung, every fortune a means." },
+  ruthless:  { name: "Ruthless", cn: "狠辣", glyph: "blade", aggression: 0.85, sociability: 0.25, honor: 0.12, ambition: 0.8, blurb: "Spares nothing and no one — a won duel ends in a grave more often than not." },
+  prideful:  { name: "Prideful", cn: "孤高", glyph: "trophy", aggression: 0.7, sociability: 0.3, honor: 0.6, ambition: 0.7, blurb: "Aloof and unbending — slights are never forgotten, challenges never refused." },
+  cunning:   { name: "Cunning", cn: "机巧", glyph: "mask", aggression: 0.45, sociability: 0.55, honor: 0.2, ambition: 0.8, blurb: "Schemes in the long shadows; an ally only so long as it serves." },
+  loyal:     { name: "Loyal", cn: "忠义", glyph: "heart", aggression: 0.45, sociability: 0.85, honor: 0.85, ambition: 0.45, blurb: "Steadfast to sworn kin and master; would cross the realm to avenge a friend." },
+  jovial:    { name: "Jovial", cn: "豪爽", glyph: "couple", aggression: 0.35, sociability: 0.9, honor: 0.65, ambition: 0.4, blurb: "Open-handed and warm — drinks with strangers and makes them brothers." },
+  reclusive: { name: "Reclusive", cn: "孤僻", glyph: "compass", aggression: 0.3, sociability: 0.12, honor: 0.6, ambition: 0.5, blurb: "Keeps to the deep mountains and their own Dao, troubling no one and troubled by none." },
+  vengeful:  { name: "Vengeful", cn: "记仇", glyph: "flame", aggression: 0.8, sociability: 0.4, honor: 0.35, ambition: 0.6, blurb: "Nurses every grudge to a blaze — a debt of blood is repaid in blood." },
+  eccentric: { name: "Eccentric", cn: "疯癫", glyph: "dice", aggression: 0.55, sociability: 0.45, honor: 0.4, ambition: 0.6, blurb: "Follows a logic all their own — unpredictable in friendship and in war." },
+};
+export const TEMPERAMENT_KEYS = Object.keys(TEMPERAMENTS);
+export const temperamentOf = key => TEMPERAMENTS[key] || TEMPERAMENTS.reclusive;

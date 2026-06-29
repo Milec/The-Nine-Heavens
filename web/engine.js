@@ -620,6 +620,7 @@ export function ensurePopulation(c, rng) {
     c.world.npcs = generatePopulation(rng, c.world);
     delete c.rankboard;                                              // legacy field, now subsumed
   }
+  if (c.world) ensureNids(c.world);                                  // stable ids for the bond web (also backfills old saves)
 }
 // Succeed a fallen denizen: a sect figure is replaced within their own ranks; a
 // free cultivator gives way to a rising young star.
@@ -662,6 +663,349 @@ export function agePopulation(c, rng) {
   }
   crownGeniuses(rng, pop);
   return tidings;
+}
+
+/* ===================== the living society (风云录) ======================= *
+ * Beyond merely climbing and dying, the realm's cultivators live AMONG one
+ * another: they kindle rivalries, swear brotherhood, take lovers and disciples,
+ * duel — sometimes to the death — betray, avenge, stumble onto fortunes, and
+ * fall to the demon path. simulateSociety advances this web one year, recording
+ * the notable turns into the world Chronicle (风云录) and returning fresh
+ * entries so the caller can let word reach the player. It is deliberately kept
+ * out of the lighter agePopulation tick so the population's structural tests
+ * stay deterministic; the year-tick (life.ageUp) drives it during play.        */
+
+// A stable per-NPC id, so bonds survive the array churn of death & succession.
+function ensureNids(world) {
+  if (!world || !Array.isArray(world.npcs)) return;
+  if (world._nid == null) world._nid = 0;
+  for (const n of world.npcs) if (n && n.nid == null) n.nid = world._nid++;
+}
+export const npcByNid = (c, nid) => ((c.world && c.world.npcs) || []).find(n => n && n.alive && n.nid === nid) || null;
+// Temperament is derived from a stable string hash (see hashStr below), so
+// peopling the realm never touches the shared RNG stream — seed-for-seed.
+export function npcTemperament(npc) {
+  if (!npc) return "reclusive";
+  if (!npc.tmpr) {
+    const seed = (npc.name || "?") + "|" + ((npc.geno && npc.geno.rootKey) || "") + "|" + (npc.sex || "");
+    npc.tmpr = D.TEMPERAMENT_KEYS[hashStr(seed) % D.TEMPERAMENT_KEYS.length];
+  }
+  return npc.tmpr;
+}
+const tmpr = npc => D.temperamentOf(npcTemperament(npc));
+export const npcRenown = npc => Math.round((npc && npc.renown) || 0);
+export const npcDeeds = npc => Object.assign({ kills: 0, wins: 0, losses: 0 }, (npc && npc.deeds) || {});
+const bumpDeed = (npc, key, by = 1) => { npc.deeds = npc.deeds || {}; npc.deeds[key] = (npc.deeds[key] || 0) + by; };
+const gainRenown = (npc, by) => { npc.renown = ((npc.renown) || 0) + by; };
+// Bonds between NPCs: { nid, kind, since }. kind ∈ rival|sworn|lover|spouse|
+// master|disciple|nemesis. Stored on each end as appropriate.
+function addBond(a, b, kind, year) {
+  if (!a || !b || a === b) return;
+  a.bonds = a.bonds || [];
+  if (!a.bonds.some(x => x.nid === b.nid && x.kind === kind)) a.bonds.push({ nid: b.nid, kind, since: year });
+}
+const hasBond = (a, b, kind) => !!(a.bonds && a.bonds.some(x => x.nid === b.nid && (!kind || x.kind === kind)));
+const anyBondKind = (a, kind) => (a && a.bonds || []).filter(x => x.kind === kind);
+function dropBond(a, b, kind) { if (a && a.bonds) a.bonds = a.bonds.filter(x => !(x.nid === b.nid && (!kind || x.kind === kind))); }
+// Resolve an NPC's bonds to live partners for display: [{npc, kind, since}].
+export function npcBonds(c, npc) {
+  if (!npc || !npc.bonds) return [];
+  const out = [];
+  for (const x of npc.bonds) { const o = npcByNid(c, x.nid); if (o) out.push({ npc: o, kind: x.kind, since: x.since }); }
+  return out;
+}
+// Word-of-the-realm reasons, for colour on rivalries and feuds.
+const FEUD_REASONS = ["a contested fortune", "a slight at a grand banquet", "a stolen manual", "a disputed Dao", "an old debt of blood", "a humiliation before their peers", "the favour of a master", "a claim to the same throne"];
+const DEMON_PREFIX = ["the Blood", "the Fallen", "the Devil", "the Shattered", "the Abyssal", "the Crimson"];
+const DEMON_SUFFIX = ["Sovereign", "Fiend", "Heretic", "Reaver", "Ghost", "Tyrant"];
+
+// One year of the living world. Returns the fresh Chronicle entries.
+export function simulateSociety(c, rng) {
+  const world = c.world;
+  if (!world || !Array.isArray(world.npcs)) return [];
+  ensureNids(world);
+  world.year = (world.year || 0) + 1;
+  const pop = world.npcs;
+  const chronicle = world.chronicle = world.chronicle || [];
+  const fresh = [];
+  const record = (kind, text, glyph) => {
+    const e = { y: c.age, kind, text, glyph: glyph || "scroll" };
+    chronicle.push(e);
+    if (chronicle.length > 80) chronicle.splice(0, chronicle.length - 80);
+    fresh.push(e);
+  };
+  const living = () => pop.filter(n => n && n.alive);
+  const pool = living();
+  tickSectPolitics(c, rng, record);            // the great sects ally, feud and war among themselves
+  if (pool.length < 8) return fresh;
+  const placeName = id => { const l = world.locations && world.locations[id]; return l ? l.name : "the wilds"; };
+  const pickAt = () => {                       // a random inhabited settlement's roster
+    const homes = {};
+    for (const n of living()) if (n.home != null) (homes[n.home] = homes[n.home] || []).push(n);
+    const ids = Object.keys(homes).filter(h => homes[h].length >= 2);
+    if (!ids.length) return null;
+    const h = ids[rng.randint(0, ids.length - 1)];
+    return { home: +h, roster: homes[h] };
+  };
+  const two = roster => {
+    if (!roster || roster.length < 2) return null;
+    const a = roster[rng.randint(0, roster.length - 1)];
+    let b = roster[rng.randint(0, roster.length - 1)], guard = 0;
+    while (b === a && guard++ < 6) b = roster[rng.randint(0, roster.length - 1)];
+    return b === a ? null : [a, b];
+  };
+  const winnerOf = (a, b) => {                  // power decides, but fate tips the scales
+    const pa = (a.power || npcPower(a)) * rng.uniform(0.7, 1.3);
+    const pb = (b.power || npcPower(b)) * rng.uniform(0.7, 1.3);
+    return pa >= pb ? [a, b] : [b, a];
+  };
+  // Kill an NPC and seat their successor; the dead's sworn kin & lovers may vow
+  // vengeance on the slayer, threading feuds across the years.
+  const slay = (dead, killer, year) => {
+    const deadNid = dead.nid, idx = pop.indexOf(dead);
+    for (const n of pool) {
+      if (n === dead || !n.alive) continue;
+      const tie = (n.bonds || []).find(x => x.nid === deadNid && (x.kind === "sworn" || x.kind === "spouse" || x.kind === "lover" || x.kind === "master" || x.kind === "disciple"));
+      if (tie && killer && killer.alive && rng.random() < 0.7) {
+        addBond(n, killer, "nemesis", year);
+        record("feud", `${n.name} swears vengeance upon ${killer.name} for the death of ${dead.name}.`, "flame");
+      }
+    }
+    dead.alive = false;
+    if (idx >= 0) pop[idx] = makeReplacement(rng, dead);
+  };
+  // A duel between two cultivators. ferocity raises the odds it ends in blood.
+  const duel = (a, b, year, ferocity, ctx) => {
+    if (!a || !b || a === b || !a.alive || !b.alive) return false;
+    const [win, lose] = winnerOf(a, b);
+    bumpDeed(win, "wins"); bumpDeed(lose, "losses");
+    gainRenown(win, 2 + (win.realm || 0));
+    const lethal = ferocity + (1 - tmpr(win).honor) * 0.35 + (win.demonic ? 0.3 : 0);
+    if (rng.random() < lethal) {
+      bumpDeed(win, "kills"); gainRenown(win, 6 + (lose.realm || 0) * 2);
+      record("duel", `${win.name} slew ${lose.name}${ctx ? ` ${ctx}` : ""} at ${placeName(win.home != null ? win.home : lose.home)}.`, "blade");
+      slay(lose, win, year);
+      return true;
+    }
+    lose.power = Math.max(2, Math.round((lose.power || npcPower(lose)) * rng.uniform(0.82, 0.93)));
+    record("duel", `${win.name} bested ${lose.name}${ctx ? ` ${ctx}` : ""}, who withdrew to nurse the wound.`, "fist");
+    return false;
+  };
+
+  /* --- the weighted roster of what a year in the realm may bring --- */
+  const events = [
+    // Rivalry kindles between two co-located, contentious souls.
+    { w: 14, go: () => {
+      const at = pickAt(); if (!at) return false;
+      const pr = two(at.roster); if (!pr) return false;
+      const [a, b] = pr;
+      if (hasBond(a, b) || hasBond(b, a)) return false;
+      if ((tmpr(a).aggression + tmpr(a).ambition + tmpr(b).aggression) / 3 < 0.5) return false;
+      const year = c.age;
+      addBond(a, b, "rival", year); addBond(b, a, "rival", year);
+      record("rivalry", `${a.name} and ${b.name} of ${placeName(at.home)} have fallen to bitter rivalry over ${rng.choice(FEUD_REASONS)}.`, "fist");
+      return true;
+    } },
+    // Old rivals come at last to blows.
+    { w: 16, go: () => {
+      const haveRivals = living().filter(n => anyBondKind(n, "rival").some(x => npcByNid(c, x.nid)));
+      if (!haveRivals.length) return false;
+      const a = rng.choice(haveRivals);
+      const rb = anyBondKind(a, "rival").map(x => npcByNid(c, x.nid)).filter(Boolean);
+      if (!rb.length) return false;
+      const b = rng.choice(rb);
+      return duel(a, b, c.age, 0.1, "in a long-awaited reckoning") || true;
+    } },
+    // A pursued blood-feud (nemesis) is finally answered.
+    { w: 12, go: () => {
+      const avengers = living().filter(n => anyBondKind(n, "nemesis").some(x => npcByNid(c, x.nid)));
+      if (!avengers.length) return false;
+      const a = rng.choice(avengers);
+      const targets = anyBondKind(a, "nemesis").map(x => npcByNid(c, x.nid)).filter(Boolean);
+      if (!targets.length) return false;
+      const b = rng.choice(targets);
+      const slain = duel(a, b, c.age, 0.4, "to settle a blood-debt");
+      if (slain) dropBond(a, b, "nemesis");
+      return true;
+    } },
+    // Sworn brotherhood / sisterhood between two warm, steadfast souls.
+    { w: 11, go: () => {
+      const at = pickAt(); if (!at) return false;
+      const pr = two(at.roster); if (!pr) return false;
+      const [a, b] = pr;
+      if (hasBond(a, b)) return false;
+      if ((tmpr(a).sociability + tmpr(b).sociability) / 2 < 0.6) return false;
+      const year = c.age;
+      addBond(a, b, "sworn", year); addBond(b, a, "sworn", year);
+      gainRenown(a, 1); gainRenown(b, 1);
+      record("bond", `${a.name} and ${b.name} have sworn themselves brother-in-arms beneath the ${placeName(at.home)} sky.`, "couple");
+      return true;
+    } },
+    // Lovers found, and in time wed.
+    { w: 10, go: () => {
+      const at = pickAt(); if (!at) return false;
+      const pr = two(at.roster); if (!pr) return false;
+      let [a, b] = pr;
+      if (anyBondKind(a, "spouse").length || anyBondKind(b, "spouse").length) return false;
+      const year = c.age;
+      if (hasBond(a, b, "lover")) {
+        dropBond(a, b, "lover"); dropBond(b, a, "lover");
+        addBond(a, b, "spouse", year); addBond(b, a, "spouse", year);
+        record("love", `${a.name} and ${b.name} are wed, two Daos entwined as one.`, "heart");
+      } else {
+        if (hasBond(a, b)) return false;
+        addBond(a, b, "lover", year); addBond(b, a, "lover", year);
+        record("love", `${a.name} and ${b.name} have become dao-companions, hearts turned to one another.`, "heart");
+      }
+      return true;
+    } },
+    // A master takes a promising disciple under their wing.
+    { w: 10, go: () => {
+      const at = pickAt(); if (!at) return false;
+      const masters = at.roster.filter(n => (n.realm || 0) >= 5 && tmpr(n).honor >= 0.5);
+      const youths = at.roster.filter(n => (n.realm || 0) <= 3 && (n.age || 99) < 40);
+      if (!masters.length || !youths.length) return false;
+      const m = rng.choice(masters), d = rng.choice(youths);
+      if (m === d || hasBond(m, d)) return false;
+      const year = c.age;
+      addBond(m, d, "disciple", year); addBond(d, m, "master", year);
+      d.cultProgress = (d.cultProgress || 0) + 0.6;            // a master quickens the road
+      record("bond", `${m.name} has taken ${d.name} as a personal disciple, and the realm watches a star rise.`, "lotus");
+      return true;
+    } },
+    // A faithless schemer betrays a sworn ally for power.
+    { w: 7, go: () => {
+      const traitors = living().filter(n => tmpr(n).honor <= 0.25 && anyBondKind(n, "sworn").some(x => npcByNid(c, x.nid)));
+      if (!traitors.length) return false;
+      const a = rng.choice(traitors);
+      const allies = anyBondKind(a, "sworn").map(x => npcByNid(c, x.nid)).filter(Boolean);
+      if (!allies.length) return false;
+      const b = rng.choice(allies);
+      const year = c.age;
+      dropBond(a, b, "sworn"); dropBond(b, a, "sworn");
+      addBond(b, a, "nemesis", year);
+      a.power = Math.round((a.power || npcPower(a)) * rng.uniform(1.05, 1.18));   // ill-gotten gain
+      gainRenown(a, 3);
+      record("feud", `${a.name} has betrayed sworn brother ${b.name}, seizing their fortune and leaving a blood-feud in the dust.`, "mask");
+      return true;
+    } },
+    // Disciples of two warring sects clash on the field — the human cost of the
+    // great-sect wars, fought blade to blade.
+    { w: 10, go: () => {
+      const wars = sectWarsActive(c);
+      if (!wars.length) return false;
+      const { a, b } = rng.choice(wars);
+      const da = living().filter(n => n.sectKey === a), db = living().filter(n => n.sectKey === b);
+      if (!da.length || !db.length) return false;
+      const x = rng.choice(da), y = rng.choice(db);
+      return duel(x, y, c.age, 0.25, `as the ${sectShort(a)} and ${sectShort(b)} clash`) || true;
+    } },
+    // An ambitious, merciless cultivator strays onto the demon path. Demons stay
+    // rare and dreadful: no more than a handful may stalk the realm at once.
+    { w: 5, go: () => {
+      if (living().filter(n => n.demonic).length >= Math.max(2, Math.round(pool.length / 60))) return false;
+      const cand = living().filter(n => !n.demonic && (n.realm || 0) >= 4 && tmpr(n).honor <= 0.3 && tmpr(n).ambition >= 0.6);
+      if (!cand.length) return false;
+      const n = rng.choice(cand);
+      n.demonic = true;
+      n.power = Math.round((n.power || npcPower(n)) * rng.uniform(1.3, 1.6));
+      n.title = `${rng.choice(DEMON_PREFIX)} ${rng.choice(DEMON_SUFFIX)}`;
+      gainRenown(n, 10);
+      const loc = world.locations && world.locations[n.home];
+      if (loc) loc.unrest = (loc.unrest || 0) + 2;             // their shadow falls on the land
+      record("demon", `${n.name} has fallen to the demon path, reborn as ${n.title}. Dread spreads from ${placeName(n.home)}.`, "flame");
+      return true;
+    } },
+    // A righteous hero rises to hunt a demon down.
+    { w: 8, go: () => {
+      const demons = living().filter(n => n.demonic);
+      if (!demons.length) return false;
+      const d = rng.choice(demons);
+      const heroes = living().filter(n => !n.demonic && (n.realm || 0) >= (d.realm || 0) - 1 && tmpr(n).honor >= 0.6 && tmpr(n).aggression >= 0.4);
+      if (!heroes.length) return false;
+      const h = rng.choice(heroes);
+      const [win, lose] = winnerOf(h, d);
+      bumpDeed(win, "wins"); bumpDeed(lose, "losses");
+      if (win === h) {                                          // the demon is purged
+        bumpDeed(h, "kills"); gainRenown(h, 14);
+        const loc = world.locations && world.locations[d.home];
+        if (loc) loc.unrest = Math.max(0, (loc.unrest || 0) - 2);
+        record("hero", `${h.name} has slain the demon ${d.title || d.name}, and ${placeName(d.home)} breathes again.`, "lotus");
+        slay(d, h, c.age);
+      } else {                                                  // the demon prevails, and worsens
+        gainRenown(d, 8); d.power = Math.round((d.power || npcPower(d)) * rng.uniform(1.05, 1.15));
+        record("demon", `${d.title || d.name} cut down the righteous ${h.name}; the demon's legend darkens.`, "flame");
+        slay(h, d, c.age);
+      }
+      return true;
+    } },
+    // A cultivator stumbles upon a fortune and surges in power.
+    { w: 9, go: () => {
+      const n = rng.choice(living());
+      if ((n.realm || 0) >= (NPC_REALM_CAP[(n.geno && n.geno.rootKey) || "waste"] || 4)) return false;
+      const kind = rng.random();
+      if (kind < 0.5) {                                         // an inheritance / sealed legacy
+        n.power = Math.round((n.power || npcPower(n)) * rng.uniform(1.2, 1.45));
+        gainRenown(n, 5);
+        record("fortune", `${n.name} has won an immortal's inheritance in ${placeName(n.home)}, and their cultivation soars.`, "key");
+      } else {                                                  // a clean breakthrough
+        const before = n.realm;
+        advanceNpc(n, rng); advanceNpc(n, rng);
+        if ((n.realm || 0) > before) record("fortune", `${n.name} has broken through to ${D.REALMS[n.realm][0]} (${D.REALMS[n.realm][1]}) ahead of all expectation.`, "dao");
+        else return false;
+      }
+      return true;
+    } },
+  ];
+  const totalW = events.reduce((s, e) => s + e.w, 0);
+  const rounds = 3 + (rng.random() < 0.5 ? 1 : 0) + (pool.length > 220 ? 1 : 0);
+  for (let r = 0; r < rounds; r++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      let roll = rng.random() * totalW, pick = events[0];
+      for (const e of events) { if (roll < e.w) { pick = e; break; } roll -= e.w; }
+      if (pick.go()) break;
+    }
+  }
+  // A few restless souls wander the roads — outcasts, the demon-touched, the free.
+  if (world.locations && rng.random() < 0.5) {
+    const wanderers = living().filter(n => (n.role === "world" || n.role === "rogue" || n.role === "genius" || n.demonic) && n.home != null);
+    if (wanderers.length) {
+      const n = rng.choice(wanderers), loc = world.locations[n.home];
+      if (loc && loc.links && loc.links.length) {
+        const dest = loc.links[rng.randint(0, loc.links.length - 1)];
+        if (world.locations[dest]) {
+          n.home = dest;
+          if (n.demonic) { const dl = world.locations[dest]; dl.unrest = (dl.unrest || 0) + 1; }
+        }
+      }
+    }
+  }
+  crownGeniuses(rng, pop);
+  return fresh;
+}
+// The demonic menace (if any) lairing where the player now stands — the
+// strongest demon whose home is the player's current location. This is what
+// closes the society loop into player agency: the world breeds demons, and the
+// player can become the hero who ends them.
+export function demonAtLoc(c) {
+  if (!c.world || c.location == null) return null;
+  return ((c.world.npcs) || []).filter(n => n.alive && n.demonic && n.home === c.location)
+    .sort((a, b) => (b.power || 0) - (a.power || 0))[0] || null;
+}
+// Resolve the player's slaying of a demon: strike them from the population, lift
+// the land's unrest, and write the deed into the Annals with the player as hero.
+export function slayDemon(c, demon, rng) {
+  const pop = (c.world && c.world.npcs) || [];
+  const idx = pop.indexOf(demon);
+  const where = (c.world && c.world.locations && c.world.locations[c.location]);
+  demon.alive = false;
+  if (idx >= 0) pop[idx] = makeReplacement(rng, demon);
+  if (where) where.unrest = Math.max(0, (where.unrest || 0) - 3);
+  if (c.world) {
+    const chron = c.world.chronicle = c.world.chronicle || [];
+    chron.push({ y: c.age, kind: "hero", glyph: "lotus", text: `${c.name} cut down the demon ${demon.title || demon.name}, and ${where ? where.name : "the realm"} breathes again.` });
+    if (chron.length > 80) chron.splice(0, chron.length - 80);
+  }
 }
 // The Heaven Board: the realm's foremost living cultivators by raw power, plus
 // you. Returns { ranked, rank, total } for the board, and { worldRank, worldTotal }
@@ -1682,9 +2026,42 @@ export function sectFigures(sectKey, c) {
  * sect you shatter rebuilds over a decade or so — so the war map keeps shifting. */
 const sectBaseMight = s => (s[4] || 1) * 60 + 100;
 export function ensureSectWorld(c) {
-  if (!c.sectWorld) { c.sectWorld = {}; for (const s of D.SECTS) c.sectWorld[s[0]] = { strength: sectBaseMight(s), broken: 0 }; }
-  for (const s of D.SECTS) if (!c.sectWorld[s[0]]) c.sectWorld[s[0]] = { strength: sectBaseMight(s), broken: 0 };
-  return c.sectWorld;
+  if (!c.sectWorld) c.sectWorld = {};
+  const w = c.sectWorld;
+  for (const s of D.SECTS) if (!w[s[0]]) w[s[0]] = { strength: sectBaseMight(s), broken: 0 };
+  for (const s of D.SECTS) { const st = w[s[0]]; if (!st.rel) st.rel = {}; if (!st.warYears) st.warYears = {}; }
+  // Seed the standing relations once: the orthodox sects stand together, and the
+  // Blood Demon Cult stands against all of them — the realm's oldest fault line.
+  if (!w._seeded) {
+    const align = k => (D.SECT_BY_KEY[k] || [])[2], keys = D.SECTS.map(s => s[0]);
+    for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
+      const a = keys[i], b = keys[j], aa = align(a), ab = align(b);
+      let rel = null;
+      if (aa === "righteous" && ab === "righteous") rel = "ally";
+      else if ((aa === "demonic") !== (ab === "demonic")) rel = "rival";
+      if (rel) { w[a].rel[b] = rel; w[b].rel[a] = rel; }
+    }
+    w._seeded = true;
+  }
+  return w;
+}
+export const sectRelOf = (c, a, b) => { const w = c.sectWorld; return (w && w[a] && w[a].rel && w[a].rel[b]) || "neutral"; };
+// The sect wars currently raging in the realm, as unique {a, b} pairs.
+export function sectWarsActive(c) {
+  const w = c.sectWorld; if (!w) return [];
+  const keys = D.SECTS.map(s => s[0]), out = [];
+  for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++)
+    if (sectRelOf(c, keys[i], keys[j]) === "war") out.push({ a: keys[i], b: keys[j] });
+  return out;
+}
+// A sect's standing, from its current might against its founding base.
+export function sectStanding(c, key) {
+  const w = ensureSectWorld(c), st = w[key], s = D.SECT_BY_KEY[key];
+  if (!st || !s) return { label: "—", ratio: 1 };
+  if (st.broken > 0) return { label: "In Ruins", cn: "残破", ratio: 0, broken: st.broken };
+  const ratio = st.strength / sectBaseMight(s);
+  const L = ratio >= 1.8 ? ["Ascendant", "鼎盛"] : ratio >= 1.3 ? ["Flourishing", "兴盛"] : ratio >= 0.85 ? ["Steady", "平稳"] : ratio >= 0.5 ? ["Waning", "衰微"] : ["Faltering", "凋零"];
+  return { label: L[0], cn: L[1], ratio };
 }
 // One year for the world's sects: the broken slowly rebuild, the rest rise and
 // fall on their own fortunes. Called from the yearly tick when you lead a sect.
@@ -1693,8 +2070,124 @@ export function tickSectWorld(c, rng) {
   for (const s of D.SECTS) {
     const st = w[s[0]], base = sectBaseMight(s);
     if (st.broken > 0) { st.broken -= 1; if (st.broken <= 0) st.strength = base * 0.7; }   // risen from the ashes
-    else st.strength = clamp(st.strength * rng.uniform(0.95, 1.06), base * 0.5, base * 2.6);
+    // Floor sits below the shatter threshold so a losing war can grind a sect to ruin.
+    else st.strength = clamp(st.strength * rng.uniform(0.95, 1.06), base * 0.22, base * 2.6);
   }
+}
+// The realm's sects are living institutions: their might drifts, alliances form
+// and fracture, rivalries boil into multi-year WARS, and the loser is shattered
+// and scattered for a decade. Driven every year by the society sim, independent
+// of whether the player leads a sect. `record` writes the turns into the Annals.
+export function tickSectPolitics(c, rng, record) {
+  const w = ensureSectWorld(c);
+  tickSectWorld(c, rng);                                   // strengths drift; the broken rebuild
+  const keys = D.SECTS.map(s => s[0]).filter(k => w[k]);
+  const short = k => sectShort(k) || k;
+  const align = k => (D.SECT_BY_KEY[k] || [])[2];
+  const relSet = (a, b, kind) => { w[a].rel[b] = kind; w[b].rel[a] = kind; };
+  // 1) Diplomacy drifts: alliances and rivalries form, and rivalries can boil over.
+  if (keys.length >= 2 && rng.random() < 0.55) {
+    const a = rng.choice(keys); let b = rng.choice(keys), g = 0;
+    while (b === a && g++ < 5) b = rng.choice(keys);
+    if (a !== b && !w[a].broken && !w[b].broken) {
+      const cur = sectRelOf(c, a, b), same = align(a) === align(b), opposed = (align(a) === "demonic") !== (align(b) === "demonic");
+      if (cur === "neutral") {
+        if (same && rng.random() < 0.5) { relSet(a, b, "ally"); record("sect", `The ${short(a)} and the ${short(b)} have sworn an alliance.`, "sect"); }
+        else if (rng.random() < (opposed ? 0.8 : 0.22)) { relSet(a, b, "rival"); record("sect", `Bad blood rises between the ${short(a)} and the ${short(b)} — now open rivals.`, "sect"); }
+      } else if (cur === "rival" && rng.random() < (opposed ? 0.45 : 0.18)) {
+        relSet(a, b, "war"); w[a].warYears[b] = 0; w[b].warYears[a] = 0;
+        record("sectwar", `⚔ War erupts between the ${short(a)} and the ${short(b)}!`, "blade");
+      } else if (cur === "rival" && !opposed && rng.random() < 0.16) {
+        relSet(a, b, "neutral"); record("sect", `The ${short(a)} and the ${short(b)} have set aside their old rivalry.`, "scroll");
+      } else if (cur === "ally" && rng.random() < 0.12) {
+        relSet(a, b, "rival"); record("sect", `The alliance of the ${short(a)} and the ${short(b)} has fractured into rivalry.`, "mask");
+      }
+    }
+  }
+  // 2) Resolve each raging war: the stronger grinds the weaker down, until one is
+  //    routed and shattered, or exhaustion brings a wary truce.
+  for (const { a, b } of sectWarsActive(c)) {
+    const sa = w[a], sb = w[b];
+    sa.warYears[b] = (sa.warYears[b] || 0) + 1; sb.warYears[a] = sa.warYears[b];
+    const strong = sa.strength >= sb.strength ? a : b, weak = strong === a ? b : a;
+    w[weak].strength *= rng.uniform(0.86, 0.95);
+    w[strong].strength = Math.min(sectBaseMight(D.SECT_BY_KEY[strong]) * 2.6, w[strong].strength * rng.uniform(1.0, 1.04));
+    if (w[weak].strength < sectBaseMight(D.SECT_BY_KEY[weak]) * 0.32) {        // routed and shattered
+      w[weak].broken = rng.randint(8, 15); w[weak].strength = sectBaseMight(D.SECT_BY_KEY[weak]) * 0.25;
+      w[strong].strength *= 1.12;
+      relSet(a, b, "rival");
+      record("sectwar", `The ${short(strong)} has shattered the ${short(weak)}, scattering its disciples to the winds.`, "blade");
+    } else if (sa.warYears[b] >= rng.randint(4, 9)) {                          // exhaustion → truce
+      relSet(a, b, "rival");
+      record("sect", `A weary truce ends the long war between the ${short(a)} and the ${short(b)}.`, "scroll");
+    }
+  }
+}
+
+/* ---------------- the player's stake in the living sect wars -------------- *
+ * Your sect is not a bystander to all this: when the banner you serve goes to
+ * war, you can ride to the front; and the sect you found can be marched upon by
+ * a hostile rival, a raid you must answer or pay for.                          */
+
+// The sects your JOINED sect is at war with right now (its foes are your foes).
+export function playerSectWarFoes(c) {
+  if (!c.sectKey) return [];
+  return sectWarsActive(c).filter(wp => wp.a === c.sectKey || wp.b === c.sectKey)
+    .map(wp => (wp.a === c.sectKey ? wp.b : wp.a));
+}
+// Spoils for answering your sect's call to arms and felling an enemy champion:
+// contribution and fame for you, and your valour tips the war your sect's way.
+export function callToArmsSpoils(c, foeKey, rng) {
+  const w = ensureSectWorld(c), mine = c.sectKey;
+  const contrib = 8 + (c.realm || 0) * 2 + rng.randint(0, 6);
+  c.contribution = (c.contribution || 0) + contrib;
+  const fame = gainFame(c, 5 + (c.realm || 0));
+  if (mine && w[mine]) w[mine].strength = Math.min(sectBaseMight(D.SECT_BY_KEY[mine]) * 2.6, w[mine].strength * rng.uniform(1.04, 1.09));
+  if (w[foeKey]) w[foeKey].strength *= rng.uniform(0.9, 0.96);
+  note(c, `Won glory at the front for the ${sectShort(mine)}.`);
+  return [`✦ Your blade turns the skirmish — the ${sectShort(mine)} presses its advantage on the front. (+${contrib} contribution, +${fame} fame)`];
+}
+export function callToArmsLoss(c) {
+  c.reputation = Math.max(-200, (c.reputation || 0) - 2);
+  return [`You are thrown back from the front, bloodied; the ${sectShort(c.sectKey)} gives ground. (−Reputation)`];
+}
+
+// A hostile rival may march on your FOUNDED sect. Sets a standing threat the
+// player must answer, and returns the raider's sect key (or null).
+export function maybeRaidOwnSect(c, rng) {
+  const own = c.ownSect; if (!own || own.threat) return null;
+  const rivals = sectWarRivals(c).filter(r => !r.broken && (r.hostile || r.chance < 0.5));
+  if (!rivals.length) return null;
+  const r = rng.choice(rivals);
+  if (rng.random() > 0.14 + (1 - r.chance) * 0.22) return null;      // the weaker you stand, the likelier the raid
+  own.threat = { key: r.key, since: c.age };
+  return r.key;
+}
+// Resolve a raid on your founded sect. won → repel it (prestige & fame, and a
+// chance to shatter the raider); lost → they sack your halls. Clears the threat.
+export function resolveOwnSectRaid(c, rng, won) {
+  const own = c.ownSect; if (!own || !own.threat) return [];
+  const key = own.threat.key, target = D.SECT_BY_KEY[key], short = key && sectShort(key), w = ensureSectWorld(c);
+  own.threat = null;
+  if (won) {
+    const pres = rng.randint(20, 45), fame = gainFame(c, 8);
+    own.prestige += pres; c.karma += 1;
+    let extra = "";
+    if (w[key] && rng.random() < 0.4) { w[key].broken = rng.randint(6, 12); w[key].strength = sectBaseMight(target) * 0.28; extra = ` The ${short} are routed and scattered!`; }
+    note(c, `Repelled a raid by the ${target ? target[1] : "raiders"}.`);
+    return [`✦ You and your disciples throw back the assault on your sect!${extra} (+${pres} prestige, +${fame} fame)`];
+  }
+  const pres = rng.randint(15, 35), mem = rng.randint(2, 7);
+  own.prestige = Math.max(0, own.prestige - pres); own.members = Math.max(0, own.members - mem);
+  c.reputation = Math.max(-200, (c.reputation || 0) - 3);
+  note(c, `The ${target ? target[1] : "raiders"} sacked your sect.`);
+  return [`✗ The ${short || "raiders"} storm your sect's outer halls before you can muster. (−${pres} prestige, ${mem} disciples slain)`];
+}
+// A raid left unanswered too long is pressed home by the rival — to your cost.
+export function lapseOwnSectThreat(c, rng) {
+  const own = c.ownSect; if (!own || !own.threat) return null;
+  if (c.age - own.threat.since < 2) return null;
+  return resolveOwnSectRaid(c, rng, false);
 }
 // The named sects your own founded sect may come to blows with, each with the
 // odds your banner would prevail against theirs — and whether they lie broken.

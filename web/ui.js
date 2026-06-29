@@ -3,6 +3,7 @@ import * as E from "./engine.js";
 import * as D from "./data.js";
 import * as L from "./life.js";
 import * as C from "./combat.js";
+import * as GC from "./gridcombat.js";
 import * as meta from "./meta.js";
 import * as W from "./world.js";
 import * as Ev from "./events.js";
@@ -529,7 +530,7 @@ function challengeGenius(g) {
   if (!ageAllows("duel") || !useAction("social")) return;
   const enemy = C.makeEnemyFromNpc(c, g, state.rng, { reward: (c.realm + 1) * 8 });
   logMessages([`You ascend the challenge-platform and call out ${g.name}, ${g.title} — a contest for rank on the Heaven Board!`]);
-  startBattle(enemy, { title: `Heaven Board · ${g.name}` }, (outcome) => {
+  startBattle(enemy, { title: `Heaven Board · ${g.name}`, map: "ring", solo: true }, (outcome) => {
     if (state.c.alive) {
       if (outcome === "win") { const fame = E.gainFame(c, 6); g.power = Math.floor((g.power || 1) * 0.9); logMessages([`✦ You defeat ${g.name} before the watching world! Your name climbs the Heaven Board. (+${fame} fame)`]); }
       else { c.reputation = Math.max(-200, c.reputation - 3); logMessages([`${g.name} bests you. You withdraw, and the board remembers. (−Reputation)`]); }
@@ -759,7 +760,7 @@ function openPerson(n) {
           logMessages([isNemesis
             ? `At long last you stand against your nemesis ${n.name}. One of you will not walk away.`
             : `You challenge ${n.name} to settle things with qi and steel!`]);
-          startBattle(enemy, { title: isNemesis ? `Showdown · ${n.name}` : `Duel · ${n.name}` }, (outcome) => {
+          startBattle(enemy, { title: isNemesis ? `Showdown · ${n.name}` : `Duel · ${n.name}`, map: isNemesis ? "arena" : "ring", solo: true }, (outcome) => {
             if (state.c.alive && outcome === "win") {
               n.alive = false;
               if (isNemesis) {
@@ -801,6 +802,13 @@ function openPerson(n) {
 // A world denizen — a population NPC you don't personally know. Tapping the row
 // opens a read-only dossier (you have no relationship actions with a stranger).
 const DENIZEN_ROLE_LABEL = { sectmaster: "Sect Master", elder: "Elder", disciple: "Sect Disciple", rogue: "Rogue Cultivator", genius: "Wandering Genius", world: "Cultivator" };
+// How an NPC-to-NPC bond reads in a dossier's Ties (缘) list.
+const BOND_LABEL = {
+  rival: { label: "Rival", glyph: "fist", tint: "" }, nemesis: { label: "Sworn enemy", glyph: "flame", tint: "tint-jade" },
+  sworn: { label: "Sworn kin", glyph: "couple", tint: "tint-gold" }, lover: { label: "Dao-companion", glyph: "heart", tint: "tint-gold" },
+  spouse: { label: "Wedded", glyph: "heart", tint: "tint-gold" }, master: { label: "Master", glyph: "lotus", tint: "tint-gold" },
+  disciple: { label: "Disciple", glyph: "lotus", tint: "" },
+};
 // The five attributes, as [field, label, tier-name key], for NPC dossiers.
 const NPC_ATTRS = [["comprehension", "Comprehension", "comprehension"], ["constitution", "Constitution", "constitution"],
   ["soul", "Soul Sense", "soul"], ["luck", "Fortune", "luck"], ["charm", "Charm", "charm"]];
@@ -813,9 +821,9 @@ function npcAttrRows(n) {
 }
 function denizenRow(n) {
   const row = el("div", "listrow");
-  const sub = `${n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator"} · ${E.npcRealmName(n)}${n.age != null ? ` · age ${n.age}` : ""}`;
-  const glyph = (n.role === "sectmaster" || n.role === "elder") ? "avSage" : (n.sex === "female" ? "avAdultF" : "avAdultM");
-  row.innerHTML = `<div class="lr-ava ${n.sectKey ? "tint-gold" : ""}">${icon(glyph, { size: 22 })}</div><div class="lr-main">
+  const sub = `${(n.demonic ? "☄ " : "") + (n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator")} · ${E.npcRealmName(n)}${n.age != null ? ` · age ${n.age}` : ""}`;
+  const glyph = n.demonic ? "flame" : (n.role === "sectmaster" || n.role === "elder") ? "avSage" : (n.sex === "female" ? "avAdultF" : "avAdultM");
+  row.innerHTML = `<div class="lr-ava ${n.demonic ? "tint-jade" : n.sectKey ? "tint-gold" : ""}">${icon(glyph, { size: 22 })}</div><div class="lr-main">
     <div class="lr-title">${escapeHtml(n.name)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
   row.onclick = () => openDenizen(n);
   return row;
@@ -825,18 +833,38 @@ function openDenizen(n) {
   const rootName = k => { const r = D.ROOT_TYPES.find(x => x[0] === k); return r ? r[1] : "—"; };
   openOverlay(n.name, body => {
     const arts = (n.techniques || []).filter(t => t !== "basic_breathing").map(t => D.TECHNIQUES[t][0]);
+    const tmp = D.temperamentOf(E.npcTemperament(n));
     const rows = [
-      ["Standing", n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator"],
+      ["Standing", (n.demonic ? "☄ " : "") + (n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator")],
       ...(n.sectKey ? [["Sect", D.SECT_BY_KEY[n.sectKey][1].split(" (")[0]]] : []),
       ["Realm", `${E.npcRealmName(n)} (${D.REALMS[n.realm][1]})`, "realm"],
       ...(n.age != null ? [["Age", `${n.age} · lifespan ~${n.maxAge}`]] : []),
       ["Spiritual Root", n.geno ? rootName(n.geno.rootKey) : "—", "root"],
+      ["Temperament", `${tmp.name} (${tmp.cn})`, "charm"],
       ...(arts.length ? [["Arts", arts.join(", ")]] : []),
       ["Power", Math.floor(n.power || E.npcPower(n)), "power"],
+      ...(E.npcRenown(n) > 0 ? [["Renown 名望", E.npcRenown(n), "fortune"]] : []),
     ];
     body.appendChild(infoRows(rows));
+    if (n.demonic) body.appendChild(el("p", "note", "☄ Fallen to the demon path — a terror of the realm, hunted by the righteous."));
+    body.appendChild(el("p", "note", tmp.blurb));
     body.appendChild(el("div", "section-h", "Attributes"));
     body.appendChild(infoRows(npcAttrRows(n)));
+    // A cultivator's tally of deeds and the web of bonds they have woven.
+    const d = E.npcDeeds(n);
+    if (d.wins || d.losses || d.kills)
+      body.appendChild(infoRows([["Duels won / lost", `${d.wins} / ${d.losses}`], ...(d.kills ? [["Lives taken", d.kills]] : [])]));
+    const ties = E.npcBonds(c, n);
+    if (ties.length) {
+      body.appendChild(el("div", "section-h", `Ties 缘 · ${ties.length}`));
+      for (const t of ties.slice(0, 8)) {
+        const row = el("div", "listrow");
+        row.innerHTML = `<div class="lr-ava ${BOND_LABEL[t.kind] ? BOND_LABEL[t.kind].tint : ""}">${icon(BOND_LABEL[t.kind] ? BOND_LABEL[t.kind].glyph : "heart", { size: 20 })}</div><div class="lr-main">
+          <div class="lr-title">${escapeHtml(t.npc.name)}</div><div class="lr-sub">${BOND_LABEL[t.kind] ? BOND_LABEL[t.kind].label : t.kind} · ${E.npcRealmName(t.npc)}</div></div>`;
+        row.onclick = () => openDenizen(t.npc);
+        body.appendChild(row);
+      }
+    }
     const acts = L.denizenActions(c, n);
     body.appendChild(el("p", "note", acts.length
       ? "A cultivator of the realm, dwelling where you now stand. Seek them out and they may enter your life — as a friend, a rival, even a master — or cross blades to make your name."
@@ -848,7 +876,7 @@ function openDenizen(n) {
           if (!ageAllows("duel") || !useAction("social")) return;
           const enemy = C.makeEnemyFromNpc(c, n, state.rng, { reward: (c.realm + 1) * 6 });
           logMessages([`You bar ${n.name}'s path and call them to a duel before the watching realm!`]);
-          startBattle(enemy, { title: `Duel · ${n.name}` }, (outcome) => {
+          startBattle(enemy, { title: `Duel · ${n.name}`, map: "ring", solo: true }, (outcome) => {
             if (state.c.alive) {
               if (outcome === "win") logMessages(L.defeatDenizen(c, n, state.rng));
               else { c.reputation = Math.max(-200, c.reputation - 2); logMessages([`${n.name} gets the better of the bout and walks on. (−Reputation)`]); }
@@ -1083,15 +1111,18 @@ function actAdventure() {
     const young = key => c.age < (AGE_MIN[key] || 0), sub = (key, n) => young(key) ? `from age ${AGE_MIN[key]}` : n;
     const canHunt = isCultivator(c), canBoss = canHunt && isStrong(c);
     const here = W.currentLoc(c), reg = D.REGION_BY_KEY[c.region], t = W.typeOf(here);
-    if (here) body.appendChild(el("p", "note", `You range out from <b>${escapeHtml(here.name)}</b> — ${reg ? reg[1] : ""} (${DANGER_TIER(reg ? reg[3] : 1)} country).${t.hunt ? " The surrounding wilds teem with spirit-beasts." : ""}${t.delve ? " Sealed ruins lie close at hand — ripe for delving." : ""} Travel the realm below to find deadlier, richer lands.`));
+    const menace = E.demonAtLoc(c);
+    if (here) body.appendChild(el("p", "note", `You range out from <b>${escapeHtml(here.name)}</b> — ${reg ? reg[1] : ""} (${DANGER_TIER(reg ? reg[3] : 1)} country).${t.hunt ? " The surrounding wilds teem with spirit-beasts." : ""}${t.delve ? " Sealed ruins lie close at hand — ripe for delving." : ""}${menace ? ` <b style="color:var(--jade2)">A demon, ${escapeHtml(menace.title || menace.name)}, stalks this land — the people live in dread.</b>` : here && here.unrest ? " An unease hangs over the land." : ""} Travel the realm below to find deadlier, richer lands.`));
     const g = leafGrid(body);
     g.mk("Travel the Realm", here ? "now at " + here.name : "the world map", openWorldMap, { full: true });
     g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander });
     g.mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
+    g.mk("Tactical Skirmish 群战", !canHunt ? "needs cultivation" : sub("hunt", "grid battle · many foes & allies"), doSkirmish, { disabled: !canHunt || young("hunt") });
     g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
     g.mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
     g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
     { const nem = L.getNemesis(c); if (nem) { const tooYoung = c.age < AGE_MIN.showdown; g.mk("⚔ Settle the Score 宿敌", tooYoung ? `from age ${AGE_MIN.showdown}` : canHunt ? `duel ${nem.name} to the death` : "needs cultivation", doNemesisReckoning, { full: true, disabled: !canHunt || tooYoung }); } }
+    if (menace) g.mk(`☄ Slay the Demon 除魔`, !canHunt ? "needs cultivation" : `hunt ${menace.name} · ${E.npcRealmName(menace)} · be the realm's hero`, () => doSlayDemon(menace), { full: true, disabled: !canHunt });
     backBtn(body, openActivities);
   });
 }
@@ -1130,8 +1161,114 @@ function actWorld() {
   openOverlay("The Wider World", body => {
     const g = leafGrid(body);
     g.mk("The Heaven Board", "天骄榜 · the realm's strongest", openRankboard, { full: true, disabled: !c.awakened });
+    const nAnnals = (c.world && c.world.chronicle && c.world.chronicle.length) || 0;
+    g.mk("Annals of the Realm 风云录", nAnnals ? `the unfolding deeds of ${nAnnals} recorded turns` : "the realm's history, as it is written", openAnnals, { full: true });
+    const wars = E.sectWarsActive(c).length;
+    g.mk("Sects of the Realm 宗门录", wars ? `the six great sects · ${wars} war${wars > 1 ? "s" : ""} raging` : "the six great sects & their feuds", openSectsRealm, { full: true });
     g.mk("Achievements & Legacy", "feats across all your lives", () => openAchievements(actWorld), { full: true });
     backBtn(body, openActivities);
+  });
+}
+// The Annals (风云录): the living realm writes its own history — feuds, oaths,
+// duels, betrayals, demonic falls and the heroes who answer them. Newest first.
+const ANNAL_KIND = {
+  rivalry: { glyph: "fist", tint: "" }, duel: { glyph: "blade", tint: "tint-jade" },
+  feud: { glyph: "flame", tint: "tint-jade" }, bond: { glyph: "couple", tint: "tint-gold" },
+  love: { glyph: "heart", tint: "tint-gold" }, demon: { glyph: "flame", tint: "tint-jade" },
+  hero: { glyph: "lotus", tint: "tint-gold" }, fortune: { glyph: "key", tint: "tint-gold" },
+  sect: { glyph: "sect", tint: "" }, sectwar: { glyph: "blade", tint: "tint-jade" },
+};
+function openAnnals() {
+  const c = state.c;
+  openOverlay("Annals of the Realm 风云录", body => {
+    const log = ((c.world && c.world.chronicle) || []).slice();
+    if (!log.length) {
+      body.appendChild(el("p", "note", "The realm's history is yet unwritten. As the years turn, its cultivators will feud, swear brotherhood, duel, rise and fall — and their deeds will be set down here for you to follow."));
+      backBtn(body, actWorld); return;
+    }
+    // A demonic-menace tally, so the player feels the realm's unrest.
+    const demons = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.demonic);
+    body.appendChild(el("p", "note", `The realm writes its own history while you cultivate. ${log.length} turns recorded${demons.length ? ` — and ${demons.length} demon${demons.length > 1 ? "s" : ""} now stalk${demons.length > 1 ? "" : "s"} the land.` : "."}`));
+    if (demons.length) {
+      body.appendChild(el("div", "section-h", "Demonic Menaces"));
+      demons.sort((a, b) => (b.power || 0) - (a.power || 0)).slice(0, 5).forEach(n => body.appendChild(denizenRow(n)));
+    }
+    body.appendChild(el("div", "section-h", "The Chronicle"));
+    for (let i = log.length - 1; i >= 0; i--) {
+      const e = log[i], meta = ANNAL_KIND[e.kind] || { glyph: e.glyph || "scroll", tint: "" };
+      const row = el("div", "listrow");
+      row.innerHTML = `<div class="lr-ava ${meta.tint}">${icon(meta.glyph, { size: 20 })}</div><div class="lr-main">
+        <div class="lr-sub" style="opacity:.7">when you were ${e.y}</div><div class="lr-title" style="font-weight:500">${escapeHtml(e.text)}</div></div>`;
+      body.appendChild(row);
+    }
+    backBtn(body, actWorld);
+  });
+}
+// Sects of the Realm (宗门录): the six great sects as living institutions — their
+// standing, their masters, and the web of alliance, rivalry and war between them.
+const SECT_ALIGN_LABEL = { righteous: "Orthodox 正道", neutral: "Neutral 中立", demonic: "Demonic 魔道" };
+const SECT_REL_TAG = { ally: "🤝 allied", rival: "● rival", war: "⚔ AT WAR" };
+function openSectsRealm() {
+  const c = state.c;
+  E.ensurePopulation(c, state.rng);
+  E.ensureSectWorld(c);
+  openOverlay("Sects of the Realm 宗门录", body => {
+    const wars = E.sectWarsActive(c);
+    body.appendChild(el("p", "note", `The six great sects are living powers, rising and falling on their own fortunes — forging alliances, nursing rivalries, and waging wars that shatter the loser for a generation.${wars.length ? ` <b style="color:var(--jade2)">${wars.length} war${wars.length > 1 ? "s" : ""} now rage${wars.length > 1 ? "" : "s"} across the realm.</b>` : ""}`));
+    const ranked = D.SECTS.map(s => s[0]).sort((a, b) => E.sectStanding(c, b).ratio - E.sectStanding(c, a).ratio);
+    for (const key of ranked) {
+      const s = D.SECT_BY_KEY[key], st = E.sectStanding(c, key), fig = E.sectFigures(key, c);
+      const mine = c.sectKey === key || (c.ownSect && c.ownSect.key === key);
+      const rels = D.SECTS.map(o => o[0]).filter(o => o !== key && E.sectRelOf(c, key, o) !== "neutral")
+        .map(o => `${SECT_REL_TAG[E.sectRelOf(c, key, o)]} ${E.sectName ? D.SECT_BY_KEY[o][1].split(" (")[0] : o}`);
+      const row = el("div", "listrow" + (mine ? " bound" : ""));
+      const master = fig && fig.master ? `${fig.master.name} · ${D.REALMS[fig.master.realm][0]}` : "—";
+      const tint = s[2] === "demonic" ? "tint-jade" : st.broken ? "" : "tint-gold";
+      row.innerHTML = `<div class="lr-ava ${tint}">${icon(st.broken ? "ruin" : "sect", { size: 22 })}</div><div class="lr-main">
+        <div class="lr-title">${escapeHtml(s[1].split(" (")[0])}${mine ? " · your sect" : ""} <span class="sh-count">${st.broken ? `In Ruins (${st.broken}y)` : st.label}</span></div>
+        <div class="lr-sub">${SECT_ALIGN_LABEL[s[2]] || s[2]} · Master ${escapeHtml(master)}</div>
+        ${rels.length ? `<div class="lr-sub">${rels.map(escapeHtml).join(" · ")}</div>` : ""}</div>`;
+      row.onclick = () => openSectDossier(key);
+      body.appendChild(row);
+    }
+    backBtn(body, actWorld);
+  });
+}
+// One sect's standing-page: its nature, leadership, current standing & relations.
+function openSectDossier(key) {
+  const c = state.c;
+  const s = D.SECT_BY_KEY[key]; if (!s) { openSectsRealm(); return; }
+  openOverlay(s[1].split(" (")[0], body => {
+    const st = E.sectStanding(c, key), fig = E.sectFigures(key, c);
+    const seat = W.sectSeat ? W.sectSeat(c, key) : null;
+    body.appendChild(infoRows([
+      ["Nature", SECT_ALIGN_LABEL[s[2]] || s[2]],
+      ["Standing", st.broken ? `In Ruins — rebuilding (${st.broken}y)` : `${st.label} (${st.cn || ""})`],
+      ...(seat ? [["Seat", seat.name]] : []),
+      ...(fig && fig.master ? [["Sect Master", `${fig.master.name} · ${D.REALMS[fig.master.realm][0]}`, "realm"]] : []),
+    ]));
+    body.appendChild(el("p", "note", s[9] || s[s.length - 1]));
+    if (fig && fig.elders && fig.elders.length) {
+      body.appendChild(el("div", "section-h", "Elders"));
+      for (const e of fig.elders) {
+        const row = el("div", "listrow");
+        row.innerHTML = `<div class="lr-ava">${icon("avSage", { size: 20 })}</div><div class="lr-main"><div class="lr-title">${escapeHtml(e.name)}</div><div class="lr-sub">${e.title} · ${D.REALMS[e.realm][0]}</div></div>`;
+        body.appendChild(row);
+      }
+    }
+    const rels = D.SECTS.map(o => o[0]).filter(o => o !== key && E.sectRelOf(c, key, o) !== "neutral");
+    if (rels.length) {
+      body.appendChild(el("div", "section-h", "Relations"));
+      for (const o of rels) {
+        const rel = E.sectRelOf(c, key, o), row = el("div", "listrow");
+        const tint = rel === "war" ? "tint-jade" : rel === "ally" ? "tint-gold" : "";
+        row.innerHTML = `<div class="lr-ava ${tint}">${icon(rel === "ally" ? "couple" : "blade", { size: 20 })}</div><div class="lr-main">
+          <div class="lr-title">${escapeHtml(D.SECT_BY_KEY[o][1].split(" (")[0])}</div><div class="lr-sub">${SECT_REL_TAG[rel]}</div></div>`;
+        row.onclick = () => openSectDossier(o);
+        body.appendChild(row);
+      }
+    }
+    backBtn(body, openSectsRealm);
   });
 }
 function genMarket(c) {
@@ -1772,8 +1909,15 @@ function openSect() {
         ? `To rise to <b>${req[0]}</b> you must still: ${blockers.join("; ")}.`
         : `You meet every requirement for <b>${req[0]}</b> — face the promotion trial when ready.`));
     }
+    // Your banner's wars: ride to the front for glory, contribution & fame.
+    const foes = E.playerSectWarFoes(c);
+    if (foes.length) {
+      const foeNames = foes.map(k => D.SECT_BY_KEY[k][1].split(" (")[0]).join(", ");
+      body.appendChild(el("p", "note", `<b style="color:var(--jade2)">⚔ The ${E.sectName(c).split(" (")[0]} is at war with the ${escapeHtml(foeNames)}.</b> Answer the call to arms and your valour will tip the war your sect's way.`));
+    }
     const grid = el("div", "menu-grid");
     const mk = (l, s, h, full) => { const b = el("button", "mbtn" + (full ? " full" : "")); b.innerHTML = `${l}<small>${escapeHtml(s)}</small>`; b.onclick = h; grid.appendChild(b); };
+    if (foes.length) mk("⚔ Answer the Call to Arms 出征", "a deed · fight at the front", doCallToArms, true);
     mk("Take a Mission", "a deed · earn contribution", openQuests);
     mk("Seek Promotion", req ? (E.canPromote(c) ? "trial of rank" : "view requirements") : "at the summit", doPromotion);
     mk("Sect Library 传功", "learn the sect's signature arts", openSectLibrary);
@@ -1860,7 +2004,7 @@ function renderOwnSect(c, body) {
   if (c.realm >= 4 && L.getDisciples(c).length < 4)
     mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
   mk("Sect Library 藏经阁", `enshrine your arts · +${E.sectLibraryBonus(s)}/yr`, openOwnSectLibrary, true);
-  mk("Sect Conflicts 宗门之争", "wage war on rival sects", openSectWar, true);
+  mk("Sect Conflicts 宗门之争", s.threat ? `⚔ UNDER RAID — defend your sect!` : "wage war on rival sects", openSectWar, true, !!s.threat);
   body.appendChild(grid);
   // ---- your own sect's hierarchy ----
   body.appendChild(el("div", "section-h", "Your Hierarchy 麾下"));
@@ -1878,6 +2022,18 @@ function openSectWar() {
   const c = state.c;
   openOverlay("Sect Conflicts 宗门之争", body => {
     if (!c.ownSect) { body.appendChild(el("p", "note", "You lead no sect to send to war.")); backBtn(body, openSect); return; }
+    // A rival marching on you takes precedence — meet them or pay the price.
+    if (c.ownSect.threat) {
+      const rs = D.SECT_BY_KEY[c.ownSect.threat.key];
+      const warn = el("p", "note");
+      warn.innerHTML = `<b style="color:var(--jade2)">⚔ The ${escapeHtml(rs ? rs[1].split(" (")[0] : "raiders")} is marching on the ${escapeHtml(c.ownSect.name)}!</b> Lead your disciples to meet them now — leave it too long and they will press the attack, sacking your halls.`;
+      body.appendChild(warn);
+      const db = el("button", "mbtn full danger");
+      db.innerHTML = `御敌 · Repel the Raiders<small>a deed · defend your sect in battle</small>`;
+      db.onclick = doDefendSect;
+      body.appendChild(db);
+      body.appendChild(el("div", "section-h", "Take the Offensive"));
+    }
     body.appendChild(el("p", "note", `March the ${D.sectTier(c.ownSect.prestige)[1]} against a rival sect (a deed). The realm's sects rise and fall year by year; a sect you break lies in ruins for a decade before it rebuilds. Victory absorbs their disciples, prestige and fame; defeat bleeds your sect and wounds you.`));
     for (const r of E.sectWarRivals(c)) {
       const s = r.sect;
@@ -2313,15 +2469,23 @@ function unitPanel(u, isPlayer) {
   p.innerHTML = html;
   return p;
 }
+// Every fight is now a tactical grid battle. This shim wraps an enemy stat-block
+// (or a pre-built group via opts.enemies) into a grid spec with a map themed to
+// the encounter, so all the old call sites flow onto the field unchanged.
 function startBattle(enemyDef, opts, onDone) {
-  const B = C.createBattle(state.c, enemyDef, state.rng, opts || {});
-  if (enemyDef.tribulation)
-    B.feed = ["⚡ The Heavenly Tribulation descends! Endure the lightning and disperse the cloud before it scatters your soul — there is no fleeing this."];
-  else if (enemyDef.boss)
-    B.feed = [`☠ The ${enemyDef.name} looms before you — a foe far beyond common rabble. (power ≈ ${Math.round(enemyDef.power)}, you ≈ ${Math.round(E.power(state.c))})`];
-  else
-    B.feed = [`⚔ A ${enemyDef.name} faces you!  (foe ≈ ${Math.round(enemyDef.power)}, you ≈ ${Math.round(E.power(state.c))})`];
-  renderBattleScreen(B, onDone);
+  opts = opts || {};
+  const c = state.c, tribulation = !!enemyDef.tribulation;
+  const map = opts.map || (tribulation ? "tribulation" : opts.nonLethal ? "ring" : enemyDef.boss ? "arena" : "wilds");
+  // Honour duels, tournaments, trials and the lone Tribulation are fought solo.
+  const solo = opts.solo != null ? opts.solo : (tribulation || opts.nonLethal);
+  startGridBattle({
+    enemies: opts.enemies || [enemyDef],
+    map, danger: opts.danger != null ? opts.danger : biomeIdx(c.region),
+    element: opts.element != null ? opts.element : enemyDef.element,
+    title: opts.title, intro: opts.intro,
+    nonLethal: !!opts.nonLethal, tribulation, noSpoils: !!opts.noSpoils,
+    startHpFrac: opts.startHpFrac, noAllies: !!solo,
+  }, onDone);
 }
 function doBreakthrough() {
   const c = state.c; if (!c.alive || !E.canBreakthrough(c)) return; closeOverlay();
@@ -2417,10 +2581,73 @@ function doNemesisReckoning() {
   nem.encounters = (nem.encounters || 0) + 1;
   const foe = C.makeEnemyFromNpc(c, nem, state.rng, { boss: true, reward: (c.realm + 2) * 10 });
   logMessages([`You hunt down ${nem.name} and bar their road. "${nem.grudge ? "For " + nem.grudge + "," : "This ends today,"}" you say. "One of us does not walk away." Steel and killing intent fill the air.`]);
-  startBattle(foe, { title: `Reckoning · ${nem.name}` }, o => {
+  startBattle(foe, { title: `Reckoning · ${nem.name}`, map: "arena", solo: true }, o => {
     const cc = state.c;
     if (o === "win") { logMessages(E.defeatNemesis(cc, nem, state.rng)); if (cc.titles.some(x => x.startsWith("Nemesis Slain"))) award("nemesis"); }
     else if (cc.alive) { nem.power *= 1.2; logMessages([`${nem.name} stands over you and laughs, then turns their back and walks away — sparing you, the cruelest cut of all. Their power swells, and your shame burns.`]); }
+    endActivityYear();
+  });
+}
+// Hunt a demon the living world has spawned at your location — boss-tier, with
+// great renown and karma for the realm's would-be hero. The kill is written into
+// the Annals with your name, and the land's unrest lifts.
+// Ride to the front of your (joined) sect's war and fight an enemy champion. A
+// victory wins contribution & fame and tips the war toward your sect.
+function doCallToArms() {
+  const c = state.c;
+  const foes = E.playerSectWarFoes(c);
+  if (!foes.length) { openSect(); return; }
+  if (!ageAllows("boss") || !useAction()) return;
+  const foeKey = foes[0], foeSect = D.SECT_BY_KEY[foeKey];
+  const champs = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.sectKey === foeKey).sort((a, b) => (b.power || 0) - (a.power || 0));
+  const champ = champs[0] || null;
+  closeOverlay();
+  const foe = champ ? C.makeEnemyFromNpc(c, champ, state.rng, { boss: true, reward: (c.realm + 1) * 8 })
+    : C.makeBoss(c, state.rng, { name: "Enemy Champion", factorMult: 1 });
+  logMessages([`You ride to the front, where the ${E.sectName(c).split(" (")[0]} and the ${foeSect[1].split(" (")[0]} clash upon the slopes. ${champ ? champ.name : "An enemy champion"} strides out to meet you, blade bared!`]);
+  startBattle(foe, { title: `出征 · ${champ ? champ.name : foeSect[1].split(" (")[0]}`, map: "battlefield" }, o => {
+    const cc = state.c;
+    if (o === "win") logMessages(E.callToArmsSpoils(cc, foeKey, state.rng));
+    else if (cc.alive) logMessages(E.callToArmsLoss(cc));
+    endActivityYear();
+  });
+}
+// Lead your founded sect in battle against a rival's raid (御敌).
+function doDefendSect() {
+  const c = state.c, own = c.ownSect;
+  if (!own || !own.threat) { openSectWar(); return; }
+  if (!ageAllows("boss") || !useAction()) return;
+  const raiderKey = own.threat.key, rs = D.SECT_BY_KEY[raiderKey];
+  const champs = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.sectKey === raiderKey).sort((a, b) => (b.power || 0) - (a.power || 0));
+  const champ = champs[0] || null;
+  closeOverlay();
+  const foe = champ ? C.makeEnemyFromNpc(c, champ, state.rng, { boss: true, reward: (c.realm + 1) * 9 })
+    : C.makeBoss(c, state.rng, { name: "Raid Commander", factorMult: 1 });
+  logMessages([`The ${rs[1].split(" (")[0]} storms the gates of the ${own.name}! You stride out before your watching disciples to meet ${champ ? champ.name : "their commander"} in single combat.`]);
+  startBattle(foe, { title: `御敌 · ${champ ? champ.name : rs[1].split(" (")[0]}`, map: "battlefield" }, o => {
+    const cc = state.c;
+    if (cc.alive) logMessages(E.resolveOwnSectRaid(cc, state.rng, o === "win"));
+    endActivityYear();
+  });
+}
+function doSlayDemon(demon) {
+  const c = state.c;
+  if (!demon || !demon.alive) { actAdventure(); return; }
+  if (!ageAllows("boss") || !useAction()) return;
+  closeOverlay();
+  const foe = C.makeEnemyFromNpc(c, demon, state.rng, { boss: true, reward: (c.realm + 2) * 12 });
+  logMessages([`You set out to end ${demon.title || demon.name}, the demon that haunts this land. The people watch from afar, scarcely daring to hope.`]);
+  startBattle(foe, { title: `除魔 · ${demon.name}`, map: "lair" }, o => {
+    const cc = state.c;
+    if (o === "win") {
+      E.slayDemon(cc, demon, state.rng);
+      const fame = E.gainFame(cc, 12 + (demon.realm || 0)); cc.karma += 5;
+      cc.happiness = Math.min(100, cc.happiness + 6);
+      logMessages([`✦ You strike down ${demon.title || demon.name}! The land's dread lifts like morning mist, and the realm sings your name. (+${fame} fame, +Karma)`]);
+    } else if (cc.alive) {
+      cc.reputation = Math.max(-200, cc.reputation - 3);
+      logMessages([`${demon.title || demon.name} proves too strong; you flee with your life and little else. The demon's shadow lengthens over the land.`]);
+    }
     endActivityYear();
   });
 }
@@ -2507,14 +2734,14 @@ function realmStage() {
   if (last) {
     const guardian = C.makeBoss(c, state.rng, { name: theme.guardian, factor: 1.4 + state.rng.random() * 0.2, element: theme.element, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — ${guardian.name} bars the inner sanctum!`]);
-    startBattle(guardian, { title: `${theme.name} · Guardian`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+    startBattle(guardian, { title: `${theme.name} · Guardian`, map: "realm", element: theme.element, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
     return;
   }
   const roll = state.rng.random();
   if (roll < 0.55) {
     const enemy = C.makeEnemy(c, state.rng, { kind: theme.kind || undefined, name: state.rng.choice(theme.foes), element: theme.element, factor: 0.8 + R.idx * 0.15, factorMult: worldDanger(c) });
     logMessages([`Stage ${stageNo}/${R.depth} — a ${enemy.name} lurks in the mist.`]);
-    startBattle(enemy, { title: `${theme.name} · Stage ${stageNo}`, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
+    startBattle(enemy, { title: `${theme.name} · Stage ${stageNo}`, map: "realm", element: theme.element, startHpFrac: R.hpFrac }, o => realmAfterBattle(o));
   } else if (roll < 0.80) {
     logMessages([`Stage ${stageNo}/${R.depth} —`].concat(realmFortune(c)));
     R.idx++;
@@ -2708,6 +2935,130 @@ function renderBattleScreen(B, onDone) {
   }, false);
 }
 
+/* ----------------------- tactical grid combat (战阵) --------------------- */
+const GRID_INTRO = {
+  ring: n => `The ring is drawn. ${n > 1 ? `${n} opponents face you` : "Your opponent faces you"} across the dueling ground — no terrain, no allies, only skill.`,
+  arena: n => `You step into the arena. ${n > 1 ? `${n} foes` : "Your foe"} await amid the pillars.`,
+  tribulation: () => `⚡ The Heavenly Tribulation descends upon the storm-blasted peak! Endure the lightning and disperse the cloud — there is no fleeing, and you stand alone.`,
+  lair: n => `You breach the lair, black flame guttering in the dark. ${n > 1 ? `${n} horrors stir` : "The horror stirs"}.`,
+  battlefield: n => `The lines clash across broken siege-ground — ${n > 1 ? `${n} foes` : "a champion"} before you.`,
+  realm: n => `The secret realm warps to meet you — ${n > 1 ? `${n} guardians` : "a guardian"} bar the way.`,
+  wilds: n => `⚔ ${n > 1 ? `A band of ${n} foes closes` : "A foe closes"} across the wilds. Place your steps, and let your arts find them.`,
+};
+function startGridBattle(spec, onDone) {
+  const B = GC.createGridBattle(state.c, spec, state.rng);
+  const intro = spec.intro || (GRID_INTRO[spec.map || "wilds"] || GRID_INTRO.wilds)(spec.enemies.length);
+  B.feed.push(intro);
+  B.ui = { phase: "choose", skill: null };
+  GC.advance(B);          // run any faster foes/allies until your turn (or a swift end)
+  renderGridBattle(B, onDone);
+}
+const TERRAIN_GLYPH = { wall: "▰", rubble: "▩", flame: "✺", chasm: "▢", thicket: "❉", spring: "❖" };
+function unitGlyph(u) {
+  if (u.side === "player") return icon("lotus", { size: 20 });
+  if (u.side === "ally") return icon(u.kind === "beast" ? "wild" : "people", { size: 18 });
+  return C.elementIcon(u.element);
+}
+function renderGridBattle(B, onDone) {
+  const c = state.c;
+  openOverlay(B.opts.title || "战阵 · Tactical Battle", body => {
+    // --- enemy roster strip ---
+    const foes = B.units.filter(u => u.side === "enemy");
+    const roster = el("div", "gc-roster");
+    foes.forEach(f => {
+      const pct = Math.max(0, Math.round(f.hp / f.maxHp * 100));
+      const chip = el("div", "gc-foe" + (f.alive ? "" : " dead"));
+      chip.innerHTML = `<span>${C.elementIcon(f.element)} ${escapeHtml(f.name)}${f.boss ? " ☠" : ""}</span><div class="gc-hp"><div style="width:${f.alive ? pct : 0}%"></div></div>`;
+      roster.appendChild(chip);
+    });
+    body.appendChild(roster);
+
+    // --- the grid ---
+    const reach = (!B.over && B.cur && B.cur.side === "player" && B.ui.phase === "choose" && !B.cur.moved) ? GC.reachable(B) : new Map();
+    const targets = (!B.over && B.cur && B.cur.side === "player" && B.ui.phase === "target" && B.ui.skill) ? new Set(GC.skillTargets(B, B.ui.skill)) : new Set();
+    const grid = el("div", "gc-grid");
+    grid.style.gridTemplateColumns = `repeat(${GC.GW}, 1fr)`;
+    for (let y = 0; y < GC.GH; y++) for (let x = 0; x < GC.GW; x++) {
+      const t = GC.terrainAt(B, x, y), u = GC.unitAtCell(B, x, y), k = x + "," + y;
+      const cell = el("div", "gc-cell t-" + t + (reach.has(k) ? " reach" : "") + (targets.has(k) ? " target" : ""));
+      if (TERRAIN_GLYPH[t]) cell.appendChild(el("span", "gc-terr", TERRAIN_GLYPH[t]));
+      if (u) {
+        const tok = el("div", "gc-token side-" + u.side + (u === B.cur ? " active" : ""));
+        tok.innerHTML = unitGlyph(u);
+        const hp = el("div", "gc-thp"); hp.appendChild(el("i")).style.width = Math.max(0, Math.round(u.hp / u.maxHp * 100)) + "%";
+        tok.appendChild(hp);
+        cell.appendChild(tok);
+      }
+      cell.onclick = () => onCellTap(B, x, y, onDone);
+      grid.appendChild(cell);
+    }
+    body.appendChild(grid);
+
+    // --- your status line ---
+    const P = B.player;
+    const status = el("div", "gc-status");
+    status.innerHTML = `<span>${escapeHtml(P.name)}</span><div class="gc-bar hp"><i style="width:${Math.max(0, Math.round(P.hp / P.maxHp * 100))}%"></i><b>${Math.round(P.hp)}/${Math.round(P.maxHp)}</b></div>`
+      + `<div class="gc-bar qi"><i style="width:${Math.round((P.qi || 0) / (P.maxQi || 1) * 100)}%"></i><b>⊙${Math.round(P.qi || 0)}</b></div>`;
+    body.appendChild(status);
+
+    // --- feed ---
+    const feed = el("div", "cbt-feed gc-feed");
+    (B.feed || []).slice(-7).forEach(l => feed.appendChild(el("div", "line " + classify(l), escapeHtml(l))));
+    body.appendChild(feed);
+
+    // --- controls ---
+    if (B.over) {
+      const cont = el("button", "mbtn full primary");
+      cont.innerHTML = `Continue<small>${B.outcome === "win" ? "victory!" : B.outcome === "lose" ? "defeat..." : B.outcome === "yield" ? "you yield" : "you withdraw"}</small>`;
+      cont.onclick = () => { const sum = GC.finishGridBattle(B); closeOverlay(); logMessages(sum); if (B.outcome === "win") award("first_blood"); if (onDone) onDone(B.outcome); };
+      body.appendChild(cont);
+    } else if (B.cur && B.cur.side === "player") {
+      if (B.ui.phase === "target") {
+        body.appendChild(el("p", "note", `Choose where to loose ${escapeHtml(B.ui.skill.name)} — tap a highlighted square.`));
+        const cancel = el("button", "mbtn full"); cancel.innerHTML = "← Cancel"; cancel.onclick = () => { B.ui.phase = "choose"; renderGridBattle(B, onDone); };
+        body.appendChild(cancel);
+      } else {
+        body.appendChild(el("p", "note gc-hint", B.cur.moved ? "Choose an art (and its target), or end your turn." : "Tap a glowing square to move (your 轻功 sets the range), then choose an art."));
+        const acts = el("div", "cbt-actions gc-acts");
+        for (const s of GC.playerSkills(c)) {
+          const sh = GC.shapeOf(s), disabled = B.cur.acted || (B.player.qi || 0) < (s.qi || 0);
+          const tag = sh.self ? "self" : sh.shape === "blast" ? `blast r${sh.range}` : sh.shape === "line" ? `line ${sh.range}` : sh.range > 1 ? `ranged ${sh.range}` : "melee";
+          const b = el("button", "cbt-skill" + (disabled ? " off" : ""));
+          b.innerHTML = `<span class="cs-name">${s.element ? C.elementIcon(s.element) + " " : ""}${escapeHtml(s.name)}</span><span class="cs-desc">${escapeHtml(s.desc || "")}</span><span class="cs-cost">${s.qi ? "⊙" + s.qi : "free"} · ${tag}</span>`;
+          if (!disabled) b.onclick = () => onSkillPick(B, s, onDone);
+          acts.appendChild(b);
+        }
+        body.appendChild(acts);
+        const row = el("div", "gc-btnrow");
+        if ((c.healingPills || 0) > 0 && !B.cur.acted) { const pb = el("button", "mbtn"); pb.innerHTML = `💊 Pill (${c.healingPills})`; pb.onclick = () => { GC.playerPill(B); afterPlayer(B, onDone); }; row.appendChild(pb); }
+        if (B.canFlee) { const wb = el("button", "mbtn"); wb.innerHTML = "🏃 Withdraw"; wb.onclick = () => { const r = GC.playerWithdraw(B); if (r.fled) renderGridBattle(B, onDone); else afterPlayer(B, onDone); }; row.appendChild(wb); }
+        const eb = el("button", "mbtn primary"); eb.innerHTML = "End Turn"; eb.onclick = () => afterPlayer(B, onDone); row.appendChild(eb);
+        body.appendChild(row);
+      }
+    }
+    feed.scrollTop = feed.scrollHeight;
+  }, false);
+}
+function onCellTap(B, x, y, onDone) {
+  if (B.over || !B.cur || B.cur.side !== "player") return;
+  if (B.ui.phase === "choose" && !B.cur.moved) {
+    if (GC.reachable(B).has(x + "," + y)) { GC.playerMove(B, x, y); renderGridBattle(B, onDone); }
+  } else if (B.ui.phase === "target" && B.ui.skill) {
+    if (new Set(GC.skillTargets(B, B.ui.skill)).has(x + "," + y)) { GC.playerAct(B, B.ui.skill, x, y); B.ui.phase = "choose"; B.ui.skill = null; afterPlayer(B, onDone); }
+  }
+}
+function onSkillPick(B, skill, onDone) {
+  const sh = GC.shapeOf(skill);
+  if (sh.self) { GC.playerAct(B, skill); afterPlayer(B, onDone); }
+  else { B.ui.phase = "target"; B.ui.skill = skill; renderGridBattle(B, onDone); }
+}
+// After the player has acted (or ended their turn), run the AI to the next turn.
+function afterPlayer(B, onDone) {
+  if (!B.over) GC.endPlayerTurn(B);
+  B.ui.phase = "choose"; B.ui.skill = null;
+  renderGridBattle(B, onDone);
+}
+
 /* entry points that spend a year, then resolve old-age before continuing */
 function endActivityYear() {   // an action concluded -- no time passes
   renderProfile(); save(); checkDeath();
@@ -2726,9 +3077,31 @@ function doWander() {
 function doHunt() {
   if (!ageAllows("hunt") || !useAction()) return;
   const c = state.c; closeOverlay();
+  // Sometimes you corner a lone beast (a classic duel); sometimes a whole pack,
+  // fought across the field on the tactical grid.
+  if (state.rng.random() < 0.5) {
+    const n = 2 + state.rng.randint(0, 1), enemies = [];
+    for (let i = 0; i < n; i++) enemies.push(C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.uniform(0.5, 0.8), factorMult: worldDanger(c) }));
+    startGridBattle({ enemies, danger: biomeIdx(c.region), title: "兽群 · Beast Pack",
+      intro: `You track a pack of ${n} spirit-beasts into the wilds, and they wheel to fight.` }, () => endActivityYear());
+    return;
+  }
   const enemy = C.makeEnemy(c, state.rng, { kind: "beast", factor: state.rng.choices([0.7, 1.0, 1.3], [40, 40, 20]), factorMult: worldDanger(c) });
   logMessages([`You track a ${enemy.name} through the spirit-wilds and corner it.`]);
   startBattle(enemy, { title: "Beast Hunt" }, () => endActivityYear());
+}
+// A pitched, multi-foe battle on the tactical grid — the flagship of grid combat.
+function doSkirmish() {
+  if (!ageAllows("hunt") || !useAction()) return;
+  const c = state.c; closeOverlay();
+  const dgr = worldDanger(c), n = 2 + state.rng.randint(0, 2), enemies = [];
+  for (let i = 0; i < n; i++) {
+    const beast = state.rng.random() < 0.5;
+    enemies.push(C.makeEnemy(c, state.rng, { kind: beast ? "beast" : "rogue", factor: state.rng.uniform(0.4, 0.6), factorMult: dgr }));
+  }
+  startGridBattle({ enemies, danger: biomeIdx(c.region), title: "群战 · Skirmish",
+    intro: `⚔ A band of ${n} foes closes across the broken ground. Hold the line — place your steps, and let your arts find them.` },
+    () => endActivityYear());
 }
 function doArena() {
   if (!ageAllows("arena") || !useAction()) return;

@@ -13,6 +13,7 @@ import * as E from "../web/engine.js";
 import * as L from "../web/life.js";
 import * as D from "../web/data.js";
 import * as C from "../web/combat.js";
+import * as G from "../web/gridcombat.js";
 import * as Ev from "../web/events.js";
 const { EVENTS } = Ev;
 
@@ -868,6 +869,264 @@ function testBirthStartsLowOnTheLadder() {
     assert(reborn.comprehension > cap, `legacy lifts a reborn soul above the birth cap (comp ${reborn.comprehension})`); }
 }
 
+// The realm is socially alive: its cultivators carry a temperament, weave bonds
+// with ONE ANOTHER (rivals, sworn kin, lovers, masters), duel, fall to the demon
+// path, and have their deeds set down in the world Chronicle — all without ever
+// perturbing the seed of birth (temperament is derived, not rolled).
+function testLivingSociety() {
+  const rng = new E.RNG(77);
+  const c = L.bornCharacter(rng, "Watcher", null);
+  const pop = c.world.npcs;
+
+  // Every cultivator has a valid, stable temperament and a stable id.
+  for (const n of pop) {
+    const t = E.npcTemperament(n);
+    assert(D.TEMPERAMENTS[t], `denizen carries a valid temperament (${t})`);
+    assert(E.npcTemperament(n) === t, "temperament is stable across reads");
+    assert(typeof n.nid === "number", "denizen carries a stable id");
+  }
+  // Temperament must be RNG-neutral: two worlds born from the same seed are
+  // structurally identical in temperament regardless of the society sim.
+  { const a = L.bornCharacter(new E.RNG(303), "A", null);
+    const b = L.bornCharacter(new E.RNG(303), "B", null);
+    assert(a.world.npcs.length === b.world.npcs.length, "same seed peoples the realm identically");
+    assert(a.world.npcs.every((n, i) => E.npcTemperament(n) === E.npcTemperament(b.world.npcs[i])),
+      "temperament derives deterministically, never consuming the birth RNG"); }
+  // ids are unique among the living.
+  { const ids = pop.filter(n => n.alive).map(n => n.nid); assert(new Set(ids).size === ids.length, "living denizen ids are unique"); }
+
+  // Drive many years of society. It must never crash, must grow the Chronicle,
+  // must weave NPC-to-NPC bonds, and must keep the realm populous.
+  let fresh = [];
+  for (let y = 0; y < 120; y++) { c.age = 16 + y; fresh = fresh.concat(E.simulateSociety(c, rng)); }
+  const chron = c.world.chronicle || [];
+  assert(chron.length > 0 && chron.length <= 80, `the Chronicle fills and stays capped (${chron.length})`);
+  assert(chron.every(e => typeof e.text === "string" && e.text.length && typeof e.kind === "string"), "every annal is a well-formed entry");
+  assert(fresh.every(e => e.text && e.kind), "returned annals are well-formed");
+  assert(pop.filter(n => n.alive).length > 100, "the realm stays populous through the social churn");
+
+  // Bonds actually form between NPCs, and resolve to living partners.
+  const bonded = pop.filter(n => n.alive && (n.bonds || []).length);
+  assert(bonded.length > 0, "cultivators weave bonds with one another over the years");
+  let kinds = new Set();
+  for (const n of bonded) for (const t of E.npcBonds(c, n)) { kinds.add(t.kind); assert(t.npc && t.npc.alive, "a resolved tie points to a living cultivator"); }
+  assert(kinds.size >= 2, `multiple kinds of bond arise (${[...kinds].join(", ")})`);
+
+  // Over 120 turns of a deterministic seed, the darker mechanics must surface at
+  // least once: a duel/feud death or a demonic fall recorded in the annals.
+  const allText = chron.map(e => e.kind);
+  assert(allText.some(k => k === "duel" || k === "feud" || k === "demon" || k === "hero"),
+    "feuds, duels or demonic falls surface in the realm's history");
+  // Renown and deeds accrue to those who act.
+  assert(pop.some(n => E.npcRenown(n) > 0), "renown accrues to cultivators who make their name");
+  assert(pop.some(n => { const d = E.npcDeeds(n); return d.wins + d.losses + d.kills > 0; }), "duels leave a tally of deeds");
+
+  // The society loop closes back into player agency: a demon that lairs where
+  // the player stands can be hunted, struck from the world, and recorded as the
+  // player's own heroic deed in the Annals — lifting the land's unrest.
+  const demon = pop.find(n => n.alive && n.demonic);
+  if (demon) {
+    c.location = demon.home;
+    assert(E.demonAtLoc(c) === demon || (E.demonAtLoc(c) && E.demonAtLoc(c).demonic), "the demon stalking your location is found");
+    const target = E.demonAtLoc(c);
+    const loc = c.world.locations[target.home]; loc.unrest = 5;
+    E.slayDemon(c, target, rng);
+    assert(!target.alive, "a slain demon is struck from the living world");
+    assert(loc.unrest < 5, "slaying the demon lifts the land's unrest");
+    assert(c.world.chronicle.some(e => e.kind === "hero" && e.text.includes(c.name)),
+      "the slaying is written into the Annals as the player's deed");
+    assert(c.world.npcs.filter(n => n.alive).length >= 100, "the population is replenished after a demon falls");
+  }
+}
+
+// The great sects are living institutions: they begin with seeded relations
+// (the orthodox stand together; the demon cult against them all), then ally,
+// feud and wage multi-year WARS that shatter the loser — all woven into the
+// society sim and the Annals, independent of whether the player leads a sect.
+function testSectPolitics() {
+  const rng = new E.RNG(123);
+  const c = L.bornCharacter(rng, "Diplomat", null);
+  E.ensureSectWorld(c);
+
+  // Seeded relations: righteous sects allied; the Blood Demon Cult a rival to them.
+  const ALIGN = Object.fromEntries(D.SECTS.map(s => [s[0], s[2]]));
+  const righteous = D.SECTS.filter(s => s[2] === "righteous").map(s => s[0]);
+  if (righteous.length >= 2)
+    assert(E.sectRelOf(c, righteous[0], righteous[1]) === "ally", "orthodox sects begin as allies");
+  const demon = D.SECTS.find(s => s[2] === "demonic");
+  if (demon && righteous.length)
+    assert(E.sectRelOf(c, demon[0], righteous[0]) === "rival", "the demon cult begins at odds with the orthodox");
+  // Relations are symmetric.
+  for (const a of D.SECTS) for (const b of D.SECTS)
+    if (a[0] !== b[0]) assert(E.sectRelOf(c, a[0], b[0]) === E.sectRelOf(c, b[0], a[0]), "sect relations are symmetric");
+  // Every sect reports a well-formed standing.
+  for (const s of D.SECTS) { const st = E.sectStanding(c, s[0]); assert(st && (st.label || st.broken != null) && typeof st.ratio === "number", `sect ${s[0]} has a standing`); }
+
+  // Drive many years: wars must erupt and resolve, the Annals must fill with sect
+  // news, and a sect must at some point be shattered — without ever crashing.
+  let everWar = false, sectAnnals = 0, everBroken = false, validPairs = true;
+  for (let y = 0; y < 200; y++) {
+    c.age = 14 + y;
+    const fresh = E.simulateSociety(c, rng);
+    sectAnnals += fresh.filter(e => e.kind === "sect" || e.kind === "sectwar").length;
+    const wars = E.sectWarsActive(c);
+    if (wars.length) {
+      everWar = true;
+      for (const wpair of wars) if (E.sectRelOf(c, wpair.a, wpair.b) !== "war") validPairs = false;
+    }
+    if (D.SECTS.some(s => E.sectStanding(c, s[0]).broken)) everBroken = true;
+  }
+  assert(everWar, "wars erupt between the great sects over the years");
+  assert(validPairs, "every reported war pair is genuinely at war");
+  assert(sectAnnals > 0, "sect diplomacy and war are written into the Annals");
+  assert(everBroken, "a defeated sect is at some point shattered and left in ruins");
+  // Concurrent wars stay bounded — the realm is contentious, not in total chaos.
+  assert(E.sectWarsActive(c).length <= D.SECTS.length, "concurrent wars stay bounded");
+}
+
+// The player's own banner is drawn into the living wars: when the sect you serve
+// goes to war you can ride to the front (and tip it), and the sect you found can
+// be raided by a hostile rival — a threat you must answer or pay for.
+function testPlayerInSectWars() {
+  const rng = new E.RNG(2025);
+  const c = L.bornCharacter(rng, "Banner", null);
+  c.awakened = true; c.realm = 5; c.charm = 80; c.reputation = 100;
+  E.ensureSectWorld(c);
+
+  // --- Joined-sect call to arms ---
+  c.sectKey = "azure";
+  const foeKey = "heavensword";
+  // Force a war between the player's sect and a foe.
+  const w = c.sectWorld;
+  w.azure.rel.heavensword = "war"; w.heavensword.rel.azure = "war";
+  const foes = E.playerSectWarFoes(c);
+  assert(foes.includes(foeKey), "the player's sect reports its war foes");
+  const contrib0 = c.contribution || 0, rep0 = c.reputation, foeStr0 = w.heavensword.strength, myStr0 = w.azure.strength;
+  const spoils = E.callToArmsSpoils(c, foeKey, rng);
+  assert(Array.isArray(spoils) && spoils.length, "answering the call yields a result");
+  assert((c.contribution || 0) > contrib0, "a victory at the front earns sect contribution");
+  assert(c.reputation > rep0, "a victory at the front spreads your fame");
+  assert(w.azure.strength > myStr0, "your valour strengthens your own sect's war effort");
+  assert(w.heavensword.strength < foeStr0, "your valour weakens the enemy sect");
+  // A loss costs a little standing but is well-formed.
+  const loss = E.callToArmsLoss(c);
+  assert(Array.isArray(loss) && loss.length, "a defeat at the front is well-formed");
+
+  // --- Founded-sect raids ---
+  c.sectKey = null;
+  c.ownSect = { name: "Test Pavilion", key: null, alignment: "righteous", prestige: 120, members: 40, founded: 20 };
+  c.abode = 3;
+  // Drive raids over many years; a hostile rival should march at least once.
+  let raided = false;
+  for (let y = 0; y < 120 && !raided; y++) {
+    c.age = 30 + y;
+    const r = E.maybeRaidOwnSect(c, rng);
+    if (r) { raided = true; assert(c.ownSect.threat && c.ownSect.threat.key === r, "a raid sets a standing threat the player must answer"); }
+  }
+  assert(raided, "a hostile rival eventually marches on your founded sect");
+  // Repelling a raid wins prestige and clears the threat.
+  const pres0 = c.ownSect.prestige;
+  const repel = E.resolveOwnSectRaid(c, rng, true);
+  assert(repel.length && c.ownSect.prestige > pres0 && !c.ownSect.threat, "repelling a raid wins prestige and ends the threat");
+  // An unanswered raid lapses to your cost.
+  c.ownSect.threat = { key: "bloodcult", since: c.age - 5 };
+  const presBefore = c.ownSect.prestige;
+  const lapse = E.lapseOwnSectThreat(c, rng);
+  assert(lapse && lapse.length && c.ownSect.prestige < presBefore && !c.ownSect.threat, "an unanswered raid is pressed home, costing prestige");
+}
+
+// Tactical GRID combat (战阵): a TTRPG-style battle on a terrain grid where you,
+// your beast and a companion stand against a band of foes — movement set by your
+// 轻功, arts that reach across squares (melee, ranged, blast, line), and terrain
+// (walls block sight & step) that all bite. It reuses the whole combat vocabulary.
+function testGridCombat() {
+  const rng = new E.RNG(7);
+  const c = L.bornCharacter(rng, "Grid", null);
+  c.awakened = true; c.realm = 4; c.techniques = ["basic_breathing", "sword_rain", "mountain_seal", "great_void", "frost_lotus"];
+  const enemies = [C.makeEnemy(c, rng, { factor: 0.5 }), C.makeEnemy(c, rng, { factor: 0.5 })];
+  const B = G.createGridBattle(c, { enemies, danger: 3 }, rng);
+  assert(B.cells.length === G.GW * G.GH, "the field is a proper grid");
+  assert(B.cells.every(t => G.TERRAIN[t]), "every square is valid terrain");
+  const pl = B.units.filter(u => u.side === "player"), en = B.units.filter(u => u.side === "enemy");
+  assert(pl.length === 1 && en.length === 2, "the player and the foes are placed on the field");
+  assert(en.every(u => u.y <= 1) && pl[0].y >= G.GH - 2, "the foes form up opposite the player");
+  assert(new Set(B.units.map(u => u.x + "," + u.y)).size === B.units.length, "no two combatants share a square");
+  G.advance(B);
+  assert(B.over || B.cur.side === "player", "the initiative queue runs the foes, then yields to you");
+  if (!B.over) { const reach = G.reachable(B); assert(reach.size > 0, "you can step onto open ground"); for (const v of reach.values()) assert(v <= B.cur.move, "movement never exceeds your range"); }
+
+  // A blast art strikes every foe clustered in its footprint.
+  { const r = new E.RNG(3), c2 = L.bornCharacter(r, "A", null); c2.awakened = true; c2.realm = 5; c2.techniques = ["basic_breathing", "sword_rain"];
+    const es = [C.makeEnemy(c2, r, { factor: 0.5 }), C.makeEnemy(c2, r, { factor: 0.5 })];
+    const B2 = G.createGridBattle(c2, { enemies: es, danger: 0 }, r); B2.cells = new Array(G.GW * G.GH).fill("floor");
+    let st = G.advance(B2); while (!st.over && B2.cur.side !== "player") st = G.endPlayerTurn(B2);
+    const P = B2.player; P.x = 3; P.y = 5; P.moved = true; P.acted = false; P.qi = P.maxQi;
+    const f = B2.units.filter(u => u.side === "enemy"); f[0].x = 3; f[0].y = 2; f[1].x = 4; f[1].y = 2; f[0].hp = f[0].maxHp; f[1].hp = f[1].maxHp;
+    assert(new Set(G.skillTargets(B2, C.SKILLS.sword_rain)).has("3,2"), "a ranged art can target a foe within range and sight");
+    assert(G.targetCells(B2, P, C.SKILLS.sword_rain, 3, 2).some(([x, y]) => x === 4 && y === 2), "a blast art covers the squares around its mark");
+    const h0 = [f[0].hp, f[1].hp]; G.playerAct(B2, C.SKILLS.sword_rain, 3, 2);
+    assert(f[0].hp < h0[0] && f[1].hp < h0[1], "one blast strikes multiple clustered foes"); }
+
+  // A wall blocks a ranged art's line of sight.
+  { const r = new E.RNG(9), c3 = L.bornCharacter(r, "W", null); c3.awakened = true; c3.realm = 6; c3.techniques = ["basic_breathing", "great_void"];
+    const B3 = G.createGridBattle(c3, { enemies: [C.makeEnemy(c3, r, { factor: 0.5 })], danger: 0 }, r);
+    B3.cells = new Array(G.GW * G.GH).fill("floor"); B3.cells[3 * G.GW + 3] = "wall";
+    let st = G.advance(B3); while (!st.over && B3.cur.side !== "player") st = G.endPlayerTurn(B3);
+    const P = B3.player; P.x = 3; P.y = 5; P.moved = true; const f = B3.units.find(u => u.side === "enemy"); f.x = 3; f.y = 1;
+    assert(!new Set(G.skillTargets(B3, C.SKILLS.great_void)).has("3,1"), "a rock wall blocks a ranged art's line of sight"); }
+
+  // Your spirit beast joins the field as an ally.
+  { const r = new E.RNG(11), c4 = L.bornCharacter(r, "B", null); c4.awakened = true; c4.realm = 4;
+    c4.beast = { name: "Bai", alive: true, rank: 3, bond: 80, element: "Fire", species: "Lion", power: E.basePower(c4) * 0.4 };
+    const B4 = G.createGridBattle(c4, { enemies: [C.makeEnemy(c4, r, { factor: 0.5 })], danger: 0 }, r);
+    assert(B4.units.some(u => u.side === "ally"), "a bonded spirit beast fights at your side on the grid"); }
+
+  // Every encounter type has its own field: a duel is a clean ring (no terrain,
+  // no allies), the Tribulation a solo peak you cannot flee, and so on.
+  { const r = new E.RNG(21), cc = L.bornCharacter(r, "M", null); cc.awakened = true; cc.realm = 5; cc.techniques = ["basic_breathing"];
+    cc.beast = { name: "Bai", alive: true, rank: 3, bond: 80, element: "Fire", power: E.basePower(cc) * 0.4 };
+    for (const map of ["ring", "arena", "tribulation", "lair", "battlefield", "realm", "wilds"]) {
+      const spec = { enemies: [C.makeEnemy(cc, r, { factor: 0.5 })], map, danger: 3, tribulation: map === "tribulation", noAllies: map === "ring" || map === "tribulation" };
+      const BM = G.createGridBattle(cc, spec, r);
+      assert(BM.cells.length === G.GW * G.GH && BM.cells.every(t => G.TERRAIN[t]), `map ${map} has valid terrain`);
+    }
+    const ring = G.createGridBattle(cc, { enemies: [C.makeEnemy(cc, r, { factor: 0.5 })], map: "ring", noAllies: true }, r);
+    assert(ring.cells.every(t => t === "floor"), "a dueling ring is clean ground — no terrain features");
+    assert(!ring.units.some(u => u.side === "ally"), "a solo duel is fought without allies");
+    const trib = G.createGridBattle(cc, { enemies: [C.makeTribulation(cc, r)], map: "tribulation", tribulation: true }, r);
+    assert(!trib.units.some(u => u.side === "ally") && trib.canFlee === false, "the Tribulation is faced alone, with no escape"); }
+
+  // A non-lethal bout (spar/trial/tournament) ends in a yield, never a death.
+  { const r = new E.RNG(22), cc = L.bornCharacter(r, "Y", null); cc.awakened = true; cc.realm = 1; cc.techniques = ["basic_breathing"];
+    const BN = G.createGridBattle(cc, { enemies: [C.makeEnemy(cc, r, { factor: 3 })], map: "ring", nonLethal: true, noAllies: true }, r);
+    let st = G.advance(BN), g = 0;
+    while (!st.over && g++ < 60) { G.playerAct(BN, C.SKILLS.guard); st = G.endPlayerTurn(BN); }
+    assert(BN.outcome === "yield" || BN.outcome === "win", "a non-lethal bout resolves to a yield or a win, not death");
+    assert(cc.alive !== false, "a yielded spar never kills you"); }
+
+  // Robustness: many battles must always resolve (the round-cap forbids stalemates).
+  let resolved = 0;
+  for (let i = 0; i < 60; i++) {
+    const r = new E.RNG(i + 500), cc = L.bornCharacter(r, "R", null);
+    cc.awakened = true; cc.realm = 4; cc.luck = 60; cc.healingPills = 1; cc.techniques = ["basic_breathing", "azure_cloud", "sword_rain", "mountain_seal"];
+    const es = []; const ne = 2 + r.randint(0, 2); for (let k = 0; k < ne; k++) es.push(C.makeEnemy(cc, r, { factor: 0.45 }));
+    const BB = G.createGridBattle(cc, { enemies: es, danger: r.randint(0, 4) }, r);
+    let st = G.advance(BB), g = 0;
+    while (!st.over && g++ < 200) {
+      const u = BB.cur, foes = BB.units.filter(t => t.alive && t.side === "enemy");
+      const sk = G.playerSkills(cc).find(x => x.dmg && u.qi >= (x.qi || 0)) || C.SKILLS.strike;
+      const tg = G.skillTargets(BB, sk).filter(kk => { const [x, y] = kk.split(",").map(Number); return foes.some(f => G.targetCells(BB, u, sk, x, y).some(([cx, cy]) => cx === f.x && cy === f.y)); });
+      if (tg.length) { const [tx, ty] = tg[0].split(",").map(Number); G.playerAct(BB, sk, tx, ty); }
+      else { const rc = [...G.reachable(BB).keys()]; if (rc.length) { const [x, y] = rc[0].split(",").map(Number); G.playerMove(BB, x, y); } G.playerAct(BB, C.SKILLS.guard); }
+      st = G.endPlayerTurn(BB);
+    }
+    const sum = G.finishGridBattle(BB);
+    assert(Array.isArray(sum) && sum.every(x => typeof x === "string" && x.length), "a finished battle yields a well-formed summary");
+    if (BB.over) resolved++;
+  }
+  assert(resolved === 60, `every grid battle resolves — no infinite fights (got ${resolved}/60)`);
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -889,6 +1148,10 @@ try {
   test("action-triggered arcs arm sensibly and thread to their ends", testTriggeredArcs);
   test("new birth options are well-formed and fully integrated", testBirthOptions);
   test("a living realm population fills sects and can be sought out, recruited & challenged", testWorldPopulationAndDenizens);
+  test("the realm is socially alive: temperament, NPC-to-NPC bonds, feuds & a Chronicle", testLivingSociety);
+  test("the great sects are living institutions: alliances, rivalries & shattering wars", testSectPolitics);
+  test("the player's own banner is drawn into the sect wars: call to arms & raids", testPlayerInSectWars);
+  test("tactical grid combat: terrain, movement, ranged & blast arts, allies, no stalemates", testGridCombat);
   test("the lesser stats (Soul/Luck/Charm) are trainable and carry mechanical weight", testStatsEarnTheirKeep);
   test("birth starts low on the eight-tier ladder; the climb is earned", testBirthStartsLowOnTheLadder);
   console.log(`\nAll ${passed} web tests passed.`);
