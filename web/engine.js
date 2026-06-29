@@ -2123,6 +2123,72 @@ export function tickSectPolitics(c, rng, record) {
     }
   }
 }
+
+/* ---------------- the player's stake in the living sect wars -------------- *
+ * Your sect is not a bystander to all this: when the banner you serve goes to
+ * war, you can ride to the front; and the sect you found can be marched upon by
+ * a hostile rival, a raid you must answer or pay for.                          */
+
+// The sects your JOINED sect is at war with right now (its foes are your foes).
+export function playerSectWarFoes(c) {
+  if (!c.sectKey) return [];
+  return sectWarsActive(c).filter(wp => wp.a === c.sectKey || wp.b === c.sectKey)
+    .map(wp => (wp.a === c.sectKey ? wp.b : wp.a));
+}
+// Spoils for answering your sect's call to arms and felling an enemy champion:
+// contribution and fame for you, and your valour tips the war your sect's way.
+export function callToArmsSpoils(c, foeKey, rng) {
+  const w = ensureSectWorld(c), mine = c.sectKey;
+  const contrib = 8 + (c.realm || 0) * 2 + rng.randint(0, 6);
+  c.contribution = (c.contribution || 0) + contrib;
+  const fame = gainFame(c, 5 + (c.realm || 0));
+  if (mine && w[mine]) w[mine].strength = Math.min(sectBaseMight(D.SECT_BY_KEY[mine]) * 2.6, w[mine].strength * rng.uniform(1.04, 1.09));
+  if (w[foeKey]) w[foeKey].strength *= rng.uniform(0.9, 0.96);
+  note(c, `Won glory at the front for the ${sectShort(mine)}.`);
+  return [`✦ Your blade turns the skirmish — the ${sectShort(mine)} presses its advantage on the front. (+${contrib} contribution, +${fame} fame)`];
+}
+export function callToArmsLoss(c) {
+  c.reputation = Math.max(-200, (c.reputation || 0) - 2);
+  return [`You are thrown back from the front, bloodied; the ${sectShort(c.sectKey)} gives ground. (−Reputation)`];
+}
+
+// A hostile rival may march on your FOUNDED sect. Sets a standing threat the
+// player must answer, and returns the raider's sect key (or null).
+export function maybeRaidOwnSect(c, rng) {
+  const own = c.ownSect; if (!own || own.threat) return null;
+  const rivals = sectWarRivals(c).filter(r => !r.broken && (r.hostile || r.chance < 0.5));
+  if (!rivals.length) return null;
+  const r = rng.choice(rivals);
+  if (rng.random() > 0.14 + (1 - r.chance) * 0.22) return null;      // the weaker you stand, the likelier the raid
+  own.threat = { key: r.key, since: c.age };
+  return r.key;
+}
+// Resolve a raid on your founded sect. won → repel it (prestige & fame, and a
+// chance to shatter the raider); lost → they sack your halls. Clears the threat.
+export function resolveOwnSectRaid(c, rng, won) {
+  const own = c.ownSect; if (!own || !own.threat) return [];
+  const key = own.threat.key, target = D.SECT_BY_KEY[key], short = key && sectShort(key), w = ensureSectWorld(c);
+  own.threat = null;
+  if (won) {
+    const pres = rng.randint(20, 45), fame = gainFame(c, 8);
+    own.prestige += pres; c.karma += 1;
+    let extra = "";
+    if (w[key] && rng.random() < 0.4) { w[key].broken = rng.randint(6, 12); w[key].strength = sectBaseMight(target) * 0.28; extra = ` The ${short} are routed and scattered!`; }
+    note(c, `Repelled a raid by the ${target ? target[1] : "raiders"}.`);
+    return [`✦ You and your disciples throw back the assault on your sect!${extra} (+${pres} prestige, +${fame} fame)`];
+  }
+  const pres = rng.randint(15, 35), mem = rng.randint(2, 7);
+  own.prestige = Math.max(0, own.prestige - pres); own.members = Math.max(0, own.members - mem);
+  c.reputation = Math.max(-200, (c.reputation || 0) - 3);
+  note(c, `The ${target ? target[1] : "raiders"} sacked your sect.`);
+  return [`✗ The ${short || "raiders"} storm your sect's outer halls before you can muster. (−${pres} prestige, ${mem} disciples slain)`];
+}
+// A raid left unanswered too long is pressed home by the rival — to your cost.
+export function lapseOwnSectThreat(c, rng) {
+  const own = c.ownSect; if (!own || !own.threat) return null;
+  if (c.age - own.threat.since < 2) return null;
+  return resolveOwnSectRaid(c, rng, false);
+}
 // The named sects your own founded sect may come to blows with, each with the
 // odds your banner would prevail against theirs — and whether they lie broken.
 export function sectWarRivals(c) {

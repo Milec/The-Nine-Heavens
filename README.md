@@ -318,7 +318,11 @@ Three more systems round out a cultivator's life:
   **shattered and scattered for a generation** before slowly rebuilding. A new
   **Sects of the Realm (宗门录)** screen shows each sect's standing, its master
   and elders, and the whole web of who is **allied, rival, or at war** with whom,
-  every shift recorded in the Annals.
+  every shift recorded in the Annals. And your own banner is no bystander: when
+  the sect you serve goes to war, word reaches you to **ride to the front
+  (出征)** — felling an enemy champion wins contribution and fame and **tips the
+  war your sect's way**; and the sect you **found** can be **raided by a hostile
+  rival (御敌)**, a threat you must answer in battle or watch them sack your halls.
 - **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
   home base, from a Humble Cave Dwelling all the way to a legendary **Cave
   Heaven**. The abode is the **hub that ties the world together**: it is **rooted

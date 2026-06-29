@@ -983,6 +983,57 @@ function testSectPolitics() {
   assert(E.sectWarsActive(c).length <= D.SECTS.length, "concurrent wars stay bounded");
 }
 
+// The player's own banner is drawn into the living wars: when the sect you serve
+// goes to war you can ride to the front (and tip it), and the sect you found can
+// be raided by a hostile rival — a threat you must answer or pay for.
+function testPlayerInSectWars() {
+  const rng = new E.RNG(2025);
+  const c = L.bornCharacter(rng, "Banner", null);
+  c.awakened = true; c.realm = 5; c.charm = 80; c.reputation = 100;
+  E.ensureSectWorld(c);
+
+  // --- Joined-sect call to arms ---
+  c.sectKey = "azure";
+  const foeKey = "heavensword";
+  // Force a war between the player's sect and a foe.
+  const w = c.sectWorld;
+  w.azure.rel.heavensword = "war"; w.heavensword.rel.azure = "war";
+  const foes = E.playerSectWarFoes(c);
+  assert(foes.includes(foeKey), "the player's sect reports its war foes");
+  const contrib0 = c.contribution || 0, rep0 = c.reputation, foeStr0 = w.heavensword.strength, myStr0 = w.azure.strength;
+  const spoils = E.callToArmsSpoils(c, foeKey, rng);
+  assert(Array.isArray(spoils) && spoils.length, "answering the call yields a result");
+  assert((c.contribution || 0) > contrib0, "a victory at the front earns sect contribution");
+  assert(c.reputation > rep0, "a victory at the front spreads your fame");
+  assert(w.azure.strength > myStr0, "your valour strengthens your own sect's war effort");
+  assert(w.heavensword.strength < foeStr0, "your valour weakens the enemy sect");
+  // A loss costs a little standing but is well-formed.
+  const loss = E.callToArmsLoss(c);
+  assert(Array.isArray(loss) && loss.length, "a defeat at the front is well-formed");
+
+  // --- Founded-sect raids ---
+  c.sectKey = null;
+  c.ownSect = { name: "Test Pavilion", key: null, alignment: "righteous", prestige: 120, members: 40, founded: 20 };
+  c.abode = 3;
+  // Drive raids over many years; a hostile rival should march at least once.
+  let raided = false;
+  for (let y = 0; y < 120 && !raided; y++) {
+    c.age = 30 + y;
+    const r = E.maybeRaidOwnSect(c, rng);
+    if (r) { raided = true; assert(c.ownSect.threat && c.ownSect.threat.key === r, "a raid sets a standing threat the player must answer"); }
+  }
+  assert(raided, "a hostile rival eventually marches on your founded sect");
+  // Repelling a raid wins prestige and clears the threat.
+  const pres0 = c.ownSect.prestige;
+  const repel = E.resolveOwnSectRaid(c, rng, true);
+  assert(repel.length && c.ownSect.prestige > pres0 && !c.ownSect.threat, "repelling a raid wins prestige and ends the threat");
+  // An unanswered raid lapses to your cost.
+  c.ownSect.threat = { key: "bloodcult", since: c.age - 5 };
+  const presBefore = c.ownSect.prestige;
+  const lapse = E.lapseOwnSectThreat(c, rng);
+  assert(lapse && lapse.length && c.ownSect.prestige < presBefore && !c.ownSect.threat, "an unanswered raid is pressed home, costing prestige");
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -1006,6 +1057,7 @@ try {
   test("a living realm population fills sects and can be sought out, recruited & challenged", testWorldPopulationAndDenizens);
   test("the realm is socially alive: temperament, NPC-to-NPC bonds, feuds & a Chronicle", testLivingSociety);
   test("the great sects are living institutions: alliances, rivalries & shattering wars", testSectPolitics);
+  test("the player's own banner is drawn into the sect wars: call to arms & raids", testPlayerInSectWars);
   test("the lesser stats (Soul/Luck/Charm) are trainable and carry mechanical weight", testStatsEarnTheirKeep);
   test("birth starts low on the eight-tier ladder; the climb is earned", testBirthStartsLowOnTheLadder);
   console.log(`\nAll ${passed} web tests passed.`);

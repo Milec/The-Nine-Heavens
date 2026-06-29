@@ -452,6 +452,23 @@ export function ageUp(c, rng) {
       events.push({ id: "annal_" + c.age, auto: true, milestone: loud.kind === "demon", text: [`☷ Word from the realm: ${loud.text}`] });
   }
 
+  // Your own banner is drawn into the realm's wars. If the sect you serve goes to
+  // war, word reaches you to ride to the front; if it is shattered, you feel it.
+  if (c.sectKey) {
+    c._warNoted = c._warNoted || {};
+    for (const foe of E.playerSectWarFoes(c)) {
+      if (!c._warNoted[foe]) {
+        c._warNoted[foe] = c.age;
+        const fs = D.SECT_BY_KEY[foe];
+        events.push({ id: `sectwar_${foe}_${c.age}`, auto: true, text: [`⚔ War! Your sect, the ${E.sectName(c)}, has taken up arms against the ${fs ? fs[1] : "a rival sect"}. Answer the call to arms in the Sect hall (出征) and win glory at the front.`] });
+      }
+    }
+    for (const k of Object.keys(c._warNoted)) if (!E.playerSectWarFoes(c).includes(k)) delete c._warNoted[k];   // war ended; allow future notice
+    const st = E.sectStanding(c, c.sectKey);
+    if (st.broken && !c._sectFallNoted) { c._sectFallNoted = true; events.push({ id: "sectfall_" + c.age, auto: true, milestone: true, text: [`☷ Calamity: the ${E.sectName(c)}, the sect you serve, has been shattered in war and lies in ruins. Its survivors scatter; its halls fall silent.`] }); }
+    else if (!st.broken && c._sectFallNoted) c._sectFallNoted = false;   // rebuilt
+  }
+
   // Merit ripens into fortune: a deep well of good karma slowly draws the heavens'
   // favour to you over the years, while a black tide of evil karma bleeds it away.
   // (Body and Soul you temper by hand; Fortune you earn by how you live.)
@@ -1052,6 +1069,18 @@ function sectYearly(c, rng, events) {
   if (s._tier !== tier[1]) {
     if (s._tier) events.push({ id: "sect_rise_" + c.age, auto: true, milestone: true, text: [`✦ Your sect, the ${s.name}, has risen to a ${tier[1]} (${tier[2]})! Its name now carries weight across the land.`] });
     s._tier = tier[1];
+  }
+  // A hostile rival may march on your sect — a raid you must answer in the Sect
+  // hall (御敌), or it presses home to your cost if you leave it standing.
+  if (s.threat) {
+    const lapse = E.lapseOwnSectThreat(c, rng);
+    if (lapse) events.push({ id: "raid_lapse_" + c.age, auto: true, milestone: true, text: lapse });
+  } else {
+    const raider = E.maybeRaidOwnSect(c, rng);
+    if (raider) {
+      const rs = D.SECT_BY_KEY[raider];
+      events.push({ id: "raid_" + c.age, auto: true, milestone: true, text: [`⚔ The ${rs ? rs[1] : "a rival sect"} marches on the ${s.name}! Rally your disciples and meet them on the slopes — answer in the Sect hall (御敌) before they press the attack.`] });
+    }
   }
 }
 

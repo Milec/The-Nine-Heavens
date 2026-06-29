@@ -1907,8 +1907,15 @@ function openSect() {
         ? `To rise to <b>${req[0]}</b> you must still: ${blockers.join("; ")}.`
         : `You meet every requirement for <b>${req[0]}</b> — face the promotion trial when ready.`));
     }
+    // Your banner's wars: ride to the front for glory, contribution & fame.
+    const foes = E.playerSectWarFoes(c);
+    if (foes.length) {
+      const foeNames = foes.map(k => D.SECT_BY_KEY[k][1].split(" (")[0]).join(", ");
+      body.appendChild(el("p", "note", `<b style="color:var(--jade2)">⚔ The ${E.sectName(c).split(" (")[0]} is at war with the ${escapeHtml(foeNames)}.</b> Answer the call to arms and your valour will tip the war your sect's way.`));
+    }
     const grid = el("div", "menu-grid");
     const mk = (l, s, h, full) => { const b = el("button", "mbtn" + (full ? " full" : "")); b.innerHTML = `${l}<small>${escapeHtml(s)}</small>`; b.onclick = h; grid.appendChild(b); };
+    if (foes.length) mk("⚔ Answer the Call to Arms 出征", "a deed · fight at the front", doCallToArms, true);
     mk("Take a Mission", "a deed · earn contribution", openQuests);
     mk("Seek Promotion", req ? (E.canPromote(c) ? "trial of rank" : "view requirements") : "at the summit", doPromotion);
     mk("Sect Library 传功", "learn the sect's signature arts", openSectLibrary);
@@ -1995,7 +2002,7 @@ function renderOwnSect(c, body) {
   if (c.realm >= 4 && L.getDisciples(c).length < 4)
     mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
   mk("Sect Library 藏经阁", `enshrine your arts · +${E.sectLibraryBonus(s)}/yr`, openOwnSectLibrary, true);
-  mk("Sect Conflicts 宗门之争", "wage war on rival sects", openSectWar, true);
+  mk("Sect Conflicts 宗门之争", s.threat ? `⚔ UNDER RAID — defend your sect!` : "wage war on rival sects", openSectWar, true, !!s.threat);
   body.appendChild(grid);
   // ---- your own sect's hierarchy ----
   body.appendChild(el("div", "section-h", "Your Hierarchy 麾下"));
@@ -2013,6 +2020,18 @@ function openSectWar() {
   const c = state.c;
   openOverlay("Sect Conflicts 宗门之争", body => {
     if (!c.ownSect) { body.appendChild(el("p", "note", "You lead no sect to send to war.")); backBtn(body, openSect); return; }
+    // A rival marching on you takes precedence — meet them or pay the price.
+    if (c.ownSect.threat) {
+      const rs = D.SECT_BY_KEY[c.ownSect.threat.key];
+      const warn = el("p", "note");
+      warn.innerHTML = `<b style="color:var(--jade2)">⚔ The ${escapeHtml(rs ? rs[1].split(" (")[0] : "raiders")} is marching on the ${escapeHtml(c.ownSect.name)}!</b> Lead your disciples to meet them now — leave it too long and they will press the attack, sacking your halls.`;
+      body.appendChild(warn);
+      const db = el("button", "mbtn full danger");
+      db.innerHTML = `御敌 · Repel the Raiders<small>a deed · defend your sect in battle</small>`;
+      db.onclick = doDefendSect;
+      body.appendChild(db);
+      body.appendChild(el("div", "section-h", "Take the Offensive"));
+    }
     body.appendChild(el("p", "note", `March the ${D.sectTier(c.ownSect.prestige)[1]} against a rival sect (a deed). The realm's sects rise and fall year by year; a sect you break lies in ruins for a decade before it rebuilds. Victory absorbs their disciples, prestige and fame; defeat bleeds your sect and wounds you.`));
     for (const r of E.sectWarRivals(c)) {
       const s = r.sect;
@@ -2562,6 +2581,45 @@ function doNemesisReckoning() {
 // Hunt a demon the living world has spawned at your location — boss-tier, with
 // great renown and karma for the realm's would-be hero. The kill is written into
 // the Annals with your name, and the land's unrest lifts.
+// Ride to the front of your (joined) sect's war and fight an enemy champion. A
+// victory wins contribution & fame and tips the war toward your sect.
+function doCallToArms() {
+  const c = state.c;
+  const foes = E.playerSectWarFoes(c);
+  if (!foes.length) { openSect(); return; }
+  if (!ageAllows("boss") || !useAction()) return;
+  const foeKey = foes[0], foeSect = D.SECT_BY_KEY[foeKey];
+  const champs = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.sectKey === foeKey).sort((a, b) => (b.power || 0) - (a.power || 0));
+  const champ = champs[0] || null;
+  closeOverlay();
+  const foe = champ ? C.makeEnemyFromNpc(c, champ, state.rng, { boss: true, reward: (c.realm + 1) * 8 })
+    : C.makeBoss(c, state.rng, { name: "Enemy Champion", factorMult: 1 });
+  logMessages([`You ride to the front, where the ${E.sectName(c).split(" (")[0]} and the ${foeSect[1].split(" (")[0]} clash upon the slopes. ${champ ? champ.name : "An enemy champion"} strides out to meet you, blade bared!`]);
+  startBattle(foe, { title: `出征 · ${champ ? champ.name : foeSect[1].split(" (")[0]}` }, o => {
+    const cc = state.c;
+    if (o === "win") logMessages(E.callToArmsSpoils(cc, foeKey, state.rng));
+    else if (cc.alive) logMessages(E.callToArmsLoss(cc));
+    endActivityYear();
+  });
+}
+// Lead your founded sect in battle against a rival's raid (御敌).
+function doDefendSect() {
+  const c = state.c, own = c.ownSect;
+  if (!own || !own.threat) { openSectWar(); return; }
+  if (!ageAllows("boss") || !useAction()) return;
+  const raiderKey = own.threat.key, rs = D.SECT_BY_KEY[raiderKey];
+  const champs = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.sectKey === raiderKey).sort((a, b) => (b.power || 0) - (a.power || 0));
+  const champ = champs[0] || null;
+  closeOverlay();
+  const foe = champ ? C.makeEnemyFromNpc(c, champ, state.rng, { boss: true, reward: (c.realm + 1) * 9 })
+    : C.makeBoss(c, state.rng, { name: "Raid Commander", factorMult: 1 });
+  logMessages([`The ${rs[1].split(" (")[0]} storms the gates of the ${own.name}! You stride out before your watching disciples to meet ${champ ? champ.name : "their commander"} in single combat.`]);
+  startBattle(foe, { title: `御敌 · ${champ ? champ.name : rs[1].split(" (")[0]}` }, o => {
+    const cc = state.c;
+    if (cc.alive) logMessages(E.resolveOwnSectRaid(cc, state.rng, o === "win"));
+    endActivityYear();
+  });
+}
 function doSlayDemon(demon) {
   const c = state.c;
   if (!demon || !demon.alive) { actAdventure(); return; }
