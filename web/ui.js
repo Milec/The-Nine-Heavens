@@ -801,6 +801,13 @@ function openPerson(n) {
 // A world denizen — a population NPC you don't personally know. Tapping the row
 // opens a read-only dossier (you have no relationship actions with a stranger).
 const DENIZEN_ROLE_LABEL = { sectmaster: "Sect Master", elder: "Elder", disciple: "Sect Disciple", rogue: "Rogue Cultivator", genius: "Wandering Genius", world: "Cultivator" };
+// How an NPC-to-NPC bond reads in a dossier's Ties (缘) list.
+const BOND_LABEL = {
+  rival: { label: "Rival", glyph: "fist", tint: "" }, nemesis: { label: "Sworn enemy", glyph: "flame", tint: "tint-jade" },
+  sworn: { label: "Sworn kin", glyph: "couple", tint: "tint-gold" }, lover: { label: "Dao-companion", glyph: "heart", tint: "tint-gold" },
+  spouse: { label: "Wedded", glyph: "heart", tint: "tint-gold" }, master: { label: "Master", glyph: "lotus", tint: "tint-gold" },
+  disciple: { label: "Disciple", glyph: "lotus", tint: "" },
+};
 // The five attributes, as [field, label, tier-name key], for NPC dossiers.
 const NPC_ATTRS = [["comprehension", "Comprehension", "comprehension"], ["constitution", "Constitution", "constitution"],
   ["soul", "Soul Sense", "soul"], ["luck", "Fortune", "luck"], ["charm", "Charm", "charm"]];
@@ -813,9 +820,9 @@ function npcAttrRows(n) {
 }
 function denizenRow(n) {
   const row = el("div", "listrow");
-  const sub = `${n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator"} · ${E.npcRealmName(n)}${n.age != null ? ` · age ${n.age}` : ""}`;
-  const glyph = (n.role === "sectmaster" || n.role === "elder") ? "avSage" : (n.sex === "female" ? "avAdultF" : "avAdultM");
-  row.innerHTML = `<div class="lr-ava ${n.sectKey ? "tint-gold" : ""}">${icon(glyph, { size: 22 })}</div><div class="lr-main">
+  const sub = `${(n.demonic ? "☄ " : "") + (n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator")} · ${E.npcRealmName(n)}${n.age != null ? ` · age ${n.age}` : ""}`;
+  const glyph = n.demonic ? "flame" : (n.role === "sectmaster" || n.role === "elder") ? "avSage" : (n.sex === "female" ? "avAdultF" : "avAdultM");
+  row.innerHTML = `<div class="lr-ava ${n.demonic ? "tint-jade" : n.sectKey ? "tint-gold" : ""}">${icon(glyph, { size: 22 })}</div><div class="lr-main">
     <div class="lr-title">${escapeHtml(n.name)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
   row.onclick = () => openDenizen(n);
   return row;
@@ -825,18 +832,38 @@ function openDenizen(n) {
   const rootName = k => { const r = D.ROOT_TYPES.find(x => x[0] === k); return r ? r[1] : "—"; };
   openOverlay(n.name, body => {
     const arts = (n.techniques || []).filter(t => t !== "basic_breathing").map(t => D.TECHNIQUES[t][0]);
+    const tmp = D.temperamentOf(E.npcTemperament(n));
     const rows = [
-      ["Standing", n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator"],
+      ["Standing", (n.demonic ? "☄ " : "") + (n.title || DENIZEN_ROLE_LABEL[n.role] || "Cultivator")],
       ...(n.sectKey ? [["Sect", D.SECT_BY_KEY[n.sectKey][1].split(" (")[0]]] : []),
       ["Realm", `${E.npcRealmName(n)} (${D.REALMS[n.realm][1]})`, "realm"],
       ...(n.age != null ? [["Age", `${n.age} · lifespan ~${n.maxAge}`]] : []),
       ["Spiritual Root", n.geno ? rootName(n.geno.rootKey) : "—", "root"],
+      ["Temperament", `${tmp.name} (${tmp.cn})`, "charm"],
       ...(arts.length ? [["Arts", arts.join(", ")]] : []),
       ["Power", Math.floor(n.power || E.npcPower(n)), "power"],
+      ...(E.npcRenown(n) > 0 ? [["Renown 名望", E.npcRenown(n), "fortune"]] : []),
     ];
     body.appendChild(infoRows(rows));
+    if (n.demonic) body.appendChild(el("p", "note", "☄ Fallen to the demon path — a terror of the realm, hunted by the righteous."));
+    body.appendChild(el("p", "note", tmp.blurb));
     body.appendChild(el("div", "section-h", "Attributes"));
     body.appendChild(infoRows(npcAttrRows(n)));
+    // A cultivator's tally of deeds and the web of bonds they have woven.
+    const d = E.npcDeeds(n);
+    if (d.wins || d.losses || d.kills)
+      body.appendChild(infoRows([["Duels won / lost", `${d.wins} / ${d.losses}`], ...(d.kills ? [["Lives taken", d.kills]] : [])]));
+    const ties = E.npcBonds(c, n);
+    if (ties.length) {
+      body.appendChild(el("div", "section-h", `Ties 缘 · ${ties.length}`));
+      for (const t of ties.slice(0, 8)) {
+        const row = el("div", "listrow");
+        row.innerHTML = `<div class="lr-ava ${BOND_LABEL[t.kind] ? BOND_LABEL[t.kind].tint : ""}">${icon(BOND_LABEL[t.kind] ? BOND_LABEL[t.kind].glyph : "heart", { size: 20 })}</div><div class="lr-main">
+          <div class="lr-title">${escapeHtml(t.npc.name)}</div><div class="lr-sub">${BOND_LABEL[t.kind] ? BOND_LABEL[t.kind].label : t.kind} · ${E.npcRealmName(t.npc)}</div></div>`;
+        row.onclick = () => openDenizen(t.npc);
+        body.appendChild(row);
+      }
+    }
     const acts = L.denizenActions(c, n);
     body.appendChild(el("p", "note", acts.length
       ? "A cultivator of the realm, dwelling where you now stand. Seek them out and they may enter your life — as a friend, a rival, even a master — or cross blades to make your name."
@@ -1083,7 +1110,8 @@ function actAdventure() {
     const young = key => c.age < (AGE_MIN[key] || 0), sub = (key, n) => young(key) ? `from age ${AGE_MIN[key]}` : n;
     const canHunt = isCultivator(c), canBoss = canHunt && isStrong(c);
     const here = W.currentLoc(c), reg = D.REGION_BY_KEY[c.region], t = W.typeOf(here);
-    if (here) body.appendChild(el("p", "note", `You range out from <b>${escapeHtml(here.name)}</b> — ${reg ? reg[1] : ""} (${DANGER_TIER(reg ? reg[3] : 1)} country).${t.hunt ? " The surrounding wilds teem with spirit-beasts." : ""}${t.delve ? " Sealed ruins lie close at hand — ripe for delving." : ""} Travel the realm below to find deadlier, richer lands.`));
+    const menace = E.demonAtLoc(c);
+    if (here) body.appendChild(el("p", "note", `You range out from <b>${escapeHtml(here.name)}</b> — ${reg ? reg[1] : ""} (${DANGER_TIER(reg ? reg[3] : 1)} country).${t.hunt ? " The surrounding wilds teem with spirit-beasts." : ""}${t.delve ? " Sealed ruins lie close at hand — ripe for delving." : ""}${menace ? ` <b style="color:var(--jade2)">A demon, ${escapeHtml(menace.title || menace.name)}, stalks this land — the people live in dread.</b>` : here && here.unrest ? " An unease hangs over the land." : ""} Travel the realm below to find deadlier, richer lands.`));
     const g = leafGrid(body);
     g.mk("Travel the Realm", here ? "now at " + here.name : "the world map", openWorldMap, { full: true });
     g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander });
@@ -1092,6 +1120,7 @@ function actAdventure() {
     g.mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
     g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
     { const nem = L.getNemesis(c); if (nem) { const tooYoung = c.age < AGE_MIN.showdown; g.mk("⚔ Settle the Score 宿敌", tooYoung ? `from age ${AGE_MIN.showdown}` : canHunt ? `duel ${nem.name} to the death` : "needs cultivation", doNemesisReckoning, { full: true, disabled: !canHunt || tooYoung }); } }
+    if (menace) g.mk(`☄ Slay the Demon 除魔`, !canHunt ? "needs cultivation" : `hunt ${menace.name} · ${E.npcRealmName(menace)} · be the realm's hero`, () => doSlayDemon(menace), { full: true, disabled: !canHunt });
     backBtn(body, openActivities);
   });
 }
@@ -1130,8 +1159,44 @@ function actWorld() {
   openOverlay("The Wider World", body => {
     const g = leafGrid(body);
     g.mk("The Heaven Board", "天骄榜 · the realm's strongest", openRankboard, { full: true, disabled: !c.awakened });
+    const nAnnals = (c.world && c.world.chronicle && c.world.chronicle.length) || 0;
+    g.mk("Annals of the Realm 风云录", nAnnals ? `the unfolding deeds of ${nAnnals} recorded turns` : "the realm's history, as it is written", openAnnals, { full: true });
     g.mk("Achievements & Legacy", "feats across all your lives", () => openAchievements(actWorld), { full: true });
     backBtn(body, openActivities);
+  });
+}
+// The Annals (风云录): the living realm writes its own history — feuds, oaths,
+// duels, betrayals, demonic falls and the heroes who answer them. Newest first.
+const ANNAL_KIND = {
+  rivalry: { glyph: "fist", tint: "" }, duel: { glyph: "blade", tint: "tint-jade" },
+  feud: { glyph: "flame", tint: "tint-jade" }, bond: { glyph: "couple", tint: "tint-gold" },
+  love: { glyph: "heart", tint: "tint-gold" }, demon: { glyph: "flame", tint: "tint-jade" },
+  hero: { glyph: "lotus", tint: "tint-gold" }, fortune: { glyph: "key", tint: "tint-gold" },
+};
+function openAnnals() {
+  const c = state.c;
+  openOverlay("Annals of the Realm 风云录", body => {
+    const log = ((c.world && c.world.chronicle) || []).slice();
+    if (!log.length) {
+      body.appendChild(el("p", "note", "The realm's history is yet unwritten. As the years turn, its cultivators will feud, swear brotherhood, duel, rise and fall — and their deeds will be set down here for you to follow."));
+      backBtn(body, actWorld); return;
+    }
+    // A demonic-menace tally, so the player feels the realm's unrest.
+    const demons = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.demonic);
+    body.appendChild(el("p", "note", `The realm writes its own history while you cultivate. ${log.length} turns recorded${demons.length ? ` — and ${demons.length} demon${demons.length > 1 ? "s" : ""} now stalk${demons.length > 1 ? "" : "s"} the land.` : "."}`));
+    if (demons.length) {
+      body.appendChild(el("div", "section-h", "Demonic Menaces"));
+      demons.sort((a, b) => (b.power || 0) - (a.power || 0)).slice(0, 5).forEach(n => body.appendChild(denizenRow(n)));
+    }
+    body.appendChild(el("div", "section-h", "The Chronicle"));
+    for (let i = log.length - 1; i >= 0; i--) {
+      const e = log[i], meta = ANNAL_KIND[e.kind] || { glyph: e.glyph || "scroll", tint: "" };
+      const row = el("div", "listrow");
+      row.innerHTML = `<div class="lr-ava ${meta.tint}">${icon(meta.glyph, { size: 20 })}</div><div class="lr-main">
+        <div class="lr-sub" style="opacity:.7">when you were ${e.y}</div><div class="lr-title" style="font-weight:500">${escapeHtml(e.text)}</div></div>`;
+      body.appendChild(row);
+    }
+    backBtn(body, actWorld);
   });
 }
 function genMarket(c) {
@@ -2421,6 +2486,30 @@ function doNemesisReckoning() {
     const cc = state.c;
     if (o === "win") { logMessages(E.defeatNemesis(cc, nem, state.rng)); if (cc.titles.some(x => x.startsWith("Nemesis Slain"))) award("nemesis"); }
     else if (cc.alive) { nem.power *= 1.2; logMessages([`${nem.name} stands over you and laughs, then turns their back and walks away — sparing you, the cruelest cut of all. Their power swells, and your shame burns.`]); }
+    endActivityYear();
+  });
+}
+// Hunt a demon the living world has spawned at your location — boss-tier, with
+// great renown and karma for the realm's would-be hero. The kill is written into
+// the Annals with your name, and the land's unrest lifts.
+function doSlayDemon(demon) {
+  const c = state.c;
+  if (!demon || !demon.alive) { actAdventure(); return; }
+  if (!ageAllows("boss") || !useAction()) return;
+  closeOverlay();
+  const foe = C.makeEnemyFromNpc(c, demon, state.rng, { boss: true, reward: (c.realm + 2) * 12 });
+  logMessages([`You set out to end ${demon.title || demon.name}, the demon that haunts this land. The people watch from afar, scarcely daring to hope.`]);
+  startBattle(foe, { title: `除魔 · ${demon.name}` }, o => {
+    const cc = state.c;
+    if (o === "win") {
+      E.slayDemon(cc, demon, state.rng);
+      const fame = E.gainFame(cc, 12 + (demon.realm || 0)); cc.karma += 5;
+      cc.happiness = Math.min(100, cc.happiness + 6);
+      logMessages([`✦ You strike down ${demon.title || demon.name}! The land's dread lifts like morning mist, and the realm sings your name. (+${fame} fame, +Karma)`]);
+    } else if (cc.alive) {
+      cc.reputation = Math.max(-200, cc.reputation - 3);
+      logMessages([`${demon.title || demon.name} proves too strong; you flee with your life and little else. The demon's shadow lengthens over the land.`]);
+    }
     endActivityYear();
   });
 }

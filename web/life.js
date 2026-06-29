@@ -442,6 +442,16 @@ export function ageUp(c, rng) {
   if (tidings.length && rng.random() < 0.45)
     events.push({ id: "realm_tidings_" + c.age, auto: true, text: [`☷ Tidings from the wider realm: ${tidings[rng.randint(0, tidings.length - 1)]}`] });
 
+  // The living society turns: rivalries, oaths, duels, betrayals, demonic falls
+  // and heroes' risings thread through the realm — recorded in the Annals (风云录),
+  // and the most striking carried to your ears as word from afar.
+  const annals = E.simulateSociety(c, rng);
+  if (annals.length) {
+    const loud = annals.find(a => a.kind === "demon" || a.kind === "hero") || annals[rng.randint(0, annals.length - 1)];
+    if (loud && (loud.kind === "demon" || loud.kind === "hero" || rng.random() < 0.5))
+      events.push({ id: "annal_" + c.age, auto: true, milestone: loud.kind === "demon", text: [`☷ Word from the realm: ${loud.text}`] });
+  }
+
   // Merit ripens into fortune: a deep well of good karma slowly draws the heavens'
   // favour to you over the years, while a black tide of evil karma bleeds it away.
   // (Body and Soul you temper by hand; Fortune you earn by how you live.)

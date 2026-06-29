@@ -868,6 +868,76 @@ function testBirthStartsLowOnTheLadder() {
     assert(reborn.comprehension > cap, `legacy lifts a reborn soul above the birth cap (comp ${reborn.comprehension})`); }
 }
 
+// The realm is socially alive: its cultivators carry a temperament, weave bonds
+// with ONE ANOTHER (rivals, sworn kin, lovers, masters), duel, fall to the demon
+// path, and have their deeds set down in the world Chronicle — all without ever
+// perturbing the seed of birth (temperament is derived, not rolled).
+function testLivingSociety() {
+  const rng = new E.RNG(77);
+  const c = L.bornCharacter(rng, "Watcher", null);
+  const pop = c.world.npcs;
+
+  // Every cultivator has a valid, stable temperament and a stable id.
+  for (const n of pop) {
+    const t = E.npcTemperament(n);
+    assert(D.TEMPERAMENTS[t], `denizen carries a valid temperament (${t})`);
+    assert(E.npcTemperament(n) === t, "temperament is stable across reads");
+    assert(typeof n.nid === "number", "denizen carries a stable id");
+  }
+  // Temperament must be RNG-neutral: two worlds born from the same seed are
+  // structurally identical in temperament regardless of the society sim.
+  { const a = L.bornCharacter(new E.RNG(303), "A", null);
+    const b = L.bornCharacter(new E.RNG(303), "B", null);
+    assert(a.world.npcs.length === b.world.npcs.length, "same seed peoples the realm identically");
+    assert(a.world.npcs.every((n, i) => E.npcTemperament(n) === E.npcTemperament(b.world.npcs[i])),
+      "temperament derives deterministically, never consuming the birth RNG"); }
+  // ids are unique among the living.
+  { const ids = pop.filter(n => n.alive).map(n => n.nid); assert(new Set(ids).size === ids.length, "living denizen ids are unique"); }
+
+  // Drive many years of society. It must never crash, must grow the Chronicle,
+  // must weave NPC-to-NPC bonds, and must keep the realm populous.
+  let fresh = [];
+  for (let y = 0; y < 120; y++) { c.age = 16 + y; fresh = fresh.concat(E.simulateSociety(c, rng)); }
+  const chron = c.world.chronicle || [];
+  assert(chron.length > 0 && chron.length <= 80, `the Chronicle fills and stays capped (${chron.length})`);
+  assert(chron.every(e => typeof e.text === "string" && e.text.length && typeof e.kind === "string"), "every annal is a well-formed entry");
+  assert(fresh.every(e => e.text && e.kind), "returned annals are well-formed");
+  assert(pop.filter(n => n.alive).length > 100, "the realm stays populous through the social churn");
+
+  // Bonds actually form between NPCs, and resolve to living partners.
+  const bonded = pop.filter(n => n.alive && (n.bonds || []).length);
+  assert(bonded.length > 0, "cultivators weave bonds with one another over the years");
+  let kinds = new Set();
+  for (const n of bonded) for (const t of E.npcBonds(c, n)) { kinds.add(t.kind); assert(t.npc && t.npc.alive, "a resolved tie points to a living cultivator"); }
+  assert(kinds.size >= 2, `multiple kinds of bond arise (${[...kinds].join(", ")})`);
+
+  // Over 120 turns of a deterministic seed, the darker mechanics must surface at
+  // least once: a duel/feud death or a demonic fall recorded in the annals.
+  const allText = chron.map(e => e.kind);
+  assert(allText.some(k => k === "duel" || k === "feud" || k === "demon" || k === "hero"),
+    "feuds, duels or demonic falls surface in the realm's history");
+  // Renown and deeds accrue to those who act.
+  assert(pop.some(n => E.npcRenown(n) > 0), "renown accrues to cultivators who make their name");
+  assert(pop.some(n => { const d = E.npcDeeds(n); return d.wins + d.losses + d.kills > 0; }), "duels leave a tally of deeds");
+
+  // The society loop closes back into player agency: a demon that lairs where
+  // the player stands can be hunted, struck from the world, and recorded as the
+  // player's own heroic deed in the Annals — lifting the land's unrest.
+  const demon = pop.find(n => n.alive && n.demonic);
+  if (demon) {
+    c.location = demon.home;
+    assert(E.demonAtLoc(c) === demon || (E.demonAtLoc(c) && E.demonAtLoc(c).demonic), "the demon stalking your location is found");
+    const target = E.demonAtLoc(c);
+    const loc = c.world.locations[target.home]; loc.unrest = 5;
+    E.slayDemon(c, target, rng);
+    assert(!target.alive, "a slain demon is struck from the living world");
+    assert(loc.unrest < 5, "slaying the demon lifts the land's unrest");
+    assert(c.world.chronicle.some(e => e.kind === "hero" && e.text.includes(c.name)),
+      "the slaying is written into the Annals as the player's deed");
+    assert(c.world.npcs.filter(n => n.alive).length >= 100, "the population is replenished after a demon falls");
+  }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -889,6 +959,7 @@ try {
   test("action-triggered arcs arm sensibly and thread to their ends", testTriggeredArcs);
   test("new birth options are well-formed and fully integrated", testBirthOptions);
   test("a living realm population fills sects and can be sought out, recruited & challenged", testWorldPopulationAndDenizens);
+  test("the realm is socially alive: temperament, NPC-to-NPC bonds, feuds & a Chronicle", testLivingSociety);
   test("the lesser stats (Soul/Luck/Charm) are trainable and carry mechanical weight", testStatsEarnTheirKeep);
   test("birth starts low on the eight-tier ladder; the climb is earned", testBirthStartsLowOnTheLadder);
   console.log(`\nAll ${passed} web tests passed.`);

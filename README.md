@@ -295,6 +295,21 @@ Three more systems round out a cultivator's life:
   the **Heaven Board (天骄榜)** ranks the strongest of them all by power, so you
   can see where you stand and **challenge rivals above you** to climb the roll of
   heaven's pride.
+- **A realm that lives among itself (风云录)** — the world's cultivators don't
+  merely climb in isolation: each carries a **temperament (性情)** — righteous,
+  ruthless, ambitious, cunning, loyal, vengeful and more — that steers how they
+  act toward **one another**. Year by year they **kindle rivalries, swear
+  brotherhood, take lovers and disciples, duel** (sometimes to the death),
+  **betray sworn allies, avenge the slain, stumble onto fortunes, and fall to the
+  demon path** — and the most striking turns are set down in the **Annals of the
+  Realm (风云录)**, a living chronicle you can read from the Wider World. Every
+  dossier shows a cultivator's temperament, their **renown (名望)** and tally of
+  **deeds**, and the **web of ties (缘)** they've woven — who they rival, who
+  they've sworn to, who they call master. When an ambitious, merciless cultivator
+  **falls to the demon path**, they become a named **menace** that darkens the
+  land around their lair — and you can ride out as the realm's **hero to slay
+  them (除魔)** for great renown and karma, your deed written into the Annals
+  under your own name.
 - **Cave Abode (洞府)** — **stake a claim on a spirit vein** and raise a personal
   home base, from a Humble Cave Dwelling all the way to a legendary **Cave
   Heaven**. The abode is the **hub that ties the world together**: it is **rooted
