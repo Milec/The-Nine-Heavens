@@ -600,3 +600,14 @@ wed, or bear a child, however the action is reached — and that the large syste
 (combat, cultivation, alchemy, Dao, treasures, reincarnation) interlock without
 crashing. Minimum ages for every endeavour live in one shared table
 (`web/data.js` → `AGE_MIN`), read by both the interface and the rules engine.
+
+## License
+
+The code and all original assets (the generated scene paintings, app icons and
+the inline SVG icon set) are released under the **MIT License** — see
+[`LICENSE`](LICENSE).
+
+The bundled web fonts (Cinzel, Cinzel Decorative, Cormorant and Ma Shan Zheng,
+in `web/assets/fonts/`) are redistributed under the **SIL Open Font License
+1.1** — see [`web/assets/fonts/OFL.txt`](web/assets/fonts/OFL.txt) for the
+license text and each font's copyright notice.
