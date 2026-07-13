@@ -123,18 +123,27 @@ function classify(text) {
   else if (t.startsWith("👁")) cl.push("demon");
   return cl.join(" ");
 }
+// Append a turn and keep the feed bounded: a long life would otherwise accrete
+// thousands of nodes under the blurred header and get janky on real phones.
+const LOG_MAX_TURNS = 250;
+function appendTurn(t) {
+  const log = $("log"); if (!log) return;
+  log.appendChild(t);
+  while (log.children.length > LOG_MAX_TURNS) log.firstChild.remove();
+  log.scrollTop = log.scrollHeight;
+}
 function logMessages(msgs) {
   if (!msgs) return;
   if (typeof msgs === "string") msgs = [msgs];
-  const log = $("log"), turn = el("div", "turn");
+  const turn = el("div", "turn");
   for (const m of msgs) {
     if (m === "") turn.appendChild(el("div", "line spacer"));
     else turn.appendChild(el("div", "line " + classify(m), escapeHtml(m)));
   }
-  log.appendChild(turn); log.scrollTop = log.scrollHeight;
+  appendTurn(turn);
 }
-function logBanner(html) { const log = $("log"), t = el("div", "turn"); t.appendChild(el("div", "banner", html)); log.appendChild(t); log.scrollTop = log.scrollHeight; }
-function logYear(age) { const log = $("log"), t = el("div", "turn"); t.appendChild(el("div", "year-tag", `❖ Age ${age}`)); log.appendChild(t); log.scrollTop = log.scrollHeight; }
+function logBanner(html) { const t = el("div", "turn"); t.appendChild(el("div", "banner", html)); appendTurn(t); }
+function logYear(age) { const t = el("div", "turn"); t.appendChild(el("div", "year-tag", `❖ Age ${age}`)); appendTurn(t); }
 // A bundled ink-wash "scene" for life's turning points — birth, tribulation,
 // ascension, death — shown full-bleed in the feed and on the milestone card.
 function sceneEl(name, caption) {
@@ -144,7 +153,7 @@ function sceneEl(name, caption) {
     + (caption ? `<div class="scene-cap">${escapeHtml(caption)}</div>` : "");
   return fig;
 }
-function logScene(name, caption) { const log = $("log"), t = el("div", "turn"); t.appendChild(sceneEl(name, caption)); log.appendChild(t); log.scrollTop = log.scrollHeight; }
+function logScene(name, caption) { const t = el("div", "turn"); t.appendChild(sceneEl(name, caption)); appendTurn(t); }
 function sceneCard(name) { const e = sceneEl(name); e.classList.add("scene-card"); return e; }
 
 /* ---------------------- automatic stat-change readout -------------------- *
@@ -171,10 +180,9 @@ function reportStatChanges(c) {
   }
   state.prevStats = now;
   if (lines.length) {
-    const log = $("log"); if (!log) return;
     const t = el("div", "turn stat-turn");
     for (const ln of lines) t.appendChild(el("div", "line stat " + (ln[0] === "▲" ? "up" : "down"), escapeHtml(ln)));
-    log.appendChild(t); log.scrollTop = log.scrollHeight;
+    appendTurn(t);
   }
 }
 
@@ -286,10 +294,22 @@ function openOverlay(title, build, closable = true) {
   const body = $("overlay-body"); body.innerHTML = "";
   $("overlay-close").style.display = closable ? "" : "none";
   state.overlayClosable = closable;
+  state.overlayBack = null; $("overlay-back").classList.add("hidden");
   build(body);
   $("overlay").classList.remove("hidden");
+  armHistory();
 }
-function closeOverlay() { $("overlay").classList.add("hidden"); }
+function closeOverlay() { $("overlay").classList.add("hidden"); state.overlayBack = null; }
+/* Keep one history entry armed while the game runs, so the system back button
+ * (Android / browser gesture) steps up a screen or closes the sheet instead of
+ * exiting the game mid-life. */
+function armHistory() { if (!history.state || !history.state.nh) { try { history.pushState({ nh: 1 }, ""); } catch (e) {} } }
+window.addEventListener("popstate", () => {
+  if ($("overlay").classList.contains("hidden")) return;   // nothing open — let back leave
+  if (state.overlayBack) state.overlayBack();
+  else if (state.overlayClosable) closeOverlay();
+  armHistory();                                            // consume it and re-arm
+});
 
 /* ----------------------- time model: deeds per year ---------------------- *
  * Only Age Up advances the year. Other actions are instantaneous but limited
@@ -326,8 +346,9 @@ function useAction(cat = "act") {
   if (!state.c || !state.c.alive) return false;
   if (!state.deeds) state.deeds = defaultDeeds();
   if (deedsLeft(cat) <= 0) {
-    closeOverlay();
-    logMessages([`· You have used all your ${DEED_LABEL[cat]} deeds this year. Tap ⊕ Age Up to let a year pass — or spend a different kind of deed. ·`]);
+    // Stay where you are — just say why nothing happened.
+    const msg = `You have used all your ${DEED_LABEL[cat]} deeds this year — ⊕ Age Up passes a year and refreshes them.`;
+    logMessages([`· ${msg} ·`]); toast(msg);
     renderProfile();
     return false;
   }
@@ -347,25 +368,64 @@ function preserveAge(fn) {
   if (wasAlive && !c.alive && /old age|lifespan/.test(c.causeOfDeath || "")) { c.alive = true; c.causeOfDeath = ""; }
   return r;
 }
-/* a deed: costs one of the year's actions; never ages you */
-function runTimed(fn, cat = "act") {
-  if (!useAction(cat)) return;
-  const msgs = preserveAge(fn);
-  closeOverlay();
-  logMessages(msgs && msgs.length ? msgs : ["You spend a season in focused effort."]);
-  renderProfile(); checkDeath();
+/* A transient toast floating above the sheet: the outcome of an action taken
+ * in place, so repeatable deeds don't slam the sheet shut. The full narration
+ * always lands in the life log behind it too. */
+function toast(msgs) {
+  const lines = (typeof msgs === "string" ? [msgs] : (msgs || [])).filter(m => m && String(m).trim());
+  if (!lines.length) return;
+  let t = $("toast");
+  if (!t) { t = el("div"); t.id = "toast"; document.body.appendChild(t); t.addEventListener("click", () => t.classList.remove("show")); }
+  t.innerHTML = lines.slice(0, 2).map(m => `<div>${escapeHtml(m)}</div>`).join("")
+    + (lines.length > 2 ? `<div class="toast-more">…and more — see your life log</div>` : "");
+  t.classList.add("show");
+  clearTimeout(state.toastTimer); state.toastTimer = setTimeout(() => t.classList.remove("show"), 4200);
 }
-/* a free, instantaneous action (decisions, admin, social) — no deed, no year */
-function runFree(fn) {
+/* A compact in-sheet readout of the year's remaining deed budgets, so you can
+ * pace a year without closing the sheet to check the header. */
+function deedMeter(body, cats) {
+  const wrap = el("div", "deed-meter");
+  for (const cat of cats) {
+    const n = deedsLeft(cat);
+    wrap.appendChild(el("span", "dm-cat" + (n <= 0 ? " out" : ""),
+      `${DEED_ICON[cat]} ${DEED_LABEL[cat]} <b>${"●".repeat(n)}${"○".repeat(Math.max(0, DEEDS_PER_CAT - n))}</b>`));
+  }
+  body.appendChild(wrap);
+}
+/* a deed: costs one of the year's actions; never ages you.
+ * opts.stay — a re-render fn for the current sheet: the action resolves in
+ * place (outcome as a toast + the log) instead of closing the sheet, so
+ * repeat actions cost one tap instead of three. */
+function runTimed(fn, cat = "act", opts = {}) {
+  const stay = opts.stay;
+  if (!state.c || !state.c.alive) return;
+  if (!state.deeds) state.deeds = defaultDeeds();
+  if (deedsLeft(cat) <= 0) {
+    if (stay) { toast(`No ${DEED_LABEL[cat]} deeds left this year — ⊕ Age Up refreshes them.`); return; }
+    useAction(cat);           // emits the standard out-of-deeds note + toast
+    return;
+  }
+  state.deeds[cat] = deedsLeft(cat) - 1;
+  const res = preserveAge(fn);
+  const msgs = res && res.length ? res : ["You spend a season in focused effort."];
+  logMessages(msgs);
+  renderProfile();
+  if (!state.c.alive) { closeOverlay(); checkDeath(); return; }
+  if (stay) { stay(); toast(msgs); } else closeOverlay();
+}
+/* a free, instantaneous action (decisions, admin, social) — no deed, no year.
+ * opts.stay keeps the current sheet open, as in runTimed. */
+function runFree(fn, opts = {}) {
   if (!state.c.alive) return;
   const msgs = preserveAge(fn);
-  closeOverlay();
   if (msgs && msgs.length) logMessages(msgs);
-  renderProfile(); checkDeath();
+  renderProfile();
+  if (!state.c.alive) { closeOverlay(); checkDeath(); return; }
+  if (opts.stay) { opts.stay(); toast(msgs); } else closeOverlay();
 }
 // Run an action that mutates state but keeps the current overlay open
-// (e.g. equipping a treasure), logging any feedback behind the overlay.
-function runQuiet(fn) { const msgs = preserveAge(fn); if (msgs && msgs.length) logMessages(msgs); }
+// (e.g. equipping a treasure): feedback lands in the log and as a toast.
+function runQuiet(fn) { const msgs = preserveAge(fn); if (msgs && msgs.length) { logMessages(msgs); toast(msgs); } }
 
 /* ------------------------------- age up ---------------------------------- */
 function doAgeUp() {
@@ -436,6 +496,7 @@ function openCultivate() {
     if (!c.awakened) { body.appendChild(el("p", "note", `Your spiritual root has not yet awakened. The Awakening Ceremony comes at age ${D.AWAKENING_AGE} — keep aging up.`)); return; }
     const hasRoot = c.root.key !== "none";
     const addBtn = (grid, l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
+    deedMeter(body, ["cult"]);
     foldControl(body, [...(hasRoot ? ["cult.qi"] : []), "cult.body", "cult.daoheart"], openCultivate);
 
     // ---- Qi cultivation (only with a spiritual root) ----
@@ -457,14 +518,14 @@ function openCultivate() {
         const g = el("div", "menu-grid");
         if (atWall)
           addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
-        addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult"));
-        addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult"), { disabled: c.pills <= 0 });
+        addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult", { stay: openCultivate }));
+        addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult", { stay: openCultivate }), { disabled: c.pills <= 0 });
         {
           const tgt = E.canMeditate(c) ? E.meditationTarget(c) : null;
           const sub = !E.canMeditate(c) ? "needs Nascent Soul"
             : tgt && tgt.mode === "deepen" ? `deepen the ${D.DAO_BY_KEY[tgt.key][1].split(" (")[0]}`
             : "seek a new Law";
-          addBtn(g, "Comprehend the Dao", sub, () => runTimed(() => E.meditate(c, state.rng, 1), "cult"), { disabled: !E.canMeditate(c) });
+          addBtn(g, "Comprehend the Dao", sub, () => runTimed(() => E.meditate(c, state.rng, 1), "cult", { stay: openCultivate }), { disabled: !E.canMeditate(c) });
         }
         if (c.realm >= E.DAO_MIN_REALM) addBtn(g, "The Daos 道之境界", c.daos.length ? `${c.daos.length} comprehended` : "the Laws of heaven", openDaos);
         w.appendChild(g);
@@ -485,7 +546,7 @@ function openCultivate() {
       if (nb) progress(w, `Tempering → ${nb[0]}`, c.temper, nb[2], "body");
       else w.appendChild(el("p", "note", `Your body has reached the limit your ${c.physiqueName} can bear — the ${D.bodyRealmName(c.bodyRealm)}.`));
       const bg = el("div", "menu-grid");
-      addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5), "cult"), { full: true, primary: !hasRoot });
+      addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5), "cult", { stay: openCultivate }), { full: true, primary: !hasRoot });
       w.appendChild(bg);
     });
 
@@ -495,7 +556,7 @@ function openCultivate() {
       progress(w, "Dao Heart", c.daoHeart || 0, E.DAO_HEART_MAX, "dao");
       w.appendChild(el("p", "note", "Your resolve wards the soul against heart demons, illusion and temptation, and shrugs off mind-afflictions in battle. Stillness tempers it."));
       const hg = el("div", "menu-grid");
-      addBtn(hg, "Still the Heart 静心", "a deed · temper your resolve", () => runTimed(() => E.stillHeart(c, state.rng), "cult"), { full: true });
+      addBtn(hg, "Still the Heart 静心", "a deed · temper your resolve", () => runTimed(() => E.stillHeart(c, state.rng), "cult", { stay: openCultivate }), { full: true });
       w.appendChild(hg);
     });
 
@@ -522,7 +583,7 @@ function openRankboard() {
       if (!x.you && i < rank - 1 && i >= rank - 5) row.onclick = () => challengeGenius(x.ref);
       body.appendChild(row);
     });
-    backBtn(body, actWorld);
+    sheetBack(actWorld);
   });
 }
 function challengeGenius(g) {
@@ -595,6 +656,7 @@ function openPeople() {
     body.appendChild(el("p", "note", all.length
       ? `You are bound to <b>${all.length}</b> living souls — ${family.length} family, ${loves.length} love${loves.length === 1 ? "" : "s"}, ${kids.length} child${kids.length === 1 ? "" : "ren"}, ${bonds.length} other bond${bonds.length === 1 ? "" : "s"}. Tap a heading to fold it away.`
       : "You walk the world alone — for now. Go out and mingle to forge your first bonds."));
+    deedMeter(body, ["social"]);
     const rows = (list, wrap) => list.forEach(n => wrap.appendChild(personRow(n)));
     // Named cultivators of the realm who dwell where you now stand — seek them out
     // (in their dossier) to win them as bonds, recruit them, or cross blades.
@@ -622,10 +684,10 @@ function openPeople() {
       }, { count: here.length });
     }
     const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
-    b.onclick = () => { if (!ageAllows("mingle") || !useAction("social")) return; const res = L.mingle(c, state.rng); logMessages(res); renderProfile(); openPeople(); };
+    b.onclick = () => { if (!ageAllows("mingle")) return; runTimed(() => L.mingle(c, state.rng), "social", { stay: openPeople }); };
     body.appendChild(b);
     const rp = el("button", "mbtn full"); rp.innerHTML = "Refine your Presence<small>a deed · +charm · banquets, debates &amp; renown</small>";
-    rp.onclick = () => { if (!ageAllows("mingle")) return; runTimed(() => L.refinePresence(c, state.rng), "social"); };
+    rp.onclick = () => { if (!ageAllows("mingle")) return; runTimed(() => L.refinePresence(c, state.rng), "social", { stay: openPeople }); };
     body.appendChild(rp);
     if (c.realm >= 4 && L.getDisciples(c).length < 3) {
       const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>a deed · pass on your arts</small>";
@@ -644,10 +706,10 @@ function openTeachPicker(npc) {
       const known = (npc.learned || []).includes(t);
       const row = el("div", "listrow" + (known ? " disabled" : ""));
       row.innerHTML = `<div class="lr-ava">📖</div><div class="lr-main"><div class="lr-title">${escapeHtml(D.TECHNIQUES[t][0])}</div><div class="lr-sub">${known ? "already learned" : D.TECHNIQUES[t][4]}</div></div>`;
-      if (!known) row.onclick = () => { if (!useAction("social")) return; logMessages(L.teachTo(c, npc, t)); renderProfile(); openPerson(npc); };
+      if (!known) row.onclick = () => { if (!useAction("social")) return; const res = L.teachTo(c, npc, t); logMessages(res); renderProfile(); openPerson(npc); toast(res); };
       body.appendChild(row);
     }
-    backBtn(body, () => openPerson(npc));
+    sheetBack(() => openPerson(npc));
   });
 }
 function relLabel(n) {
@@ -780,7 +842,7 @@ function openPerson(n) {
         logMessages(res); renderProfile();
         if (!c.alive) { closeOverlay(); checkDeath(); return; }
         if (!n.alive) { closeOverlay(); openPeople(); return; }
-        openPerson(n);
+        openPerson(n); toast(res);
       };
       return b;
     };
@@ -890,10 +952,11 @@ function openDenizen(n) {
         logMessages(res); renderProfile();
         if (c.relationships.includes(n)) openPerson(n);   // they joined your life — hand off
         else openDenizen(n);
+        toast(res);
       };
       body.appendChild(b);
     }
-    backBtn(body, closeOverlay);
+    sheetBack(closeOverlay);
   });
 }
 
@@ -904,6 +967,7 @@ function openTechniques() {
     for (const ct of (c.customTechs || [])) if (ct.skill) skills.push({ t: ct.key, s: ct.skill, forged: true });
     if (!skills.length) { body.appendChild(el("p", "note", "You have learned no combat techniques yet. Find manuals in ruins, from masters, the sect store — or forge your own from the Cultivate tab.")); return; }
     body.appendChild(el("p", "note", "Using a technique in battle deepens its mastery, raising its power. Tap one to drill it for a year (+mastery). ✦ marks an art you forged yourself."));
+    deedMeter(body, ["cult"]);
     for (const { t, s, forged } of skills) {
       const pts = (c.mastery && c.mastery[t]) || 0;
       const rank = D.masteryRank(pts), next = D.masteryNext(pts);
@@ -914,7 +978,7 @@ function openTechniques() {
         <div class="lr-title">${escapeHtml(s.name)}${forged ? " ✦" : ""} <span class="lr-sub" style="display:inline">· ${rank[0]} (+${Math.round(rank[2] * 100)}%)</span></div>
         <div class="lr-sub">${eff}${s.qi ? ` · ⊙${s.qi} qi` : " · free"}${next ? ` · ${pts}/${next[1]} → ${next[0]}` : " · perfected"}</div>
         <div class="affbar"><div style="width:${pctTo}%;background:var(--gold2)"></div></div></div>`;
-      row.onclick = () => runTimed(() => L.trainTechnique(c, state.rng, t), "cult");
+      row.onclick = () => runTimed(() => L.trainTechnique(c, state.rng, t), "cult", { stay: openTechniques });
       body.appendChild(row);
     }
   });
@@ -1005,7 +1069,7 @@ function openForgeTech() {
   const sel = { element: elems.length > 1 ? elems[1] : "none", style: "strike", name: "" };
   openOverlay("Forge Your Own Art 创功", body => {
     const [ok, reason] = E.canForgeTech(c);
-    if (!ok) { body.appendChild(el("p", "note", reason)); backBtn(body, openCultivate); return; }
+    if (!ok) { body.appendChild(el("p", "note", reason)); sheetBack(openCultivate); return; }
     const render = () => {
       body.innerHTML = "";
       body.appendChild(el("p", "note", `Weave qi into a shape no manual holds; its power grows with your Comprehension, Soul Sense and realm, and may collapse if your insight falls short. You hold ${c.spiritStones} stones · ${c.herbs} herbs · ${(c.customTechs || []).length}/${E.forgeTechCap(c)} forged arts.`));
@@ -1037,7 +1101,7 @@ function openForgeTech() {
       if (afford) forgeBtn.onclick = () => runTimed(() => E.forgeTech(c, state.rng, sel.element, sel.style, sel.name), "cult");
       else forgeBtn.disabled = true;
       body.appendChild(forgeBtn);
-      backBtn(body, openCultivate);
+      sheetBack(openCultivate);
     };
     render();
   });
@@ -1045,7 +1109,7 @@ function openForgeTech() {
 function openOwnSectLibrary() {
   const c = state.c;
   openOverlay("Sect Library 藏经阁", body => {
-    if (!c.ownSect) { backBtn(body, openSect); return; }
+    if (!c.ownSect) { sheetBack(openSect); return; }
     const lib = E.sectLibrary(c);
     body.appendChild(el("p", "note", `Enshrine arts you have mastered in your sect's library; its disciples train in them for generations, lifting the sect's prestige and its might in war. The library adds <b>+${E.sectLibraryBonus(c.ownSect)}</b> prestige each year.`));
     if (lib.length) {
@@ -1062,10 +1126,10 @@ function openOwnSectLibrary() {
     for (const a of avail) {
       const row = el("div", "listrow");
       row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${escapeHtml(a.name)}${a.custom ? " ✦" : ""}</div><div class="lr-sub">tier ${a.tier} · enshrine for +${a.tier * 6} prestige now, +${a.tier}/year</div></div>`;
-      row.onclick = () => { logMessages(E.assignSectTech(c, a.key)); renderProfile(); save(); openOwnSectLibrary(); };
+      row.onclick = () => { const res = E.assignSectTech(c, a.key); logMessages(res); renderProfile(); save(); openOwnSectLibrary(); toast(res); };
       body.appendChild(row);
     }
-    backBtn(body, openSect);
+    sheetBack(openSect);
   });
 }
 // Build a small grid of leaf-action buttons (the classic mbtn). Returns the grid.
@@ -1074,35 +1138,47 @@ function leafGrid(body) {
   grid.mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${escapeHtml(s)}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); return b; };
   return grid;
 }
-// ---- Pursuits: a hub of categorised sub-menus (was the overloaded "Do" tab) ----
+// ---- Pursuits: every destination at most two taps from the tab bar. The two
+// deed-heavy groups (Training, Adventure) stay as sub-screens; everything else
+// that used to hide behind a hub layer (Commerce, Crafting, Home & Assets) is
+// promoted to a direct card here. ----
 function openActivities() {
   openOverlay("Pursuits", body => {
     const c = state.c;
-    const grid = el("div", "menu-grid");
     const ab = D.abodeAt(c.abode || 0);
     const ni = n => icon(n, { size: 22 });
+    const noCraft = c.age < (AGE_MIN.alchemy || 0);
+    const market = W.hasMarket(c);
+    const grid = el("div", "menu-grid");
     navCard(grid, ni("fist"), "Training", "temper body & soul · study · rest · earn", actTrain);
-    navCard(grid, ni("compass"), "Adventure", "travel · wander · hunt · delve", actAdventure);
-    navCard(grid, ni("cauldron"), "Crafting", "refine pills · inscribe talismans", actCraft);
-    navCard(grid, ni("coin"), "Commerce", "the market 坊市 · buy & sell", actCommerce);
-    navCard(grid, ni("pagoda"), "Home & Assets", ab ? `${ab[1]} · treasures · beast` : "found an abode · treasures · beast", actHome);
-    navCard(grid, ni("globe"), "The Wider World", "the Heaven Board · your legacy", actWorld);
+    navCard(grid, ni("compass"), "Adventure", "wander · hunt · delve · duel", actAdventure);
     body.appendChild(grid);
+    const g = leafGrid(body);
+    g.mk("Market 坊市", market ? `buy & sell · ${c.spiritStones} stones` : "no market here — travel to one", openMarket);
+    g.mk("Travel the Realm", "the world map", openWorldMap);
+    g.mk("Refine Pills 炼丹", noCraft ? `from age ${AGE_MIN.alchemy}` : `${c.herbs} herbs`, openAlchemy, { disabled: noCraft });
+    g.mk("Talismans 符箓", noCraft ? `from age ${AGE_MIN.alchemy}` : "inscribe battle charms", openTalismans, { disabled: noCraft });
+    g.mk("Cave Abode 洞府", ab ? `${ab[1]}` : "establish a home base", openAbode);
+    g.mk("Equipment & Beast", "gear · trove · spirit beast", openAssets);
+    const wg = el("div", "menu-grid");
+    navCard(wg, ni("globe"), "The Wider World", "Heaven Board · annals · sects · legacy", actWorld);
+    body.appendChild(wg);
   });
 }
 function actTrain() {
   const c = state.c;
   openOverlay("Training 修行", body => {
     const young = key => c.age < (AGE_MIN[key] || 0), sub = (key, n) => young(key) ? `from age ${AGE_MIN[key]}` : n;
+    deedMeter(body, ["cult", "act"]);
     const g = leafGrid(body);
-    g.mk("Train the Body", sub("train", "+constitution · tempers your body"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult"); }, { disabled: young("train") });
-    g.mk("Study Scriptures", sub("study", "+comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "act"); }, { disabled: young("study") });
-    g.mk("Temper the Soul", sub("study", "+soul · hone your spiritual sense"), () => { if (!ageAllows("study")) return; runTimed(() => L.temperSoul(c, state.rng), "cult"); }, { disabled: young("study") });
-    g.mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng)));
-    g.mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng)), { disabled: young("oddjobs") });
+    g.mk("Train the Body", sub("train", "+constitution · tempers your body"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult", { stay: actTrain }); }, { disabled: young("train") });
+    g.mk("Study Scriptures", sub("study", "+comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "act", { stay: actTrain }); }, { disabled: young("study") });
+    g.mk("Temper the Soul", sub("study", "+soul · hone your spiritual sense"), () => { if (!ageAllows("study")) return; runTimed(() => L.temperSoul(c, state.rng), "cult", { stay: actTrain }); }, { disabled: young("study") });
+    g.mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng), "act", { stay: actTrain }));
+    g.mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng), "act", { stay: actTrain }), { disabled: young("oddjobs") });
     { const art = E.bestMovementArt(c);
-      g.mk("Practice Footwork 轻功", art ? `${D.MOVEMENT_BY_KEY[art][1]} · ${E.moveRankName(E.moveFraction(c, art))} · ${E.hopsPerDeed(c)}/deed` : "learn a 轻功 art at the market first", () => runTimed(() => L.practiceMovement(c, state.rng), "act"), { full: true, disabled: !art }); }
-    backBtn(body, openActivities);
+      g.mk("Practice Footwork 轻功", art ? `${D.MOVEMENT_BY_KEY[art][1]} · ${E.moveRankName(E.moveFraction(c, art))} · ${E.hopsPerDeed(c)}/deed` : "learn a 轻功 art at the market first", () => runTimed(() => L.practiceMovement(c, state.rng), "act", { stay: actTrain }), { full: true, disabled: !art }); }
+    sheetBack(openActivities);
   });
 }
 function actAdventure() {
@@ -1113,6 +1189,7 @@ function actAdventure() {
     const here = W.currentLoc(c), reg = D.REGION_BY_KEY[c.region], t = W.typeOf(here);
     const menace = E.demonAtLoc(c);
     if (here) body.appendChild(el("p", "note", `You range out from <b>${escapeHtml(here.name)}</b> — ${reg ? reg[1] : ""} (${DANGER_TIER(reg ? reg[3] : 1)} country).${t.hunt ? " The surrounding wilds teem with spirit-beasts." : ""}${t.delve ? " Sealed ruins lie close at hand — ripe for delving." : ""}${menace ? ` <b style="color:var(--jade2)">A demon, ${escapeHtml(menace.title || menace.name)}, stalks this land — the people live in dread.</b>` : here && here.unrest ? " An unease hangs over the land." : ""} Travel the realm below to find deadlier, richer lands.`));
+    deedMeter(body, ["act"]);
     const g = leafGrid(body);
     g.mk("Travel the Realm", here ? "now at " + here.name : "the world map", openWorldMap, { full: true });
     g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander });
@@ -1123,37 +1200,7 @@ function actAdventure() {
     g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
     { const nem = L.getNemesis(c); if (nem) { const tooYoung = c.age < AGE_MIN.showdown; g.mk("⚔ Settle the Score 宿敌", tooYoung ? `from age ${AGE_MIN.showdown}` : canHunt ? `duel ${nem.name} to the death` : "needs cultivation", doNemesisReckoning, { full: true, disabled: !canHunt || tooYoung }); } }
     if (menace) g.mk(`☄ Slay the Demon 除魔`, !canHunt ? "needs cultivation" : `hunt ${menace.name} · ${E.npcRealmName(menace)} · be the realm's hero`, () => doSlayDemon(menace), { full: true, disabled: !canHunt });
-    backBtn(body, openActivities);
-  });
-}
-function actCraft() {
-  const c = state.c;
-  openOverlay("Crafting 炼制", body => {
-    const young = c.age < (AGE_MIN.alchemy || 0);
-    const g = leafGrid(body);
-    g.mk("Refine Pills", young ? `from age ${AGE_MIN.alchemy}` : `炼丹 · ${c.herbs} herbs`, openAlchemy, { full: true, disabled: young });
-    g.mk("Inscribe Talismans", young ? `from age ${AGE_MIN.alchemy}` : "符箓 · craft one-use charms", openTalismans, { full: true, disabled: young });
-    backBtn(body, openActivities);
-  });
-}
-function actCommerce() {
-  const c = state.c;
-  openOverlay("Commerce 坊市", body => {
-    const market = W.hasMarket(c);
-    const g = leafGrid(body);
-    if (!market) body.appendChild(el("p", "note", "No market out here in the wilds — travel to a city, town or village (Adventure → Travel the Realm) to trade."));
-    g.mk("Visit the Market", market ? `💎 ${c.spiritStones} · buy & sell` : "no market here — travel to a settlement", openMarket, { full: true, disabled: !market });
-    backBtn(body, openActivities);
-  });
-}
-function actHome() {
-  const c = state.c;
-  openOverlay("Home & Assets", body => {
-    const ab = D.abodeAt(c.abode || 0);
-    const g = leafGrid(body);
-    g.mk("Your Cave Abode", ab ? `${ab[1]} (${ab[2]})` : "establish a home base", openAbode, { full: true });
-    g.mk("Equipment & Beast", "equipment slots, treasure trove & spirit beast", openAssets, { full: true });
-    backBtn(body, openActivities);
+    sheetBack(openActivities);
   });
 }
 function actWorld() {
@@ -1166,7 +1213,7 @@ function actWorld() {
     const wars = E.sectWarsActive(c).length;
     g.mk("Sects of the Realm 宗门录", wars ? `the six great sects · ${wars} war${wars > 1 ? "s" : ""} raging` : "the six great sects & their feuds", openSectsRealm, { full: true });
     g.mk("Achievements & Legacy", "feats across all your lives", () => openAchievements(actWorld), { full: true });
-    backBtn(body, openActivities);
+    sheetBack(openActivities);
   });
 }
 // The Annals (风云录): the living realm writes its own history — feuds, oaths,
@@ -1184,7 +1231,7 @@ function openAnnals() {
     const log = ((c.world && c.world.chronicle) || []).slice();
     if (!log.length) {
       body.appendChild(el("p", "note", "The realm's history is yet unwritten. As the years turn, its cultivators will feud, swear brotherhood, duel, rise and fall — and their deeds will be set down here for you to follow."));
-      backBtn(body, actWorld); return;
+      sheetBack(actWorld); return;
     }
     // A demonic-menace tally, so the player feels the realm's unrest.
     const demons = ((c.world && c.world.npcs) || []).filter(n => n.alive && n.demonic);
@@ -1201,7 +1248,7 @@ function openAnnals() {
         <div class="lr-sub" style="opacity:.7">when you were ${e.y}</div><div class="lr-title" style="font-weight:500">${escapeHtml(e.text)}</div></div>`;
       body.appendChild(row);
     }
-    backBtn(body, actWorld);
+    sheetBack(actWorld);
   });
 }
 // Sects of the Realm (宗门录): the six great sects as living institutions — their
@@ -1231,7 +1278,7 @@ function openSectsRealm() {
       row.onclick = () => openSectDossier(key);
       body.appendChild(row);
     }
-    backBtn(body, actWorld);
+    sheetBack(actWorld);
   });
 }
 // One sect's standing-page: its nature, leadership, current standing & relations.
@@ -1268,7 +1315,7 @@ function openSectDossier(key) {
         body.appendChild(row);
       }
     }
-    backBtn(body, openSectsRealm);
+    sheetBack(openSectsRealm);
   });
 }
 function genMarket(c) {
@@ -1284,7 +1331,8 @@ function genMarket(c) {
 }
 function marketDo(fn, refresh) {
   if (!state.c.alive) return;
-  logMessages(fn());
+  const msgs = fn();
+  logMessages(msgs); toast(msgs);
   renderProfile(); save();
   (refresh || openMarket)();
 }
@@ -1295,67 +1343,60 @@ function openMarket() {
       body.appendChild(el("p", "note", "There is no market out here in the wilds. Travel to a city, town or village to trade."));
       const b = el("button", "mbtn full primary"); b.innerHTML = "Open the Realm Map<small>find a settlement to trade in</small>";
       b.onclick = openWorldMap; body.appendChild(b);
-      backBtn(body, actCommerce);
+      sheetBack(openActivities);
     });
     return;
   }
   if (!state.market || state.market.year !== c.age || state.market.loc !== c.location) state.market = genMarket(c);
   const M = state.market;
+  // The whole market on one screen: each stall is a collapsible section (its
+  // open/folded state persists across purchases), so browsing and comparing
+  // never means bouncing through a hub.
   openOverlay("Market 坊市", body => {
     marketHeader(c, body);
-    const grid = el("div", "menu-grid"); body.appendChild(grid);
-    const ni = n => icon(n, { size: 22 });
-    navCard(grid, ni("cauldron"), "Pills 丹药", `${D.PILL_RECIPES.length} medicines — qi, body, soul & fate`, () => openMarketSection("pills"));
-    navCard(grid, ni("seal"), "Talismans 符箓", "one-use spirit-charms for battle", () => openMarketSection("talismans"));
-    const artsStocked = (M.tech && !c.techniques.includes(M.tech)) || (M.move && !(c.movementArts || []).includes(M.move));
-    navCard(grid, ni("scroll"), "Manuals & Arts 功法", artsStocked ? "a rare technique or movement art in stock" : "nothing in stock this year", () => openMarketSection("arts"));
-    const treasures = M.treasures.filter(k => !M.sold[k]);
-    navCard(grid, ni("blade"), "Treasures 法宝", treasures.length ? `${treasures.length} bound treasure${treasures.length > 1 ? "s" : ""} for sale` : "nothing in stock this year", () => openMarketSection("treasures"));
-    navCard(grid, ni("herbs"), "Herbs & Stones", `buy spirit herbs · you hold ${c.herbs}`, () => openMarketSection("herbs"));
+    const row = (wrap, emoji, title, sub, can, fn) => {
+      const r = el("div", "listrow" + (can ? "" : " disabled"));
+      r.innerHTML = `<div class="lr-ava">${emoji}</div><div class="lr-main"><div class="lr-title">${escapeHtml(title)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
+      if (can) r.onclick = () => marketDo(fn, openMarket);
+      wrap.appendChild(r);
+    };
+    const stallKeys = ["market.pills", "market.talismans", "market.arts", "market.treasures", "market.herbs"];
     const spare = c.artifacts.filter(k => !E.isEquipped(c, k));
-    if (c.herbs >= 5 || spare.length) navCard(grid, ni("coin"), "Sell 售卖", "turn spare herbs & treasures to stones", () => openMarketSection("sell"));
-    backBtn(body, actCommerce);
+    if (c.herbs >= 5 || spare.length) stallKeys.push("market.sell");
+    foldControl(body, stallKeys, openMarket);
+    collapsibleSection(body, "Pills 丹药", "market.pills", w => {
+      for (const p of D.PILL_RECIPES) { const price = E.pricePill(c, p[0]); row(w, "⚗️", p[1], `${price} stones · ${p[4]}`, c.spiritStones >= price, () => E.buyPill(c, p[0], state.rng)); }
+    }, { count: D.PILL_RECIPES.length });
+    collapsibleSection(body, "Talismans 符箓", "market.talismans", w => {
+      for (const key of D.TALISMAN_ORDER) { const t = D.TALISMANS[key], price = E.priceTalisman(c, key); row(w, "🧧", `${t.name} (have ${(c.talismans && c.talismans[key]) || 0})`, `${price} stones · ${t.desc}`, c.spiritStones >= price, () => E.buyTalisman(c, key, state.rng)); }
+    }, { count: D.TALISMAN_ORDER.length, startCollapsed: true });
+    { const tech = M.tech && !c.techniques.includes(M.tech), move = M.move && !(c.movementArts || []).includes(M.move);
+      collapsibleSection(body, "Manuals & Arts 功法", "market.arts", w => {
+        if (tech) { const price = E.priceTech(c, D.TECHNIQUES[M.tech][1]); row(w, "📖", D.TECHNIQUES[M.tech][0] + " (manual)", `${price} stones · ${D.TECHNIQUES[M.tech][4]}`, c.spiritStones >= price, () => E.buyTech(c, M.tech, state.rng)); }
+        if (move) { const m = D.MOVEMENT_BY_KEY[M.move], price = E.priceMovement(c, M.move); row(w, "🌀", `${m[1]} · 轻功 (${m[2]})`, `${price} stones · +${m[4]} stages/deed · ${m[5]}`, c.spiritStones >= price, () => E.buyMovementArt(c, M.move)); }
+        if (!tech && !move) w.appendChild(el("p", "note", "Nothing in stock this year — come back another year, or in another town."));
+      }, { count: (tech ? 1 : 0) + (move ? 1 : 0), startCollapsed: !tech && !move }); }
+    { const treasures = M.treasures.filter(k => !M.sold[k]);
+      collapsibleSection(body, "Treasures 法宝", "market.treasures", w => {
+        for (const k of treasures) { const price = E.priceTreasure(c, k), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(k)]; row(w, si ? si[3] : "⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.artifactGrade(k)} ${si ? si[1] : ""})`, `${price} stones · ${E.artifactEffectText(k)} · ${D.ARTIFACT_BY_KEY[k][5]}`, c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); }); }
+        if (!treasures.length) w.appendChild(el("p", "note", "Nothing in stock this year — come back another year, or in another town."));
+      }, { count: treasures.length, startCollapsed: !treasures.length }); }
+    collapsibleSection(body, "Herbs & Stones", "market.herbs", w => {
+      row(w, "🌿", "Spirit Herbs ×5", `${E.priceHerbs(c, 5)} stones`, c.spiritStones >= E.priceHerbs(c, 5), () => E.buyHerbs(c, 5));
+    }, { count: 1, startCollapsed: true });
+    if (c.herbs >= 5 || spare.length) {
+      collapsibleSection(body, "Sell 售卖", "market.sell", w => {
+        if (c.herbs >= 5) row(w, "🌿", "Sell Spirit Herbs ×5", `+${E.sellHerbs(c, 5)} stones`, true, () => E.sellSpareHerbs(c, 5));
+        for (const k of spare) row(w, "💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.artifactGrade(k)})`, true, () => E.sellTreasure(c, k));
+      }, { count: spare.length + (c.herbs >= 5 ? 1 : 0), startCollapsed: true });
+    }
+    sheetBack(openActivities);
   });
 }
 function marketHeader(c, body) {
   const pm = E.eraPriceMult(c), here = W.currentLoc(c);
   const locNote = (c.priceMult || 1) > 1.05 ? " This remote market charges a premium." : (c.priceMult || 1) < 0.95 ? " This prosperous market trades cheap." : "";
   body.appendChild(el("p", "note", `${here ? here.name + " market — " : ""}spirit stones: ${c.spiritStones} · herbs: ${c.herbs}. Prices ${pm > 1.05 ? "run high" : pm < 0.95 ? "are low" : "are fair"} in the ${D.eraAt(c.era)[1]}.${locNote}`));
-}
-// One category of the market, drilled into from the hub.
-function openMarketSection(kind) {
-  const c = state.c, M = state.market;
-  if (!M) { openMarket(); return; }
-  const TITLES = { pills: "Pills 丹药", talismans: "Talismans 符箓", arts: "Manuals & Arts 功法", treasures: "Treasures 法宝", herbs: "Herbs & Stones", sell: "Sell 售卖" };
-  const refresh = () => openMarketSection(kind);
-  openOverlay(TITLES[kind] || "Market 坊市", body => {
-    marketHeader(c, body);
-    let any = false;
-    const row = (emoji, title, sub, can, fn) => {
-      any = true;
-      const r = el("div", "listrow" + (can ? "" : " disabled"));
-      r.innerHTML = `<div class="lr-ava">${emoji}</div><div class="lr-main"><div class="lr-title">${escapeHtml(title)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
-      if (can) r.onclick = () => marketDo(fn, refresh);
-      body.appendChild(r);
-    };
-    if (kind === "pills") {
-      for (const p of D.PILL_RECIPES) { const price = E.pricePill(c, p[0]); row("⚗️", p[1], `${price} stones · ${p[4]}`, c.spiritStones >= price, () => E.buyPill(c, p[0], state.rng)); }
-    } else if (kind === "talismans") {
-      for (const key of D.TALISMAN_ORDER) { const t = D.TALISMANS[key], price = E.priceTalisman(c, key); row("🧧", `${t.name} (have ${(c.talismans && c.talismans[key]) || 0})`, `${price} stones · ${t.desc}`, c.spiritStones >= price, () => E.buyTalisman(c, key, state.rng)); }
-    } else if (kind === "arts") {
-      if (M.tech && !c.techniques.includes(M.tech)) { const price = E.priceTech(c, D.TECHNIQUES[M.tech][1]); row("📖", D.TECHNIQUES[M.tech][0] + " (manual)", `${price} stones · ${D.TECHNIQUES[M.tech][4]}`, c.spiritStones >= price, () => E.buyTech(c, M.tech, state.rng)); }
-      if (M.move && !(c.movementArts || []).includes(M.move)) { const m = D.MOVEMENT_BY_KEY[M.move], price = E.priceMovement(c, M.move); row("🌀", `${m[1]} · 轻功 (${m[2]})`, `${price} stones · +${m[4]} stages/deed · ${m[5]}`, c.spiritStones >= price, () => E.buyMovementArt(c, M.move)); }
-    } else if (kind === "treasures") {
-      for (const k of M.treasures) { if (M.sold[k]) continue; const price = E.priceTreasure(c, k), si = D.EQUIP_SLOT_BY_KEY[D.artifactSlot(k)]; row(si ? si[3] : "⚔️", D.ARTIFACT_BY_KEY[k][1] + ` (${D.artifactGrade(k)} ${si ? si[1] : ""})`, `${price} stones · ${E.artifactEffectText(k)} · ${D.ARTIFACT_BY_KEY[k][5]}`, c.spiritStones >= price, () => { M.sold[k] = true; return E.buyTreasure(c, k); }); }
-    } else if (kind === "herbs") {
-      row("🌿", "Spirit Herbs ×5", `${E.priceHerbs(c, 5)} stones`, c.spiritStones >= E.priceHerbs(c, 5), () => E.buyHerbs(c, 5));
-    } else if (kind === "sell") {
-      if (c.herbs >= 5) row("🌿", "Sell Spirit Herbs ×5", `+${E.sellHerbs(c, 5)} stones`, true, () => E.sellSpareHerbs(c, 5));
-      for (const k of c.artifacts.filter(k => !E.isEquipped(c, k))) row("💰", "Sell " + D.ARTIFACT_BY_KEY[k][1], `+${E.sellTreasureValue(c, k)} stones (${D.artifactGrade(k)})`, true, () => E.sellTreasure(c, k));
-    }
-    if (!any) body.appendChild(el("p", "note", "Nothing on offer here just now — come back another year, or in another town."));
-    backBtn(body, openMarket);
-  });
 }
 function openAbode() {
   const c = state.c;
@@ -1384,12 +1425,12 @@ function openAbode() {
       else if (L.canFoundSect(c)) body.appendChild(el("p", "note", "🏯 Your abode is now grand enough to serve as the seat of your own sect — found one from the Sect tab."));
       const sec = el("button", "mbtn full primary");
       sec.innerHTML = `Cultivate in Seclusion<small>a deed · seal yourself in for a deep cultivation</small>`;
-      sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng), "cult");
+      sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng), "cult", { stay: openAbode });
       body.appendChild(sec);
       if (c.pills > 0) {
         const secp = el("button", "mbtn full");
         secp.innerHTML = `Seclusion + Qi Pill<small>a deed · ${c.pills} pill(s) left</small>`;
-        secp.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng, true), "cult");
+        secp.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng, true), "cult", { stay: openAbode });
         body.appendChild(secp);
       }
     } else {
@@ -1416,21 +1457,22 @@ function openAbode() {
     } else if (cur) {
       body.appendChild(el("p", "note", "Your abode is a Cave Heaven — the very pinnacle. There is nothing higher to build."));
     }
-    backBtn(body, actHome);
+    sheetBack(openActivities);
   });
 }
 function openTalismans() {
   const c = state.c;
   openOverlay("Inscribe Talismans 符箓", body => {
     body.appendChild(el("p", "note", `Spirit Herbs: ${c.herbs}. Each inscription is a deed; soul sense and comprehension steady your brush. Talismans are one-use battle charms — loose them in combat from your action bar.`));
+    deedMeter(body, ["act"]);
     for (const key of D.TALISMAN_ORDER) {
       const t = D.TALISMANS[key], can = c.herbs >= t.herbs, have = (c.talismans && c.talismans[key]) || 0;
       const r = el("div", "listrow" + (can ? "" : " disabled"));
       r.innerHTML = `<div class="lr-ava">${t.element ? C.elementIcon(t.element) : "🧧"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(t.name)} <span class="lr-sub" style="display:inline">· have ${have}</span></div><div class="lr-sub">${t.herbs} herbs · ${escapeHtml(t.desc)}</div></div>`;
-      if (can) r.onclick = () => runTimed(() => E.inscribeTalisman(c, key, state.rng), "act");
+      if (can) r.onclick = () => runTimed(() => E.inscribeTalisman(c, key, state.rng), "act", { stay: openTalismans });
       body.appendChild(r);
     }
-    backBtn(body, actCraft);
+    sheetBack(openActivities);
   });
 }
 function openAlchemy() {
@@ -1445,7 +1487,7 @@ function openAlchemy() {
       if (can) row.onclick = () => startBrew(r);
       body.appendChild(row);
     }
-    backBtn(body, actCraft);
+    sheetBack(openActivities);
   });
 }
 const biomeIdx = key => Math.max(0, D.REGIONS.findIndex(r => r[0] === key));
@@ -1507,7 +1549,7 @@ function openWorldMap() {
       row.onclick = () => openLocationCard(loc.id);
       body.appendChild(row);
     }
-    backBtn(body, actAdventure);
+    sheetBack(actAdventure);
   });
 }
 function openLocationCard(id) {
@@ -1563,7 +1605,7 @@ function openLocationCard(id) {
       else go.disabled = true;
       body.appendChild(go);
     }
-    backBtn(body, openWorldMap);
+    sheetBack(openWorldMap);
   });
 }
 // Travel is a journey by road, one hop per deed. A far place can't be reached
@@ -1613,7 +1655,7 @@ function openAchievements(backFn) {
       row.innerHTML = `<div class="lr-ava ${a.got ? "tint-gold" : ""}">${icon(a.got ? "trophy" : "lock", { size: 22 })}</div><div class="lr-main"><div class="lr-title">${escapeHtml(a.name)}</div><div class="lr-sub">${escapeHtml(a.desc)}</div></div>`;
       body.appendChild(row);
     }
-    if (backFn) backBtn(body, backFn);
+    if (backFn) sheetBack(backFn);
   });
 }
 function openBeast() {
@@ -1637,12 +1679,12 @@ function openBeast() {
     const grid = el("div", "menu-grid");
     const mk = (l, s, h, opt = {}) => { const x = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); x.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) x.disabled = true; else x.onclick = h; grid.appendChild(x); };
     const fedOut = b.fedThisYear >= 3;
-    mk("Feed Herbs", fedOut ? "sated this year" : "2 herbs · +bond, +exp", () => runFree(() => E.feedBeast(c, state.rng, false)), { disabled: fedOut || c.herbs < 2 });
-    mk("Feed a Pill", fedOut ? "sated this year" : `${c.pills} pills · big boost`, () => runFree(() => E.feedBeast(c, state.rng, true)), { disabled: fedOut || c.pills <= 0 });
+    mk("Feed Herbs", fedOut ? "sated this year" : "2 herbs · +bond, +exp", () => runFree(() => E.feedBeast(c, state.rng, false), { stay: openBeast }), { disabled: fedOut || c.herbs < 2 });
+    mk("Feed a Pill", fedOut ? "sated this year" : `${c.pills} pills · big boost`, () => runFree(() => E.feedBeast(c, state.rng, true), { stay: openBeast }), { disabled: fedOut || c.pills <= 0 });
     if (E.beastAdvanceReady(c))
-      mk("✦ Evolve Your Beast", "advance to the next rank", () => { runFree(() => E.advanceBeast(c, state.rng)); if (c.beast && c.beast.rank >= 5) award("beastlord"); }, { full: true, primary: true });
+      mk("✦ Evolve Your Beast", "advance to the next rank", () => { runFree(() => E.advanceBeast(c, state.rng), { stay: openBeast }); if (c.beast && c.beast.rank >= 5) award("beastlord"); }, { full: true, primary: true });
     body.appendChild(grid);
-    backBtn(body, openAssets);
+    sheetBack(openAssets);
   });
 }
 // Slot positions on the paperdoll (top%, left% of panel).
@@ -1762,7 +1804,7 @@ function openAssets() {
         w.appendChild(card);
       }
     }, { count: Object.keys(counts).length, startCollapsed: true });
-    backBtn(body, actHome);
+    sheetBack(openActivities);
   });
 }
 
@@ -1781,7 +1823,7 @@ function openSlotPicker(slot) {
       row.onclick = () => { runQuiet(() => E.equipArtifact(c, key)); renderProfile(); openAssets(); };
       body.appendChild(row);
     }
-    backBtn(body, openAssets);
+    sheetBack(openAssets);
   });
 }
 
@@ -1816,7 +1858,7 @@ function openTreasureCard(key) {
         .map(m => `${D.ARTIFACT_BY_KEY[m][1]}${c.artifacts.includes(m) ? " (in trove)" : ""}`);
       if (missing.length) body.appendChild(el("p", "note", "Still need: " + missing.join(", ")));
     }
-    if (!owned) { backBtn(body, openAssets); return; }
+    if (!owned) { sheetBack(openAssets); return; }
     // Bind / unbind
     const bindBtn = el("button", "mbtn full" + (equipped ? "" : " primary"));
     bindBtn.textContent = equipped ? "Unbind from slot" : `Equip in ${si ? si[1] : "slot"}`;
@@ -1840,7 +1882,7 @@ function openTreasureCard(key) {
       sb.onclick = () => { runQuiet(() => E.sellTreasure(c, key)); renderProfile(); openAssets(); };
       body.appendChild(sb);
     }
-    backBtn(body, openAssets);
+    sheetBack(openAssets);
   });
 }
 
@@ -1950,9 +1992,9 @@ function openSectLibrary() {
   openOverlay("Sect Library 传功堂", body => {
     const arts = E.sectArts(c);
     body.appendChild(el("p", "note", `The ${E.sectName(c)} imparts its arts to those who rise and earn merit. You are ${E.rankName(c).split(" (")[0]} with ${c.contribution} contribution. ✦ marks the sect's exclusive signature art.`));
-    if (!arts.length) { body.appendChild(el("p", "note", "This sect keeps no library of arts to teach.")); backBtn(body, openSect); return; }
+    if (!arts.length) { body.appendChild(el("p", "note", "This sect keeps no library of arts to teach.")); sheetBack(openSect); return; }
     const sigKey = arts[arts.length - 1][0];
-    const learn = key => { if (!state.c.alive) return; logMessages(E.learnSectArt(c, key)); renderProfile(); save(); openSectLibrary(); };
+    const learn = key => { if (!state.c.alive) return; const res = E.learnSectArt(c, key); logMessages(res); renderProfile(); save(); openSectLibrary(); toast(res); };
     for (const [key, minRank, cost] of arts) {
       const t = D.TECHNIQUES[key], known = c.techniques.includes(key);
       const rankOk = c.sectRank >= minRank, afford = c.contribution >= cost, can = !known && rankOk && afford;
@@ -1962,7 +2004,7 @@ function openSectLibrary() {
       if (can) row.onclick = () => learn(key);
       body.appendChild(row);
     }
-    backBtn(body, openSect);
+    sheetBack(openSect);
   });
 }
 function doPromotion() {
@@ -2000,7 +2042,7 @@ function renderOwnSect(c, body) {
   body.appendChild(el("p", "note", `Each year your sect spreads your name (+${tier[4]} fame), pays a stipend from its treasury, and quickens your dao. Expand your cave abode to raise the members cap. Invite disciples (in Relationships) to settle them as your core.`));
   const grid = el("div", "menu-grid");
   const mk = (l, sub, h, full, primary) => { const b = el("button", "mbtn" + (full ? " full" : "") + (primary ? " primary" : "")); b.innerHTML = `${l}<small>${sub}</small>`; b.onclick = h; grid.appendChild(b); };
-  mk("Hold a Recruitment", s.members < cap ? "a deed · draw new disciples" : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng)), true, s.members < cap);
+  mk("Hold a Recruitment", s.members < cap ? "a deed · draw new disciples" : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng), "act", { stay: openSect }), true, s.members < cap);
   if (c.realm >= 4 && L.getDisciples(c).length < 4)
     mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
   mk("Sect Library 藏经阁", `enshrine your arts · +${E.sectLibraryBonus(s)}/yr`, openOwnSectLibrary, true);
@@ -2021,7 +2063,7 @@ function renderOwnSect(c, body) {
 function openSectWar() {
   const c = state.c;
   openOverlay("Sect Conflicts 宗门之争", body => {
-    if (!c.ownSect) { body.appendChild(el("p", "note", "You lead no sect to send to war.")); backBtn(body, openSect); return; }
+    if (!c.ownSect) { body.appendChild(el("p", "note", "You lead no sect to send to war.")); sheetBack(openSect); return; }
     // A rival marching on you takes precedence — meet them or pay the price.
     if (c.ownSect.threat) {
       const rs = D.SECT_BY_KEY[c.ownSect.threat.key];
@@ -2044,7 +2086,7 @@ function openSectWar() {
       if (!r.broken) rrow.onclick = () => { if (!useAction("act")) return; logMessages(E.wageSectWar(c, state.rng, r.key)); renderProfile(); if (!state.c.alive) checkDeath(); else openSectWar(); };
       body.appendChild(rrow);
     }
-    backBtn(body, openSect);
+    sheetBack(openSect);
   });
 }
 function openFoundSect() {
@@ -2056,7 +2098,7 @@ function openFoundSect() {
     const found = el("button", "mbtn full primary"); found.innerHTML = `Raise the Banner<small>${L.FOUND_SECT_COST} stones · you have ${c.spiritStones}</small>`;
     found.onclick = () => { runFree(() => L.foundSect(c, state.rng, input.value.trim() || null)); if (c.ownSect) award("founder"); };
     body.appendChild(found);
-    backBtn(body, openSect);
+    sheetBack(openSect);
   });
 }
 function openQuests() {
@@ -2071,7 +2113,7 @@ function openQuests() {
       row.onclick = () => { if (!ageAllows("quest")) return; runTimed(() => E.doQuest(c, state.rng, q)); };
       body.appendChild(row);
     }
-    backBtn(body, openSect);
+    sheetBack(openSect);
   });
 }
 
@@ -2083,7 +2125,7 @@ function openGlossary(backFn) {
       const g = GLOSSARY[k];
       body.appendChild(el("div", "listrow", `<div class="lr-main"><div class="lr-title">${escapeHtml(g[0])}</div><div class="lr-sub">${escapeHtml(g[1])}</div></div>`));
     }
-    if (backFn) backBtn(body, backFn);
+    if (backFn) sheetBack(backFn);
   });
 }
 function openSheet() {
@@ -2164,7 +2206,10 @@ function infoRows(rows) {
   }
   return wrap;
 }
-function backBtn(body, fn) { const b = el("button", "mbtn full"); b.innerHTML = "‹ Back"; b.onclick = fn; body.appendChild(b); }
+/* Register the sheet's parent screen: shows the ‹ chevron in the header and
+ * makes the system back button / a downward swipe step up one screen instead
+ * of closing. Called by any screen that has somewhere to go "up" to. */
+function sheetBack(fn) { state.overlayBack = fn; $("overlay-back").classList.remove("hidden"); }
 // A labelled progress bar. `right` overrides the default "val / max" readout.
 function progress(parent, label, val, max, cls, right) {
   const pct = max > 0 ? Math.max(0, Math.min(100, (val / max) * 100)) : 100;
@@ -2375,7 +2420,7 @@ function renderCreator() {
     begin.onclick = () => beginLife(cr.preview);
     body.appendChild(begin);
 
-    backBtn(body, startScreen);
+    sheetBack(startScreen);
   }, false);
 }
 // A one-line read on how promising a birth is (spiritual root dominates).
@@ -3080,6 +3125,7 @@ function wanderFortune(c) {
 document.querySelectorAll("[data-ico]").forEach(n => { n.innerHTML = icon(n.dataset.ico, { size: 26 }); });
 $("pf-more").innerHTML = icon("sheet", { size: 22 });
 $("overlay-close").innerHTML = icon("close", { size: 18 });
+$("overlay-back").innerHTML = icon("back", { size: 20 });
 $("pf-avatar").innerHTML = icon("avChild", { size: 30, cls: "av" });
 
 const TABS = { cultivate: openCultivate, people: openPeople, activities: openActivities, sect: openSect, age: doAgeUp };
@@ -3089,7 +3135,31 @@ $("pf-avatar").addEventListener("click", () => { if (state.c) openSheet(); });
 $("pf-name").addEventListener("click", () => { if (state.c) openSheet(); });
 $("pf-bars").addEventListener("click", e => { const n = e.target.closest ? e.target.closest("[data-tip]") : null; if (n && n.dataset) showTip(n.dataset.tip); });
 $("overlay-close").addEventListener("click", () => { if (state.overlayClosable) closeOverlay(); });
+$("overlay-back").addEventListener("click", () => { if (state.overlayBack) state.overlayBack(); });
 $("overlay").addEventListener("click", e => { if (e.target === $("overlay") && state.overlayClosable) closeOverlay(); });
+// The sheet's drag handle is real: pull the header down to dismiss (or step back).
+{
+  const card = $("overlay-card");
+  let y0 = null, dy = 0, dragging = false;
+  card.addEventListener("touchstart", e => {
+    if (!state.overlayClosable && !state.overlayBack) return;
+    if (e.touches[0].clientY - card.getBoundingClientRect().top > 64) return;  // handle + header only
+    y0 = e.touches[0].clientY; dy = 0; dragging = true;
+    card.style.transition = "none";
+  }, { passive: true });
+  card.addEventListener("touchmove", e => {
+    if (!dragging) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    card.style.transform = dy ? `translateY(${dy}px)` : "";
+  }, { passive: true });
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false; card.style.transition = ""; card.style.transform = "";
+    if (dy > 90) { if (state.overlayBack) state.overlayBack(); else closeOverlay(); }
+  };
+  card.addEventListener("touchend", endDrag);
+  card.addEventListener("touchcancel", endDrag);
+}
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 
 startScreen();
