@@ -161,11 +161,17 @@ def _ev_ruin(c, rng):
     if rng.random() < 0.45 + c.luck / 300.0:
         roll = rng.random()
         if roll < 0.25:
-            tech = rng.choice([k for k in data.TECHNIQUES if k not in c.techniques] or ["azure_cloud"])
-            if tech not in c.techniques:
+            unknown = [k for k in data.TECHNIQUES if k not in c.techniques]
+            if unknown:
+                tech = rng.choice(unknown)
                 c.techniques.append(tech)
                 msgs.append(f"  In a jade slip you find: {data.TECHNIQUES[tech][0]}! "
                             f"({data.TECHNIQUES[tech][4]})")
+            else:
+                gain = rng.randint(10, 30) * (c.realm + 1)
+                c.spirit_stones += gain
+                msgs.append("  The jade slips hold only arts you have long "
+                            f"mastered -- but a cache of stones is yours. (+{gain})")
         elif roll < 0.45:
             # A slumbering treasure in the ruin's heart.
             key = artifacts.random_artifact(c, rng)

@@ -240,7 +240,9 @@ def _tournament_rewards(c: Character, rng: random.Random, placement: int,
             f"+{stones} spirit stones."]
     if placement == 1:
         c.pills += 3
-        msgs.append("  As Champion you are awarded a Foundation Pill and 3 pills!")
+        c.breakthrough_pills += 1
+        msgs.append("  As Champion you are awarded a Foundation Breakthrough Pill"
+                    " and 3 Qi-Gathering Pills!")
     if title:
         honour = f"Tournament {title}"
         if honour not in c.titles:

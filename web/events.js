@@ -232,7 +232,7 @@ export const EVENTS = [
     cond: c => c.relationships.some(n => n.role === "enemy" && n.alive),
     text: c => { const e = c.relationships.find(n => n.role === "enemy" && n.alive); return `Your enemy ${e ? e.name : ""} ambushes you on a lonely road, blade already drawn!`; },
     choices: [
-      { label: "Stand and fight", result: (c, rng, A) => { const e = c.relationships.find(n => n.role === "enemy" && n.alive); const res = A.fight(e ? [e.name, A.power() * rng.uniform(0.8, 1.3), (c.realm + 1) * 6, "rogue"] : undefined); if (c.alive && e && rng.random() < 0.6) { e.alive = false; res.push(`You end ${e.name}'s grudge for good.`); } return res; } },
+      { label: "Stand and fight", result: (c, rng, A) => { const e = c.relationships.find(n => n.role === "enemy" && n.alive); const res = A.fight(e ? [e.name, A.power() * rng.uniform(0.8, 1.3), (c.realm + 1) * 6, "rogue"] : undefined); const won = res.some(m => m.includes("You slay the")); if (c.alive && e && won) { e.alive = false; res.push(`You end ${e.name}'s grudge for good.`); } return res; } },
     ],
   },
   {
@@ -1431,7 +1431,7 @@ export const EVENTS = [
     id: "soulpoison_start", arc: true, weight: 40, minRealm: 2, awakened: true, cooldown: 0,
     cond: c => arcStage(c, "soulpoison") === 0 && E.arcArmed(c, "soulpoison"),
     auto: (c, rng, A) => {
-      E.disarmArc(c, "soulpoison"); arcSet(c, "soulpoison", 1); cap(c, "soul", 0);
+      E.disarmArc(c, "soulpoison"); arcSet(c, "soulpoison", 1);
       c.soul = Math.max(1, c.soul - 2); A.note("A demonic soul-poison took root in your meridians.");
       return "The rot the demon left has spread. A healer you visit goes pale: a soul-withering poison gnaws at your spirit, and it will not stop on its own. Untreated, in a handful of years it will reach your heart — and end you. You must find a cure.";
     },
@@ -1602,7 +1602,7 @@ export const EVENTS = [
             .concat(E.acquireArtifact(c, E.randomArtifact(c, rng, "Heaven")))
             .concat(E.maybeAwardEpithet(c, rng, { base: 0.5 }));
         }
-        c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); c.soul = Math.max(1, c.soul - 5); c.comprehension = Math.max(1, c.comprehension - 4); A.heal(-Math.round(c.maxHp * 0.3)); cap(c, "constitution", 0);
+        c.daoHeart = Math.max(0, (c.daoHeart || 0) - 6); c.soul = Math.max(1, c.soul - 5); c.comprehension = Math.max(1, c.comprehension - 4); A.heal(-Math.round(c.maxHp * 0.3));
         return ["You hold the line — barely — and drive the will back into its shard, but the war leaves you torn. It cost you pieces of yourself you are not sure you will get back, and the shard, beaten, still whispers in the dark. (−Soul, −Comprehension, −Dao Heart, −health)"];
       } },
     ],

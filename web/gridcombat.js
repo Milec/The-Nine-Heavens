@@ -93,38 +93,23 @@ const sunderAmt = u => u.statuses.reduce((a, s) => a + (s.type === "sunder" ? s.
 function addStatus(u, type, turns, value) { u.statuses.push({ type, turns, value }); }
 
 // The player avatar as a grid unit — every existing system (power, physique,
-// gear, root attunement, Dao manifestations, 轻功, Dao Heart) folded in.
+// gear, root attunement, Dao manifestations, 轻功, Dao Heart) folded in via the
+// shared stat derivation in combat.playerCombatStats.
 function buildPlayerUnit(c, startHpFrac) {
-  const P = E.power(c), ph = D.physEffect(c), eq = E.equipmentEffects(c);
-  const maxHp = P * 1.9 * (1 + (ph.hp || 0) + (eq.hp || 0));
-  const rootEls = (c.awakened && c.root && c.root.elements && c.root.elements.length) ? c.root.elements.slice() : [];
-  if (ph.element && !rootEls.includes(ph.element)) rootEls.push(ph.element);
-  let attune = (c.awakened && c.root && c.root.elements && c.root.elements.length)
-    ? clampN(0.10 + (c.root.multiplier || 1) * 0.07, 0.12, 0.45) : (ph.element ? 0.15 : 0);
-  for (const el of E.equipmentElements(c)) if (!rootEls.includes(el)) rootEls.push(el);
-  const maxQi = (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0));
+  const S = C.playerCombatStats(c);
   const u = {
     side: "player", name: c.name, ref: c, alive: true, statuses: [], shield: 0,
-    hp: maxHp, maxHp, qi: maxQi, maxQi,
-    atk: P - E.beastPower(c),
-    mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + (eq.def || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.8),
-    crit: clampN(c.luck / 400 + 0.05 + (eq.crit || 0) + (ph.crit || 0), 0, 0.7),
-    dodge: clampN(c.luck / 600 + c.soul / 900 + (eq.dodge || 0) + (ph.dodge || 0) + E.movementDodge(c), 0, 0.6),
-    element: rootEls.length ? rootEls[0] : null, rootElements: rootEls, attune,
-    equipLifesteal: eq.life || 0, healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,
-    mentalResist: E.mentalResist(c),
+    hp: S.maxHp * (startHpFrac != null ? clampN(startHpFrac, 0.1, 1) : 1), maxHp: S.maxHp,
+    qi: S.maxQi, maxQi: S.maxQi,
+    atk: S.atk, mitig: S.mitig, crit: S.crit, dodge: S.dodge,
+    element: S.element, rootElements: S.rootElements, attune: S.attune,
+    equipLifesteal: S.equipLifesteal, daoPierce: S.daoPierce,
+    healBonus: S.healBonus, vsDemon: S.vsDemon, burnImmune: S.burnImmune,
+    mentalResist: S.mentalResist,
     move: clampN(3 + (E.hopsPerDeed(c) - 1) + Math.round(E.movementDodge(c) * 3), 3, 7),
   };
-  const dm = E.daoBattleMods(c);
-  if (dm.hp) { u.maxHp *= (1 + dm.hp); }
-  if (startHpFrac != null) u.hp = u.maxHp * clampN(startHpFrac, 0.1, 1);
-  else u.hp = u.maxHp;
-  u.crit = clampN(u.crit + (dm.crit || 0), 0, 0.85);
-  u.dodge = clampN(u.dodge + (dm.dodge || 0), 0, 0.7);
-  u.equipLifesteal += dm.lifesteal || 0;
-  u.daoPierce = dm.pierce || 0;
-  if (dm.shield) u.shield += u.maxHp * dm.shield;
-  if (dm.regen) u.statuses.push({ type: "regen", turns: 99, value: dm.regen });
+  if (S.daoShieldFrac) u.shield += u.maxHp * S.daoShieldFrac;
+  if (S.daoRegen) u.statuses.push({ type: "regen", turns: 99, value: S.daoRegen });
   return u;
 }
 // The player's spirit beast as a true ally on the field.
@@ -479,7 +464,6 @@ export function playerAct(B, skill, tx, ty) {
   const lines = [];
   if (hasStatus(u, "stun")) { u.statuses = u.statuses.filter(s => s.type !== "stun"); lines.push("You are stunned and cannot act!"); }
   else if (skill && skill.id) {
-    const real = C.SKILLS[skill.tech ? Object.keys(C.SKILLS).find(k => C.SKILLS[k].tech === skill.tech) : ""] || skill;
     const sk = skill;
     if ((u.qi || 0) < (sk.qi || 0)) { lines.push("Not enough qi — you fall back on a basic strike."); resolveArt(B, u, C.SKILLS.strike, tx, ty, lines); }
     else {
@@ -520,19 +504,7 @@ export function finishGridBattle(B) {
   const slain = B.units.filter(u => u.side === "enemy");
   const boss = slain.find(u => u.boss);
   // The Heavenly Tribulation is its own kind of trial — no spoils, only survival.
-  if (B.tribulation) {
-    if (B.outcome === "win") {
-      c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac));
-      c.qi += E.qiToNext(c) * 0.3;
-      c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + rng.randint(2, 5));
-      lines.push("⚡ You weather the Heavenly Tribulation! The clouds disperse and your new realm settles, unshakable.");
-    } else {
-      if (rng.random() < c.luck / 320 + (D.physEffect(c).deathSave || 0)) { c.hp = c.maxHp * 0.1; lines.push("⚡ The final bolt should have ended you — but your undying flesh drags you back from oblivion!"); }
-      else { c.alive = false; c.causeOfDeath = `struck down by the ${E.realmName(c)} tribulation`; c.hp = 0; c.log.push([c.age, "Died crossing the Heavenly Tribulation."]); lines.push("☠ The tribulation lightning scatters your soul. You die crossing the heavens."); }
-    }
-    E.recomputeMaxHp(c);
-    return lines;
-  }
+  if (B.tribulation) return C.resolveTribulationOutcome(c, B.outcome, frac, rng);
   // A non-lethal bout (spar, rank trial, tournament) leaves only bruises.
   if (B.outcome === "yield") { c.hp = Math.max(1, c.maxHp * 0.25); E.recomputeMaxHp(c); return ["The bout ends. You tend your bruises, a little wiser for it."]; }
   if (B.outcome === "win" && B.noSpoils) { c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac)); E.recomputeMaxHp(c); return ["🏆 You win the bout!"]; }
@@ -550,7 +522,7 @@ export function finishGridBattle(B) {
       lines.push(...E.maybeAwardEpithet(c, rng, { base: 0.35 }));
     } else if (rng.random() < 0.20 + c.luck / 800) {
       const r = rng.random();
-      if (r < 0.3) lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: boss ? boss.element : null })));
+      if (r < 0.3) lines.push(...E.acquireArtifact(c, E.randomArtifact(c, rng, null, { element: slain[0] ? slain[0].element : null })));
       else if (r < 0.6) { const n = rng.randint(2, 6); c.herbs += n; lines.push(`You gather ${n} spirit herbs from the field.`); }
       else { c.pills += 1; lines.push("You loot a Qi-Gathering Pill."); }
     }

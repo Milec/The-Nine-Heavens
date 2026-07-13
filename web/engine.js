@@ -1334,8 +1334,13 @@ function evRuin(c, rng) {
     const roll = rng.random();
     if (roll < 0.25) {
       const unknown = Object.keys(D.TECHNIQUES).filter(k => !c.techniques.includes(k));
-      const tech = unknown.length ? rng.choice(unknown) : "azure_cloud";
-      if (!c.techniques.includes(tech)) { c.techniques.push(tech); msgs.push(`  In a jade slip you find: ${D.TECHNIQUES[tech][0]}! (${D.TECHNIQUES[tech][4]})`); }
+      if (unknown.length) {
+        const tech = rng.choice(unknown);
+        c.techniques.push(tech); msgs.push(`  In a jade slip you find: ${D.TECHNIQUES[tech][0]}! (${D.TECHNIQUES[tech][4]})`);
+      } else {
+        const gain = rng.randint(10, 30) * (c.realm + 1); c.spiritStones += gain;
+        msgs.push(`  The jade slips hold only arts you have long mastered — but a cache of stones beside them is yours. (+${gain})`);
+      }
     } else if (roll < 0.45) {
       pushAll(msgs, acquireArtifact(c, randomArtifact(c, rng, null, { element: regionElement(c) })));
     } else if (roll < 0.75) {
@@ -1454,6 +1459,13 @@ function artifactBetter(c, a, b) {
 export function acquireArtifact(c, key, autoEquip = true) {
   const art = D.ARTIFACT_BY_KEY[key]; if (!art) return [];
   ensureEquipment(c);
+  // You hold at most one of each treasure (refinement, equipping and selling all
+  // assume it) — a duplicate find is traded away for spirit stones on the spot.
+  if (c.artifacts.includes(key)) {
+    const v = sellTreasureValue(c, key);
+    c.spiritStones += v;
+    return [`  You find another ${art[1]}, but one already serves you — you trade it away for ${v} stones.`];
+  }
   c.artifacts.push(key);
   const slot = D.artifactSlot(key), slotInfo = D.EQUIP_SLOT_BY_KEY[slot];
   const msgs = [`  You obtain a treasure: ${art[1]} (${D.artifactGrade(key)} ${slotInfo ? slotInfo[1].toLowerCase() : "treasure"})!`];
@@ -1485,14 +1497,14 @@ export function unequipArtifact(c, slot) {
 export const isEquipped = (c, key) => equippedKeys(c).includes(key);
 // A short, human-readable list of a treasure's effects, e.g. "+30% power, +5% qi".
 const EFFECT_LABELS = {
-  atk: ["% power", 100], qi: ["% qi", 100], def: ["% defense", 100], hp: ["% battle HP", 100],
-  dodge: ["% dodge", 100], crit: ["% crit", 100], life: ["% lifesteal", 100], qiMax: ["% max qi", 100],
+  atk: "% power", qi: "% qi", def: "% defense", hp: "% battle HP",
+  dodge: "% dodge", crit: "% crit", life: "% lifesteal", qiMax: "% max qi",
 };
 // Render an effects object as "+30% power, +5% qi".
 export function effectsText(e) {
   const parts = [];
   for (const k of ["atk", "def", "hp", "dodge", "crit", "life", "qi", "qiMax"]) {
-    if (e[k]) { const [label] = EFFECT_LABELS[k]; parts.push(`+${Math.round(e[k] * 100)}${label}`); }
+    if (e[k]) parts.push(`+${Math.round(e[k] * 100)}${EFFECT_LABELS[k]}`);
   }
   return parts.join(", ") || "no bonuses";
 }
@@ -2367,7 +2379,7 @@ function tournamentRewards(c, rng, placement, won) {
   c.contribution += contribution; c.reputation += rep; c.spiritStones += stones;
   const msgs = [`  Tournament over -- you finish in the top ${Math.max(placement, 1)}.`,
     `  Rewards: +${contribution} contribution, +${rep} reputation, +${stones} spirit stones.`];
-  if (placement === 1) { c.pills += 3; msgs.push("  As Champion you are awarded a Foundation Pill and 3 pills!"); }
+  if (placement === 1) { c.pills += 3; c.breakthroughPills += 1; msgs.push("  As Champion you are awarded a Foundation Breakthrough Pill and 3 Qi-Gathering Pills!"); }
   if (title) {
     const honour = `Tournament ${title}`;
     if (!c.titles.includes(honour)) c.titles.push(honour);

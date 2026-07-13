@@ -194,12 +194,15 @@ export function makeTribulation(c, rng) {
   return e;
 }
 
-/* ----------------------------- the battle -------------------------------- */
-export function createBattle(c, enemyDef, rng, opts = {}) {
+/* ------------------- the player's derived battle stats ------------------- */
+// One place derives every battle stat a cultivator brings to a fight — power,
+// physique, gear, elemental attunement, Dao manifestations, 轻功 evasion and
+// Dao-Heart resolve — shared by the classic battle and the tactical grid so the
+// two combat modes can never drift apart.
+export function playerCombatStats(c) {
   const P = E.power(c);
   const ph = D.physEffect(c);                       // ongoing physique effects
   const eq = E.equipmentEffects(c);                 // summed equipment bonuses
-  const pMax = P * 1.9 * (1 + (ph.hp || 0) + (eq.hp || 0));
   // Your spiritual root's element(s) (plus any from a special physique) attune you:
   // bonus damage with matching-element arts, and resistance to that element.
   const rootEls = (c.awakened && c.root && c.root.elements && c.root.elements.length) ? c.root.elements.slice() : [];
@@ -213,18 +216,41 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
   const gearEls = E.equipmentElements(c);
   for (const el of gearEls) if (!rootEls.includes(el)) rootEls.push(el);
   if (gearEls.length && attune < 0.15) attune = 0.15;
-  const player = {
-    isPlayer: true, ref: c, name: c.name,
-    maxHp: pMax, hp: pMax * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1),
-    maxQi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)), qi: (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0)),
+  // A deeply-comprehended Dao (Great Mastery+) manifests in the fight: keener
+  // crits, blurred footwork, void-piercing strikes, killing intent and the like.
+  const dm = E.daoBattleMods(c);
+  const maxQi = (40 + c.soul * 0.4 + c.realm * 6) * (1 + (ph.qiPool || 0) + (eq.qiMax || 0));
+  return {
+    maxHp: P * 1.9 * (1 + (ph.hp || 0) + (eq.hp || 0)) * (1 + (dm.hp || 0)),
+    maxQi,
     atk: P - E.beastPower(c),
     mitig: clampN(c.constitution / 300 + c.realm * 0.012 + (ph.mitig || 0) + (eq.def || 0) + D.bodyRealmAt(c.bodyRealm || 0)[6], 0, 0.8),
-    crit: clampN(c.luck / 400 + 0.05 + (eq.crit || 0) + (ph.crit || 0), 0, 0.7),
-    dodge: clampN(c.luck / 600 + c.soul / 900 + (eq.dodge || 0) + (ph.dodge || 0), 0, 0.6),
-    equipLifesteal: eq.life || 0,
+    crit: clampN(c.luck / 400 + 0.05 + (eq.crit || 0) + (ph.crit || 0) + (dm.crit || 0), 0, 0.85),
+    // A trained movement art (轻功) lends real evasion in battle, not just on the road.
+    dodge: clampN(c.luck / 600 + c.soul / 900 + (eq.dodge || 0) + (ph.dodge || 0) + (dm.dodge || 0) + E.movementDodge(c), 0, 0.7),
+    equipLifesteal: (eq.life || 0) + (dm.lifesteal || 0),
+    daoPierce: dm.pierce || 0,
     healBonus: ph.healBonus || 0, vsDemon: ph.vsDemon || 0, burnImmune: !!ph.burnImmune,
-    element: rootEls.length ? rootEls[0] : null,
-    rootElements: rootEls, attune,
+    // A tempered Dao Heart shrugs off mind-afflictions (stun/weaken) in battle.
+    mentalResist: E.mentalResist(c),
+    element: rootEls.length ? rootEls[0] : null, rootElements: rootEls, attune,
+    daoShieldFrac: dm.shield || 0, daoRegen: dm.regen || 0, daoMods: dm,
+  };
+}
+
+/* ----------------------------- the battle -------------------------------- */
+export function createBattle(c, enemyDef, rng, opts = {}) {
+  const S = playerCombatStats(c);
+  const startFrac = opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1;
+  const player = {
+    isPlayer: true, ref: c, name: c.name,
+    maxHp: S.maxHp, hp: S.maxHp * startFrac,
+    maxQi: S.maxQi, qi: S.maxQi,
+    atk: S.atk, mitig: S.mitig, crit: S.crit, dodge: S.dodge,
+    equipLifesteal: S.equipLifesteal, daoPierce: S.daoPierce,
+    healBonus: S.healBonus, vsDemon: S.vsDemon, burnImmune: S.burnImmune,
+    mentalResist: S.mentalResist,
+    element: S.element, rootElements: S.rootElements, attune: S.attune,
     shield: 0, statuses: [], beast: E.beastPower(c),
     beastElement: (c.beast && c.beast.alive) ? (c.beast.element || null) : null,
     beastBond: (c.beast && c.beast.alive) ? (c.beast.bond != null ? c.beast.bond : 50) : 0,
@@ -233,25 +259,11 @@ export function createBattle(c, enemyDef, rng, opts = {}) {
     beastName: (c.beast && c.beast.alive) ? c.beast.name : null,
     ally: bondedAlly(c, enemyDef),
   };
-  // A deeply-comprehended Dao (Great Mastery+) manifests in the fight: keener
-  // crits, blurred footwork, void-piercing strikes, killing intent and the like.
-  const dm = E.daoBattleMods(c);
-  if (dm.hp) {
-    player.maxHp *= (1 + dm.hp);
-    player.hp = player.maxHp * (opts.startHpFrac != null ? clampN(opts.startHpFrac, 0.1, 1) : 1);
-  }
-  player.crit = clampN(player.crit + dm.crit, 0, 0.85);
-  player.dodge = clampN(player.dodge + dm.dodge, 0, 0.7);
-  player.equipLifesteal = (player.equipLifesteal || 0) + dm.lifesteal;
-  player.daoPierce = dm.pierce || 0;
-  if (dm.shield) player.shield += player.maxHp * dm.shield;
-  if (dm.regen) player.statuses.push({ type: "regen", turns: 99, value: dm.regen });
-  // A tempered Dao Heart shrugs off mind-afflictions (stun/weaken) in battle.
-  player.mentalResist = E.mentalResist(c);
+  if (S.daoShieldFrac) player.shield += player.maxHp * S.daoShieldFrac;
+  if (S.daoRegen) player.statuses.push({ type: "regen", turns: 99, value: S.daoRegen });
   // A Nimble spirit beast lends you its quicksilver footwork.
   if (player.beastTrait === "nimble") player.dodge = clampN(player.dodge + 0.05, 0, 0.7);
-  // A trained movement art (轻功) lends real evasion in battle, not just on the road.
-  player.dodge = clampN(player.dodge + E.movementDodge(c), 0, 0.7);
+  const dm = S.daoMods;
 
   const ep = enemyDef.power;
   const hpMult = enemyDef.hpMult || 2.3;
@@ -521,6 +533,24 @@ function takeRound(B, actionId) {
 }
 
 /* --------------------------- resolve outcome ----------------------------- */
+// Settle a Heavenly Tribulation once the battle ends — survival steels the dao
+// heart; failure kills unless fortune (or undying flesh) intervenes. Shared by
+// the classic battle and the tactical grid.
+export function resolveTribulationOutcome(c, outcome, frac, rng) {
+  const lines = [];
+  if (outcome === "win") {
+    c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac));
+    c.qi += E.qiToNext(c) * 0.3;
+    c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + rng.randint(2, 5));   // crossing the heavens steels the heart
+    lines.push("⚡ You weather the Heavenly Tribulation! The clouds disperse and your new realm settles, unshakable.");
+  } else {
+    if (rng.random() < c.luck / 320 + (D.physEffect(c).deathSave || 0)) { c.hp = c.maxHp * 0.1; lines.push("⚡ The final bolt should have ended you — but your undying flesh drags you back from oblivion!"); }
+    else { c.alive = false; c.causeOfDeath = `struck down by the ${E.realmName(c)} tribulation`; c.hp = 0; c.log.push([c.age, "Died crossing the Heavenly Tribulation."]); lines.push("☠ The tribulation lightning scatters your soul. You die crossing the heavens."); }
+  }
+  E.recomputeMaxHp(c);
+  return lines;
+}
+
 function finishBattle(B) {
   const c = B.player.ref, En = B.enemy, rng = B.rng, lines = [];
   const frac = clampN(B.player.hp / B.player.maxHp, 0, 1);
@@ -532,19 +562,7 @@ function finishBattle(B) {
   }
 
   // The Heavenly Tribulation is its own kind of trial.
-  if (En.tribulation) {
-    if (B.outcome === "win") {
-      c.hp = Math.max(1, c.maxHp * Math.max(0.2, frac));
-      c.qi += E.qiToNext(c) * 0.3;
-      c.daoHeart = Math.min(E.DAO_HEART_MAX, (c.daoHeart || 0) + rng.randint(2, 5));   // crossing the heavens steels the heart
-      lines.push("⚡ You weather the Heavenly Tribulation! The clouds disperse and your new realm settles, unshakable.");
-    } else {
-      if (rng.random() < c.luck / 320 + (D.physEffect(c).deathSave || 0)) { c.hp = c.maxHp * 0.1; lines.push("⚡ The final bolt should have ended you — but your undying flesh drags you back from oblivion!"); }
-      else { c.alive = false; c.causeOfDeath = `struck down by the ${E.realmName(c)} tribulation`; c.hp = 0; c.log.push([c.age, "Died crossing the Heavenly Tribulation."]); lines.push("☠ The tribulation lightning scatters your soul. You die crossing the heavens."); }
-    }
-    E.recomputeMaxHp(c);
-    return lines;
-  }
+  if (En.tribulation) return resolveTribulationOutcome(c, B.outcome, frac, rng);
 
   if (B.outcome === "win") {
     c.hp = Math.max(1, c.maxHp * Math.max(0.15, frac));
