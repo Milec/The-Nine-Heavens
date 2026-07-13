@@ -255,6 +255,7 @@ body {
 #overlay { position: fixed; inset: 0; z-index: 50; background: rgba(4,6,12,.72); backdrop-filter: blur(3px); display: flex; align-items: flex-end; justify-content: center; }
 #overlay.hidden { display: none; }
 #overlay-card {
+  position: relative;
   width: 100%; max-width: 720px; max-height: 92dvh; background: var(--bg2);
   border: 1px solid var(--line2); border-bottom: none; border-radius: var(--r-lg) var(--r-lg) 0 0;
   display: flex; flex-direction: column; animation: slideup .26s cubic-bezier(.2,.8,.2,1); padding-bottom: var(--safe-b);
@@ -639,6 +640,10 @@ body {
 }
 #toast.show { opacity: 1; transform: none; pointer-events: auto; }
 #toast .toast-more { margin-top: 4px; font-size: .7rem; color: var(--muted); }
+/* Docked inside an open sheet: pinned just below the header, clear of the
+ * action buttons that live at the bottom of the sheet. */
+#toast.in-sheet { position: absolute; top: 76px; left: 10px; right: 10px; bottom: auto; transform: translateY(-8px); }
+#toast.in-sheet.show { transform: none; }
 
 /* ---------- in-sheet deed-budget readout -------------------------------- */
 .deed-meter {
