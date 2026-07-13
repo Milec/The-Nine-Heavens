@@ -648,6 +648,18 @@ body {
 .deed-meter .dm-cat { display: inline-flex; align-items: center; gap: 5px; }
 .deed-meter .dm-cat b { color: var(--jade); letter-spacing: 2px; font-family: var(--font-body); }
 .deed-meter .dm-cat.out b { color: var(--red); }
+/* category identity colours, shared with the .deed-tag cost tags */
+.deed-meter .dm-cult, .deed-tag.dt-cult { color: var(--blue); }
+.deed-meter .dm-act, .deed-tag.dt-act { color: var(--gold); }
+.deed-meter .dm-social, .deed-tag.dt-social { color: var(--pink); }
+
+/* ---------- deed-cost tag beneath an action ----------------------------- */
+.deed-tag {
+  display: inline-flex; align-items: center; gap: 3px; vertical-align: baseline;
+  font-family: var(--font-engrave); font-size: .62rem; font-weight: 600;
+  letter-spacing: .04em; white-space: nowrap; opacity: .95;
+}
+.deed-tag .dt-ic { flex: none; vertical-align: -0.12em; }
 
 /* ============================ character creator ====================== */
 .cr-field { margin: 10px 0; }

@@ -323,6 +323,15 @@ const DEED_ICON = {
   act: icon("deedAct", { size: 13, cls: "chip-ic" }),
   social: icon("deedSocial", { size: 13, cls: "chip-ic" }),
 };
+/* A tiny tag naming which deed budget an action will spend — shown beneath
+ * every deed-costing button so the cost is never a surprise. Colour-matched
+ * to the in-sheet deed meter. */
+const DEED_TAG_ICON = {
+  cult: icon("deedCult", { size: 11, cls: "dt-ic" }),
+  act: icon("deedAct", { size: 11, cls: "dt-ic" }),
+  social: icon("deedSocial", { size: 11, cls: "dt-ic" }),
+};
+const deedTag = cat => `<span class="deed-tag dt-${cat}">${DEED_TAG_ICON[cat]}${DEED_LABEL[cat]} deed</span>`;
 const defaultDeeds = () => ({ cult: DEEDS_PER_CAT, act: DEEDS_PER_CAT, social: DEEDS_PER_CAT });
 // Coerce a persisted/restored deed tally back into [0, DEEDS_PER_CAT], defaulting a missing one to full.
 const clampDeed = n => (typeof n === "number" && isFinite(n)) ? Math.max(0, Math.min(DEEDS_PER_CAT, Math.floor(n))) : DEEDS_PER_CAT;
@@ -387,7 +396,7 @@ function deedMeter(body, cats) {
   const wrap = el("div", "deed-meter");
   for (const cat of cats) {
     const n = deedsLeft(cat);
-    wrap.appendChild(el("span", "dm-cat" + (n <= 0 ? " out" : ""),
+    wrap.appendChild(el("span", `dm-cat dm-${cat}` + (n <= 0 ? " out" : ""),
       `${DEED_ICON[cat]} ${DEED_LABEL[cat]} <b>${"●".repeat(n)}${"○".repeat(Math.max(0, DEEDS_PER_CAT - n))}</b>`));
   }
   body.appendChild(wrap);
@@ -495,7 +504,7 @@ function openCultivate() {
   openOverlay("Cultivation", body => {
     if (!c.awakened) { body.appendChild(el("p", "note", `Your spiritual root has not yet awakened. The Awakening Ceremony comes at age ${D.AWAKENING_AGE} — keep aging up.`)); return; }
     const hasRoot = c.root.key !== "none";
-    const addBtn = (grid, l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
+    const addBtn = (grid, l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${opt.deed ? deedTag(opt.deed) + " · " : ""}${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
     deedMeter(body, ["cult"]);
     foldControl(body, [...(hasRoot ? ["cult.qi"] : []), "cult.body", "cult.daoheart"], openCultivate);
 
@@ -518,14 +527,14 @@ function openCultivate() {
         const g = el("div", "menu-grid");
         if (atWall)
           addBtn(g, "Attempt Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%${c.realm >= 3 ? " · tribulation" : " · risky"}`, doBreakthrough, { full: true, primary: true });
-        addBtn(g, "Focused Cultivation", "a deed · deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult", { stay: openCultivate }));
-        addBtn(g, "Use a Qi Pill", `a deed · ${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult", { stay: openCultivate }), { disabled: c.pills <= 0 });
+        addBtn(g, "Focused Cultivation", "deepen your qi", () => runTimed(() => E.gainQi(c, state.rng, 0.15), "cult", { stay: openCultivate }), { deed: "cult" });
+        addBtn(g, "Use a Qi Pill", `${c.pills} left`, () => runTimed(() => E.gainQi(c, state.rng, 0.15, true), "cult", { stay: openCultivate }), { disabled: c.pills <= 0, deed: "cult" });
         {
           const tgt = E.canMeditate(c) ? E.meditationTarget(c) : null;
           const sub = !E.canMeditate(c) ? "needs Nascent Soul"
             : tgt && tgt.mode === "deepen" ? `deepen the ${D.DAO_BY_KEY[tgt.key][1].split(" (")[0]}`
             : "seek a new Law";
-          addBtn(g, "Comprehend the Dao", sub, () => runTimed(() => E.meditate(c, state.rng, 1), "cult", { stay: openCultivate }), { disabled: !E.canMeditate(c) });
+          addBtn(g, "Comprehend the Dao", sub, () => runTimed(() => E.meditate(c, state.rng, 1), "cult", { stay: openCultivate }), { disabled: !E.canMeditate(c), deed: "cult" });
         }
         if (c.realm >= E.DAO_MIN_REALM) addBtn(g, "The Daos 道之境界", c.daos.length ? `${c.daos.length} comprehended` : "the Laws of heaven", openDaos);
         w.appendChild(g);
@@ -546,7 +555,7 @@ function openCultivate() {
       if (nb) progress(w, `Tempering → ${nb[0]}`, c.temper, nb[2], "body");
       else w.appendChild(el("p", "note", `Your body has reached the limit your ${c.physiqueName} can bear — the ${D.bodyRealmName(c.bodyRealm)}.`));
       const bg = el("div", "menu-grid");
-      addBtn(bg, "Temper the Body", "a deed · forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5), "cult", { stay: openCultivate }), { full: true, primary: !hasRoot });
+      addBtn(bg, "Temper the Body", "forge flesh & bone", () => runTimed(() => E.temperBody(c, state.rng, 1.5), "cult", { stay: openCultivate }), { full: true, primary: !hasRoot, deed: "cult" });
       w.appendChild(bg);
     });
 
@@ -556,7 +565,7 @@ function openCultivate() {
       progress(w, "Dao Heart", c.daoHeart || 0, E.DAO_HEART_MAX, "dao");
       w.appendChild(el("p", "note", "Your resolve wards the soul against heart demons, illusion and temptation, and shrugs off mind-afflictions in battle. Stillness tempers it."));
       const hg = el("div", "menu-grid");
-      addBtn(hg, "Still the Heart 静心", "a deed · temper your resolve", () => runTimed(() => E.stillHeart(c, state.rng), "cult", { stay: openCultivate }), { full: true });
+      addBtn(hg, "Still the Heart 静心", "temper your resolve", () => runTimed(() => E.stillHeart(c, state.rng), "cult", { stay: openCultivate }), { full: true, deed: "cult" });
       w.appendChild(hg);
     });
 
@@ -577,10 +586,11 @@ function openRankboard() {
     body.appendChild(el("p", "note", `The roll of the realm's foremost cultivators, ranked by raw power — drawn from the great sects and the wider world, climbing their own roads whether or not you ever awaken. ${standing}. Climb it by out-cultivating them; challenge a rival above you to test yourself — win and your renown soars, lose and it dims.`));
     ranked.forEach((x, i) => {
       const row = el("div", "listrow" + (x.you ? " bound" : ""));
-      const sub = x.you ? "— you —" : `${x.title} · ${D.REALMS[x.realm][0]}${x.age != null ? ` · age ${x.age}` : ""} · power ${Math.floor(x.power)}`;
-      row.innerHTML = `<div class="lr-ava ${i === 0 ? "tint-gold" : x.you ? "tint-jade" : ""}">${icon(i === 0 ? "crown" : x.you ? "lotus" : "blade", { size: 22 })}</div><div class="lr-main"><div class="lr-title">#${i + 1} ${escapeHtml(x.name)}</div><div class="lr-sub">${escapeHtml(sub)}</div></div>`;
       // You may challenge anyone ranked above you, within reach (the next 4 places up).
-      if (!x.you && i < rank - 1 && i >= rank - 5) row.onclick = () => challengeGenius(x.ref);
+      const canChallenge = !x.you && i < rank - 1 && i >= rank - 5;
+      const sub = x.you ? "— you —" : `${x.title} · ${D.REALMS[x.realm][0]}${x.age != null ? ` · age ${x.age}` : ""} · power ${Math.floor(x.power)}`;
+      row.innerHTML = `<div class="lr-ava ${i === 0 ? "tint-gold" : x.you ? "tint-jade" : ""}">${icon(i === 0 ? "crown" : x.you ? "lotus" : "blade", { size: 22 })}</div><div class="lr-main"><div class="lr-title">#${i + 1} ${escapeHtml(x.name)}</div><div class="lr-sub">${canChallenge ? `${deedTag("social")} · challenge · ` : ""}${escapeHtml(sub)}</div></div>`;
+      if (canChallenge) row.onclick = () => challengeGenius(x.ref);
       body.appendChild(row);
     });
     sheetBack(actWorld);
@@ -683,14 +693,14 @@ function openPeople() {
         if (here.length > 6) w.appendChild(el("p", "note", `…and ${here.length - 6} more dwell here — see the place itself (Adventure → Travel the Realm) for the full roll.`));
       }, { count: here.length });
     }
-    const b = el("button", "mbtn full primary"); b.innerHTML = "Go Out & Mingle<small>a deed · meet someone new</small>";
+    const b = el("button", "mbtn full primary"); b.innerHTML = `Go Out & Mingle<small>${deedTag("social")} · meet someone new</small>`;
     b.onclick = () => { if (!ageAllows("mingle")) return; runTimed(() => L.mingle(c, state.rng), "social", { stay: openPeople }); };
     body.appendChild(b);
-    const rp = el("button", "mbtn full"); rp.innerHTML = "Refine your Presence<small>a deed · +charm · banquets, debates &amp; renown</small>";
+    const rp = el("button", "mbtn full"); rp.innerHTML = `Refine your Presence<small>${deedTag("social")} · +charm · banquets, debates &amp; renown</small>`;
     rp.onclick = () => { if (!ageAllows("mingle")) return; runTimed(() => L.refinePresence(c, state.rng), "social", { stay: openPeople }); };
     body.appendChild(rp);
     if (c.realm >= 4 && L.getDisciples(c).length < 3) {
-      const d = el("button", "mbtn full"); d.innerHTML = "Take a Disciple<small>a deed · pass on your arts</small>";
+      const d = el("button", "mbtn full"); d.innerHTML = `Take a Disciple<small>${deedTag("social")} · pass on your arts</small>`;
       d.onclick = () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openPeople(); };
       body.appendChild(d);
     }
@@ -705,7 +715,7 @@ function openTeachPicker(npc) {
     for (const t of techs) {
       const known = (npc.learned || []).includes(t);
       const row = el("div", "listrow" + (known ? " disabled" : ""));
-      row.innerHTML = `<div class="lr-ava">📖</div><div class="lr-main"><div class="lr-title">${escapeHtml(D.TECHNIQUES[t][0])}</div><div class="lr-sub">${known ? "already learned" : D.TECHNIQUES[t][4]}</div></div>`;
+      row.innerHTML = `<div class="lr-ava">📖</div><div class="lr-main"><div class="lr-title">${escapeHtml(D.TECHNIQUES[t][0])}</div><div class="lr-sub">${known ? "already learned" : deedTag("social") + " · " + D.TECHNIQUES[t][4]}</div></div>`;
       if (!known) row.onclick = () => { if (!useAction("social")) return; const res = L.teachTo(c, npc, t); logMessages(res); renderProfile(); openPerson(npc); toast(res); };
       body.appendChild(row);
     }
@@ -795,7 +805,7 @@ function openPerson(n) {
       body.appendChild(infoRows(npcAttrRows(n)));
     }
     const mkActBtn = (act) => {
-      const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
+      const b = el("button", "mbtn full"); b.innerHTML = `${escapeHtml(act.label)}<small>${deedTag("social")}</small>`;
       b.onclick = () => {
         if (act.id === "teach") { openTeachPicker(n); return; }   // picker spends the deed on teach
         if (act.id === "spar") {  // a friendly, non-lethal bout — fought in the combat menu
@@ -932,7 +942,7 @@ function openDenizen(n) {
       ? "A cultivator of the realm, dwelling where you now stand. Seek them out and they may enter your life — as a friend, a rival, even a master — or cross blades to make your name."
       : "A cultivator of the wider realm, walking their own road. Travel to where they dwell to seek them out, or test yourself against the realm's strongest on the Heaven Board."));
     for (const act of acts) {
-      const b = el("button", "mbtn full"); b.innerHTML = escapeHtml(act.label);
+      const b = el("button", "mbtn full"); b.innerHTML = `${escapeHtml(act.label)}<small>${deedTag("social")}</small>`;
       b.onclick = () => {
         if (act.id === "challenge") {
           if (!ageAllows("duel") || !useAction("social")) return;
@@ -976,7 +986,7 @@ function openTechniques() {
       const row = el("div", "listrow");
       row.innerHTML = `<div class="lr-ava">${s.element ? C.elementIcon(s.element) : "✊"}</div><div class="lr-main">
         <div class="lr-title">${escapeHtml(s.name)}${forged ? " ✦" : ""} <span class="lr-sub" style="display:inline">· ${rank[0]} (+${Math.round(rank[2] * 100)}%)</span></div>
-        <div class="lr-sub">${eff}${s.qi ? ` · ⊙${s.qi} qi` : " · free"}${next ? ` · ${pts}/${next[1]} → ${next[0]}` : " · perfected"}</div>
+        <div class="lr-sub">${deedTag("cult")} · ${eff}${s.qi ? ` · ⊙${s.qi} qi` : " · free"}${next ? ` · ${pts}/${next[1]} → ${next[0]}` : " · perfected"}</div>
         <div class="affbar"><div style="width:${pctTo}%;background:var(--gold2)"></div></div></div>`;
       row.onclick = () => runTimed(() => L.trainTechnique(c, state.rng, t), "cult", { stay: openTechniques });
       body.appendChild(row);
@@ -1097,7 +1107,7 @@ function openForgeTech() {
       body.appendChild(pv);
       const afford = c.spiritStones >= s.stones && c.herbs >= s.herbs;
       const forgeBtn = el("button", "mbtn full primary");
-      forgeBtn.innerHTML = `Forge the Art<small>${afford ? `a deed · ${Math.floor(s.chance * 100)}% · ${s.stones} stones, ${s.herbs} herbs` : "not enough materials"}</small>`;
+      forgeBtn.innerHTML = `Forge the Art<small>${afford ? `${deedTag("cult")} · ${Math.floor(s.chance * 100)}% · ${s.stones} stones, ${s.herbs} herbs` : "not enough materials"}</small>`;
       if (afford) forgeBtn.onclick = () => runTimed(() => E.forgeTech(c, state.rng, sel.element, sel.style, sel.name), "cult");
       else forgeBtn.disabled = true;
       body.appendChild(forgeBtn);
@@ -1135,7 +1145,7 @@ function openOwnSectLibrary() {
 // Build a small grid of leaf-action buttons (the classic mbtn). Returns the grid.
 function leafGrid(body) {
   const grid = el("div", "menu-grid"); body.appendChild(grid);
-  grid.mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${escapeHtml(s)}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); return b; };
+  grid.mk = (l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${opt.deed ? deedTag(opt.deed) + " · " : ""}${escapeHtml(s)}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); return b; };
   return grid;
 }
 // ---- Pursuits: every destination at most two taps from the tab bar. The two
@@ -1171,13 +1181,13 @@ function actTrain() {
     const young = key => c.age < (AGE_MIN[key] || 0), sub = (key, n) => young(key) ? `from age ${AGE_MIN[key]}` : n;
     deedMeter(body, ["cult", "act"]);
     const g = leafGrid(body);
-    g.mk("Train the Body", sub("train", "+constitution · tempers your body"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult", { stay: actTrain }); }, { disabled: young("train") });
-    g.mk("Study Scriptures", sub("study", "+comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "act", { stay: actTrain }); }, { disabled: young("study") });
-    g.mk("Temper the Soul", sub("study", "+soul · hone your spiritual sense"), () => { if (!ageAllows("study")) return; runTimed(() => L.temperSoul(c, state.rng), "cult", { stay: actTrain }); }, { disabled: young("study") });
-    g.mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng), "act", { stay: actTrain }));
-    g.mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng), "act", { stay: actTrain }), { disabled: young("oddjobs") });
+    g.mk("Train the Body", sub("train", "+constitution · tempers your body"), () => { if (!ageAllows("train")) return; runTimed(() => L.trainBody(c, state.rng), "cult", { stay: actTrain }); }, { disabled: young("train"), deed: "cult" });
+    g.mk("Study Scriptures", sub("study", "+comprehension"), () => { if (!ageAllows("study")) return; runTimed(() => L.studyScriptures(c, state.rng), "act", { stay: actTrain }); }, { disabled: young("study"), deed: "act" });
+    g.mk("Temper the Soul", sub("study", "+soul · hone your spiritual sense"), () => { if (!ageAllows("study")) return; runTimed(() => L.temperSoul(c, state.rng), "cult", { stay: actTrain }); }, { disabled: young("study"), deed: "cult" });
+    g.mk("Rest & Recover", "health + happiness", () => runTimed(() => L.restAndRecover(c, state.rng), "act", { stay: actTrain }), { deed: "act" });
+    g.mk("Take Odd Jobs", sub("oddjobs", "earn spirit stones"), () => runTimed(() => L.oddJobs(c, state.rng), "act", { stay: actTrain }), { disabled: young("oddjobs"), deed: "act" });
     { const art = E.bestMovementArt(c);
-      g.mk("Practice Footwork 轻功", art ? `${D.MOVEMENT_BY_KEY[art][1]} · ${E.moveRankName(E.moveFraction(c, art))} · ${E.hopsPerDeed(c)}/deed` : "learn a 轻功 art at the market first", () => runTimed(() => L.practiceMovement(c, state.rng), "act", { stay: actTrain }), { full: true, disabled: !art }); }
+      g.mk("Practice Footwork 轻功", art ? `${D.MOVEMENT_BY_KEY[art][1]} · ${E.moveRankName(E.moveFraction(c, art))} · ${E.hopsPerDeed(c)}/deed` : "learn a 轻功 art at the market first", () => runTimed(() => L.practiceMovement(c, state.rng), "act", { stay: actTrain }), { full: true, disabled: !art, deed: "act" }); }
     sheetBack(openActivities);
   });
 }
@@ -1192,14 +1202,14 @@ function actAdventure() {
     deedMeter(body, ["act"]);
     const g = leafGrid(body);
     g.mk("Travel the Realm", here ? "now at " + here.name : "the world map", openWorldMap, { full: true });
-    g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander });
-    g.mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt") });
-    g.mk("Tactical Skirmish 群战", !canHunt ? "needs cultivation" : sub("hunt", "grid battle · many foes & allies"), doSkirmish, { disabled: !canHunt || young("hunt") });
-    g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena") });
-    g.mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss") });
-    g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret") });
-    { const nem = L.getNemesis(c); if (nem) { const tooYoung = c.age < AGE_MIN.showdown; g.mk("⚔ Settle the Score 宿敌", tooYoung ? `from age ${AGE_MIN.showdown}` : canHunt ? `duel ${nem.name} to the death` : "needs cultivation", doNemesisReckoning, { full: true, disabled: !canHunt || tooYoung }); } }
-    if (menace) g.mk(`☄ Slay the Demon 除魔`, !canHunt ? "needs cultivation" : `hunt ${menace.name} · ${E.npcRealmName(menace)} · be the realm's hero`, () => doSlayDemon(menace), { full: true, disabled: !canHunt });
+    g.mk("Wander the World", c.age < AGE_MIN.wander ? `from age ${AGE_MIN.wander}` : (canHunt ? "adventure & battle" : "roam for fortune"), doWander, { disabled: c.age < AGE_MIN.wander, deed: "act" });
+    g.mk("Hunt Spirit Beasts", !canHunt ? "needs cultivation" : sub("hunt", "battle · tameable"), doHunt, { disabled: !canHunt || young("hunt"), deed: "act" });
+    g.mk("Tactical Skirmish 群战", !canHunt ? "needs cultivation" : sub("hunt", "grid battle · many foes & allies"), doSkirmish, { disabled: !canHunt || young("hunt"), deed: "act" });
+    g.mk("Spar in the Arena", !canHunt ? "needs cultivation" : sub("arena", "train · non-lethal"), doArena, { disabled: !canHunt || young("arena"), deed: "act" });
+    g.mk("Seek a Worthy Foe", !canBoss ? "needs Foundation+" : sub("boss", "BOSS · great rewards"), doBossFight, { disabled: !canBoss || young("boss"), deed: "act" });
+    g.mk("Enter a Secret Realm", !canBoss ? "needs Foundation+" : sub("secret", "delve · escalating loot"), doSecretRealm, { disabled: !canBoss || young("secret"), deed: "act" });
+    { const nem = L.getNemesis(c); if (nem) { const tooYoung = c.age < AGE_MIN.showdown; g.mk("⚔ Settle the Score 宿敌", tooYoung ? `from age ${AGE_MIN.showdown}` : canHunt ? `duel ${nem.name} to the death` : "needs cultivation", doNemesisReckoning, { full: true, disabled: !canHunt || tooYoung, deed: "act" }); } }
+    if (menace) g.mk(`☄ Slay the Demon 除魔`, !canHunt ? "needs cultivation" : `hunt ${menace.name} · ${E.npcRealmName(menace)} · be the realm's hero`, () => doSlayDemon(menace), { full: true, disabled: !canHunt, deed: "act" });
     sheetBack(openActivities);
   });
 }
@@ -1424,12 +1434,12 @@ function openAbode() {
       if (c.ownSect) body.appendChild(el("p", "note", `🏯 This abode is the mountain seat of your sect, the ${c.ownSect.name} (${D.sectTier(c.ownSect.prestige)[1]}). A grander seat houses more disciples.`));
       else if (L.canFoundSect(c)) body.appendChild(el("p", "note", "🏯 Your abode is now grand enough to serve as the seat of your own sect — found one from the Sect tab."));
       const sec = el("button", "mbtn full primary");
-      sec.innerHTML = `Cultivate in Seclusion<small>a deed · seal yourself in for a deep cultivation</small>`;
+      sec.innerHTML = `Cultivate in Seclusion<small>${deedTag("cult")} · seal yourself in for a deep cultivation</small>`;
       sec.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng), "cult", { stay: openAbode });
       body.appendChild(sec);
       if (c.pills > 0) {
         const secp = el("button", "mbtn full");
-        secp.innerHTML = `Seclusion + Qi Pill<small>a deed · ${c.pills} pill(s) left</small>`;
+        secp.innerHTML = `Seclusion + Qi Pill<small>${deedTag("cult")} · ${c.pills} pill(s) left</small>`;
         secp.onclick = () => runTimed(() => L.secludeInAbode(c, state.rng, true), "cult", { stay: openAbode });
         body.appendChild(secp);
       }
@@ -1468,7 +1478,7 @@ function openTalismans() {
     for (const key of D.TALISMAN_ORDER) {
       const t = D.TALISMANS[key], can = c.herbs >= t.herbs, have = (c.talismans && c.talismans[key]) || 0;
       const r = el("div", "listrow" + (can ? "" : " disabled"));
-      r.innerHTML = `<div class="lr-ava">${t.element ? C.elementIcon(t.element) : "🧧"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(t.name)} <span class="lr-sub" style="display:inline">· have ${have}</span></div><div class="lr-sub">${t.herbs} herbs · ${escapeHtml(t.desc)}</div></div>`;
+      r.innerHTML = `<div class="lr-ava">${t.element ? C.elementIcon(t.element) : "🧧"}</div><div class="lr-main"><div class="lr-title">${escapeHtml(t.name)} <span class="lr-sub" style="display:inline">· have ${have}</span></div><div class="lr-sub">${deedTag("act")} · ${t.herbs} herbs · ${escapeHtml(t.desc)}</div></div>`;
       if (can) r.onclick = () => runTimed(() => E.inscribeTalisman(c, key, state.rng), "act", { stay: openTalismans });
       body.appendChild(r);
     }
@@ -1483,7 +1493,7 @@ function openAlchemy() {
     for (const r of D.PILL_RECIPES) {
       const can = c.herbs >= r[2];
       const row = el("div", "listrow" + (can ? "" : " disabled"));
-      row.innerHTML = `<div class="lr-ava">⚗️</div><div class="lr-main"><div class="lr-title">${r[1]}</div><div class="lr-sub">${r[2]} herbs · ${r[4]}</div></div>`;
+      row.innerHTML = `<div class="lr-ava">⚗️</div><div class="lr-main"><div class="lr-title">${r[1]}</div><div class="lr-sub">${deedTag("act")} · ${r[2]} herbs · ${r[4]}</div></div>`;
       if (can) row.onclick = () => startBrew(r);
       body.appendChild(row);
     }
@@ -1510,7 +1520,7 @@ function openWorldMap() {
       const dest = W.locById(c, c.journeyTo), left = E.travelDeeds(c, c.journeyTo);
       const canTravel = c.age >= AGE_MIN.travel;
       const cont = el("button", "mbtn full" + (canTravel ? " primary" : ""));
-      cont.innerHTML = `Continue to ${escapeHtml(dest.name)}<small>${canTravel ? left + " stage" + (left > 1 ? "s" : "") + " of road remain" : "from age " + AGE_MIN.travel}</small>`;
+      cont.innerHTML = `Continue to ${escapeHtml(dest.name)}<small>${canTravel ? deedTag("act") + " · " + left + " stage" + (left > 1 ? "s" : "") + " of road remain" : "from age " + AGE_MIN.travel}</small>`;
       if (canTravel) cont.onclick = () => travelTo(c.journeyTo);
       else cont.disabled = true;
       body.appendChild(cont);
@@ -1600,7 +1610,7 @@ function openLocationCard(id) {
       const canTravel = c.age >= AGE_MIN.travel;
       body.appendChild(el("p", "note", canTravel ? `The road runs ${hops} stage${hops > 1 ? "s" : ""} — ${cost} travel deed${cost > 1 ? "s" : ""} at your pace (${E.hopsPerDeed(c)}/deed). ${cost <= avail ? "You can reach it this year." : `Too far for one year — you'll rest at waystations along the way (about ${years} year${years > 1 ? "s" : ""} of travel).`}` : `You are too young to venture out into the world alone — travel opens at age ${AGE_MIN.travel}. For now, study this place from a distance.`));
       const go = el("button", "mbtn full" + (canTravel ? " primary" : ""));
-      go.innerHTML = `Set out for ${escapeHtml(loc.name)}<small>${!canTravel ? "from age " + AGE_MIN.travel : cost <= avail ? `arrive this year · ${cost} deed${cost > 1 ? "s" : ""}` : `${avail > 0 ? "travel " + Math.min(avail, cost) + " deed" + (Math.min(avail, cost) > 1 ? "s" : "") + " now, rest, continue" : "no deeds left — age up first"}`}</small>`;
+      go.innerHTML = `Set out for ${escapeHtml(loc.name)}<small>${!canTravel ? "from age " + AGE_MIN.travel : cost <= avail ? `${deedTag("act")} ×${cost} · arrive this year` : `${avail > 0 ? deedTag("act") + " ×" + Math.min(avail, cost) + " · travel now, rest, continue" : "no Activity deeds left — age up first"}`}</small>`;
       if (canTravel) go.onclick = () => travelTo(id);
       else go.disabled = true;
       body.appendChild(go);
@@ -1958,12 +1968,12 @@ function openSect() {
       body.appendChild(el("p", "note", `<b style="color:var(--jade2)">⚔ The ${E.sectName(c).split(" (")[0]} is at war with the ${escapeHtml(foeNames)}.</b> Answer the call to arms and your valour will tip the war your sect's way.`));
     }
     const grid = el("div", "menu-grid");
-    const mk = (l, s, h, full) => { const b = el("button", "mbtn" + (full ? " full" : "")); b.innerHTML = `${l}<small>${escapeHtml(s)}</small>`; b.onclick = h; grid.appendChild(b); };
-    if (foes.length) mk("⚔ Answer the Call to Arms 出征", "a deed · fight at the front", doCallToArms, true);
-    mk("Take a Mission", "a deed · earn contribution", openQuests);
+    const mk = (l, s, h, full, deed) => { const b = el("button", "mbtn" + (full ? " full" : "")); b.innerHTML = `${l}<small>${deed ? deedTag(deed) + " · " : ""}${escapeHtml(s)}</small>`; b.onclick = h; grid.appendChild(b); };
+    if (foes.length) mk("⚔ Answer the Call to Arms 出征", "fight at the front", doCallToArms, true, "act");
+    mk("Take a Mission", "earn contribution", openQuests, false, "act");
     mk("Seek Promotion", req ? (E.canPromote(c) ? "trial of rank" : "view requirements") : "at the summit", doPromotion);
     mk("Sect Library 传功", "learn the sect's signature arts", openSectLibrary);
-    mk("Grand Tournament", "a deed · interactive duels", doTournament);
+    mk("Grand Tournament", "interactive duels", doTournament, false, "act");
     mk("Sect Store", "25 contrib → pills & manuals", () => runFree(() => E.exchangeContribution(c, state.rng)));
     const leave = el("button", "mbtn full danger"); leave.innerHTML = "Leave the Sect<small>go rogue</small>"; leave.onclick = () => runFree(() => E.leaveSect(c)); grid.appendChild(leave);
     body.appendChild(grid);
@@ -2042,9 +2052,9 @@ function renderOwnSect(c, body) {
   body.appendChild(el("p", "note", `Each year your sect spreads your name (+${tier[4]} fame), pays a stipend from its treasury, and quickens your dao. Expand your cave abode to raise the members cap. Invite disciples (in Relationships) to settle them as your core.`));
   const grid = el("div", "menu-grid");
   const mk = (l, sub, h, full, primary) => { const b = el("button", "mbtn" + (full ? " full" : "") + (primary ? " primary" : "")); b.innerHTML = `${l}<small>${sub}</small>`; b.onclick = h; grid.appendChild(b); };
-  mk("Hold a Recruitment", s.members < cap ? "a deed · draw new disciples" : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng), "act", { stay: openSect }), true, s.members < cap);
+  mk("Hold a Recruitment", s.members < cap ? `${deedTag("act")} · draw new disciples` : "halls are full", () => runTimed(() => L.holdRecruitment(c, state.rng), "act", { stay: openSect }), true, s.members < cap);
   if (c.realm >= 4 && L.getDisciples(c).length < 4)
-    mk("Take a Disciple", "a deed · a personal heir", () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
+    mk("Take a Disciple", `${deedTag("social")} · a personal heir`, () => { if (!ageAllows("disciple") || !useAction("social")) return; logMessages(L.takeDisciple(c, state.rng)); renderProfile(); openSect(); });
   mk("Sect Library 藏经阁", `enshrine your arts · +${E.sectLibraryBonus(s)}/yr`, openOwnSectLibrary, true);
   mk("Sect Conflicts 宗门之争", s.threat ? `⚔ UNDER RAID — defend your sect!` : "wage war on rival sects", openSectWar, true, !!s.threat);
   body.appendChild(grid);
@@ -2071,7 +2081,7 @@ function openSectWar() {
       warn.innerHTML = `<b style="color:var(--jade2)">⚔ The ${escapeHtml(rs ? rs[1].split(" (")[0] : "raiders")} is marching on the ${escapeHtml(c.ownSect.name)}!</b> Lead your disciples to meet them now — leave it too long and they will press the attack, sacking your halls.`;
       body.appendChild(warn);
       const db = el("button", "mbtn full danger");
-      db.innerHTML = `御敌 · Repel the Raiders<small>a deed · defend your sect in battle</small>`;
+      db.innerHTML = `御敌 · Repel the Raiders<small>${deedTag("act")} · defend your sect in battle</small>`;
       db.onclick = doDefendSect;
       body.appendChild(db);
       body.appendChild(el("div", "section-h", "Take the Offensive"));
@@ -2080,7 +2090,7 @@ function openSectWar() {
     for (const r of E.sectWarRivals(c)) {
       const s = r.sect;
       const state2 = r.broken ? ` · in ruins (~${r.brokenYears} yr to rebuild)` : "";
-      const sub = `${s[2]} · might ${r.strength} · ${Math.floor(r.chance * 100)}% to prevail${state2}${r.hostile ? " · sworn foes" : ""}`;
+      const sub = `${r.broken ? "" : deedTag("act") + " · "}${s[2]} · might ${r.strength} · ${Math.floor(r.chance * 100)}% to prevail${state2}${r.hostile ? " · sworn foes" : ""}`;
       const rrow = el("div", "listrow" + (r.broken ? " disabled" : ""));
       rrow.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${s[1]}</div><div class="lr-sub">${sub}<br>${s[9]}</div></div>`;
       if (!r.broken) rrow.onclick = () => { if (!useAction("act")) return; logMessages(E.wageSectWar(c, state.rng, r.key)); renderProfile(); if (!state.c.alive) checkDeath(); else openSectWar(); };
@@ -2109,7 +2119,7 @@ function openQuests() {
     for (const q of E.availableQuests(c)) {
       const bonus = REWARD_LABEL[q[6]] ? " · " + REWARD_LABEL[q[6]] : "";
       const row = el("div", "listrow");
-      row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${q[0]}</div><div class="lr-sub">+${q[2]} contrib · +${q[3]} stones${bonus} · risk ${Math.floor(q[4] * 100)}%<br>${q[5]}</div></div>`;
+      row.innerHTML = `<div class="lr-ava">${icon("sect", { size: 18 })}</div><div class="lr-main"><div class="lr-title">${q[0]}</div><div class="lr-sub">${deedTag("act")} · +${q[2]} contrib · +${q[3]} stones${bonus} · risk ${Math.floor(q[4] * 100)}%<br>${q[5]}</div></div>`;
       row.onclick = () => { if (!ageAllows("quest")) return; runTimed(() => E.doQuest(c, state.rng, q)); };
       body.appendChild(row);
     }
