@@ -385,6 +385,12 @@ function toast(msgs) {
   if (!lines.length) return;
   let t = $("toast");
   if (!t) { t = el("div"); t.id = "toast"; document.body.appendChild(t); t.addEventListener("click", () => t.classList.remove("show")); }
+  // Inside a sheet, dock beneath its header so the action buttons at the
+  // bottom stay visible and tappable; float above the tab bar otherwise.
+  const sheetOpen = !$("overlay").classList.contains("hidden");
+  const host = sheetOpen ? $("overlay-card") : document.body;
+  if (t.parentNode !== host) host.appendChild(t);
+  t.classList.toggle("in-sheet", sheetOpen);
   t.innerHTML = lines.slice(0, 2).map(m => `<div>${escapeHtml(m)}</div>`).join("")
     + (lines.length > 2 ? `<div class="toast-more">…and more — see your life log</div>` : "");
   t.classList.add("show");
