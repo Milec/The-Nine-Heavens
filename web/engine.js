@@ -1272,8 +1272,14 @@ export function fight(c, rng, enemy) {
     msgs.push("  It is far stronger than you, and you cannot break away!");
   }
 
+  // Fight from a battle pool that scales with your full power — exactly as the
+  // interactive battles do — so a high-realm cultivator isn't one-shot by the
+  // quick text exchange (persistent maxHp grows only linearly with realm while
+  // foe power grows superlinearly). Wounds map back onto real HP at the end.
+  const hpMax = Math.max(c.maxHp, power(c) * 1.9);
+  let hp = hpMax * clamp(c.hp / Math.max(1, c.maxHp), 0.05, 1);
   let eHp = ePower * 1.2, rounds = 0;
-  while (c.hp > 0 && eHp > 0 && rounds < 30) {
+  while (hp > 0 && eHp > 0 && rounds < 30) {
     rounds++;
     const crit = rng.random() < (c.luck / 400.0 + 0.05);
     const atk = power(c) * rng.uniform(0.30, 0.46) * (crit ? 2.0 : 1.0);
@@ -1281,28 +1287,29 @@ export function fight(c, rng, enemy) {
     if (crit) msgs.push(`  ✦ Critical! You hit for ${Math.floor(atk)}.`);
     if (eHp <= 0) break;
     if (rng.random() < (c.luck / 600.0 + c.soul / 800.0)) { msgs.push("  You flow aside, untouched."); continue; }
-    c.hp -= ePower * rng.uniform(0.09, 0.17);
-    if (c.hp < c.maxHp * 0.25 && c.healingPills > 0) {
-      c.healingPills -= 1; c.hp = Math.min(c.maxHp, c.hp + c.maxHp * 0.5);
+    hp -= ePower * rng.uniform(0.09, 0.17);
+    if (hp > 0 && hp < hpMax * 0.25 && c.healingPills > 0) {
+      c.healingPills -= 1; hp = Math.min(hpMax, hp + hpMax * 0.5);
       msgs.push("  You gulp a Spirit Healing Pill mid-battle and rally.");
     }
   }
 
-  if (c.hp > 0 && eHp <= 0) {
-    c.spiritStones += reward; c.reputation += 1; c.hp = Math.max(1.0, c.hp);
+  if (hp > 0 && eHp <= 0) {
+    c.spiritStones += reward; c.reputation += 1; c.hp = Math.max(1.0, c.maxHp * (hp / hpMax));
     msgs.push(`  You slay the ${name}! (+${reward} spirit stones, +1 reputation)`);
     if (kind === "rogue" && (name.includes("Demonic") || name.includes("Corpse") || name.includes("Bandit") || rng.random() < 0.5)) c.karma += 2;
     // Fortune turns up spoils; spiritual sense (soul) sniffs out what's hidden.
     if (rng.random() < 0.14 + c.luck / 500.0 + c.soul / 900.0) pushAll(msgs, loot(c, rng));
     if (kind === "beast" && c.beast === null) pushAll(msgs, tryTame(c, name, ePower, rng));
-  } else if (c.hp <= 0) {
+  } else if (hp <= 0) {
     if (rng.random() < c.luck / 300.0) { c.hp = c.maxHp * 0.15; msgs.push("  At death's door, blind luck lets you escape with your life!"); }
     else {
-      c.alive = false; c.causeOfDeath = `slain by a ${name}`;
+      c.alive = false; c.causeOfDeath = `slain by a ${name}`; c.hp = 0;
       msgs.push(`  ☠ The ${name} strikes you down. Your journey ends here.`);
       note(c, `Killed by a ${name}.`);
     }
   } else {
+    c.hp = Math.max(1.0, c.maxHp * (hp / hpMax));
     msgs.push("  Neither can fell the other; you disengage, breathing hard.");
   }
   recomputeMaxHp(c);

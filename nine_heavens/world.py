@@ -69,9 +69,15 @@ def fight(c: Character, rng: random.Random, enemy=None) -> list:
             return msgs
         msgs.append("  It is far stronger than you, and you cannot break away!")
 
+    # Fight from a battle pool that scales with your full power, so a
+    # high-realm cultivator isn't one-shot by the quick exchange (persistent
+    # max_hp grows only linearly with realm while foe power grows
+    # superlinearly). Wounds map back onto real HP once the dust settles.
+    hp_max = max(c.max_hp, c.power * 1.9)
+    hp = hp_max * max(0.05, min(1.0, c.hp / max(1.0, c.max_hp)))
     e_hp = e_power * 1.2
     rounds = 0
-    while c.hp > 0 and e_hp > 0 and rounds < 30:
+    while hp > 0 and e_hp > 0 and rounds < 30:
         rounds += 1
         # Player strikes (c.power already includes any beast and treasure).
         crit = rng.random() < (c.luck / 400.0 + 0.05)
@@ -86,18 +92,17 @@ def fight(c: Character, rng: random.Random, enemy=None) -> list:
         if dodge:
             msgs.append("  You flow aside, untouched.")
             continue
-        dmg = e_power * rng.uniform(0.09, 0.17)
-        c.hp -= dmg
+        hp -= e_power * rng.uniform(0.09, 0.17)
         # A Spirit Healing Pill is gulped down when the tide turns dire.
-        if c.hp < c.max_hp * 0.25 and c.healing_pills > 0:
+        if 0 < hp < hp_max * 0.25 and c.healing_pills > 0:
             c.healing_pills -= 1
-            c.hp = min(c.max_hp, c.hp + c.max_hp * 0.5)
+            hp = min(hp_max, hp + hp_max * 0.5)
             msgs.append("  You gulp a Spirit Healing Pill mid-battle and rally.")
 
-    if c.hp > 0 and e_hp <= 0:
+    if hp > 0 and e_hp <= 0:
         c.spirit_stones += reward
         c.reputation += 1
-        c.hp = max(1.0, c.hp)
+        c.hp = max(1.0, c.max_hp * (hp / hp_max))
         msgs.append(f"  You slay the {name}! (+{reward} spirit stones, +1 reputation)")
         # Felling a devil or rogue earns merit; slaughtering beasts does not.
         if kind == "rogue" and ("Demonic" in name or "Corpse" in name
@@ -109,7 +114,7 @@ def fight(c: Character, rng: random.Random, enemy=None) -> list:
         # A bested wild beast may be tamed into a companion.
         if kind == "beast" and c.beast is None:
             msgs += beasts.try_tame(c, name, e_power, rng)
-    elif c.hp <= 0:
+    elif hp <= 0:
         # Death save from sheer fortune.
         if rng.random() < c.luck / 300.0:
             c.hp = c.max_hp * 0.15
@@ -117,9 +122,11 @@ def fight(c: Character, rng: random.Random, enemy=None) -> list:
         else:
             c.alive = False
             c.cause_of_death = f"slain by a {name}"
+            c.hp = 0.0
             msgs.append(f"  ☠ The {name} strikes you down. Your journey ends here.")
             c.note(f"Killed by a {name}.")
     else:
+        c.hp = max(1.0, c.max_hp * (hp / hp_max))
         msgs.append("  Neither can fell the other; you disengage, breathing hard.")
     c.recompute_max_hp()
     return msgs
