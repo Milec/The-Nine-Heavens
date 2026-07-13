@@ -44,6 +44,9 @@ await page.waitForTimeout(500);
 // Resolve whatever overlay is open: battles get played (a skill + target, or
 // End Turn, or Continue), event cards get their first choice, everything else
 // is closed. Recurses until the overlay is gone or a battle awaits more turns.
+// Closable sheets are closed rather than button-mashed: repeatable deed
+// actions now resolve in place (the sheet stays open, feedback as a toast),
+// so clicking them would never converge on a closed overlay.
 async function resolveOverlay(depth = 0) {
   if (depth > 60) return;
   if (!await page.locator('#overlay:not(.hidden)').count()) return;
@@ -64,10 +67,12 @@ async function resolveOverlay(depth = 0) {
     await page.waitForTimeout(200);
     return resolveOverlay(depth+1);
   }
-  const choice = page.locator('#overlay-body > .mbtn.full');
-  if (await choice.count()) { await choice.first().click().catch(()=>{}); await page.waitForTimeout(250); return resolveOverlay(depth+1); }
   const closeBtn = page.locator('#overlay-close:visible');
   if (await closeBtn.count()) { await closeBtn.first().click().catch(()=>{}); await page.waitForTimeout(150); return; }
+  // No close button: a forced screen (event card, dialogue, death) — take the
+  // first choice and continue resolving.
+  const choice = page.locator('#overlay-body > .mbtn.full');
+  if (await choice.count()) { await choice.first().click().catch(()=>{}); await page.waitForTimeout(250); return resolveOverlay(depth+1); }
   const any = page.locator('#overlay-body button:not([disabled])');
   if (await any.count()) { await any.first().click().catch(()=>{}); await page.waitForTimeout(250); return resolveOverlay(depth+1); }
 }
