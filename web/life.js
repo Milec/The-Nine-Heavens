@@ -348,8 +348,10 @@ function makeApi(c, rng) {
     giveArtifact: grade => E.acquireArtifact(c, E.randomArtifact(c, rng, grade)),
     learnTech: () => learnRandomTech(c, rng),
     meet: (role, opts) => meetPerson(c, rng, role, opts),
-    kin: label => c.relationships.find(n => n.kin === label && n.alive) || null,
-    kinAdjust: (label, d) => { const n = c.relationships.find(x => x.kin === label && x.alive); if (n) n.affinity = clampN(n.affinity + d, -100, 100); },
+    // Kin lookups are case-insensitive: kin labels are stored capitalized
+    // ("Father"), while event code naturally writes kinAdjust("father", …).
+    kin: label => { const l = String(label).toLowerCase(); return c.relationships.find(n => n.kin && n.kin.toLowerCase() === l && n.alive) || null; },
+    kinAdjust: (label, d) => { const l = String(label).toLowerCase(); const n = c.relationships.find(x => x.kin && x.kin.toLowerCase() === l && x.alive); if (n) n.affinity = clampN(n.affinity + d, -100, 100); },
     makeNemesis: grudge => makeNemesis(c, rng, grudge),
     nemesis: () => getNemesis(c),
     marry: npc => marry(c, npc, rng),
@@ -816,8 +818,10 @@ export function doRelationAction(c, npc, action, rng) {
       if (rng.random() < 0.35 + c.charm / 300) { npc.role = "friend"; npc.affinity = 15; return [`Against all odds, ${npc.name} accepts your olive branch. Enemy becomes friend.`]; }
       adj(-3); return [`${npc.name} spits at your feet. Some grudges do not heal.`];
     case "duel": {
-      const res = ["You challenge " + npc.name + " to settle things with qi and steel!"].concat(E.fight(c, rng, [npc.name, npc.power, (c.realm + 1) * 6, "rogue"]));
-      if (c.alive && rng.random() < 0.6) { npc.alive = false; res.push(`You defeat ${npc.name} and end the feud for good.`); }
+      const fightRes = E.fight(c, rng, [npc.name, npc.power, (c.realm + 1) * 6, "rogue"]);
+      const res = ["You challenge " + npc.name + " to settle things with qi and steel!"].concat(fightRes);
+      const won = fightRes.some(m => m.includes("You slay the"));   // only a true victory ends the feud
+      if (c.alive && won) { npc.alive = false; res.push(`You defeat ${npc.name} and end the feud for good.`); }
       return res;
     }
     default: return ["Nothing happens."];
@@ -1029,7 +1033,6 @@ export function foundSectReason(c) {
 }
 export function foundSect(c, rng, name) {
   const reason = foundSectReason(c);
-  if (reason && c.spiritStones < FOUND_SECT_COST) return [reason];
   if (reason) return [reason];
   c.spiritStones -= FOUND_SECT_COST;
   const sectName = (name && name.trim()) || `${rng.choice(D.SECT_NAME_ADJ)} ${rng.choice(D.SECT_NAME_NOUN)}`;

@@ -92,7 +92,6 @@ export function generateWorld(rng) {
     const loc = rng.choice(cand);
     loc.sectKey = key;
     if (loc.type !== "sect") retype(loc, "sect", rng);
-    loc.sectKey = key;
   }
   // Guarantee a varied realm: enough wilds to hunt, ruins to delve, and a deadly
   // frontier — converting spare non-seat places in the outer lands if short.

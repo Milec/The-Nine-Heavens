@@ -1220,7 +1220,7 @@ function openSectsRealm() {
       const s = D.SECT_BY_KEY[key], st = E.sectStanding(c, key), fig = E.sectFigures(key, c);
       const mine = c.sectKey === key || (c.ownSect && c.ownSect.key === key);
       const rels = D.SECTS.map(o => o[0]).filter(o => o !== key && E.sectRelOf(c, key, o) !== "neutral")
-        .map(o => `${SECT_REL_TAG[E.sectRelOf(c, key, o)]} ${E.sectName ? D.SECT_BY_KEY[o][1].split(" (")[0] : o}`);
+        .map(o => `${SECT_REL_TAG[E.sectRelOf(c, key, o)]} ${D.SECT_BY_KEY[o][1].split(" (")[0]}`);
       const row = el("div", "listrow" + (mine ? " bound" : ""));
       const master = fig && fig.master ? `${fig.master.name} · ${D.REALMS[fig.master.realm][0]}` : "—";
       const tint = s[2] === "demonic" ? "tint-jade" : st.broken ? "" : "tint-gold";
@@ -2447,28 +2447,6 @@ function resumeFrom(sv) {
 function startOrDeath() { if (!state.c) startScreen(); else if (!state.c.alive) checkDeath(); }
 
 /* ---------------------------- combat minigame ---------------------------- */
-const STATUS_EMOJI = { burn: "🔥", bleed: "🩸", empower: "💪", weaken: "💢", stun: "💫", regen: "💚" };
-function statusChips(u) {
-  let s = "";
-  if (u.shield > 0) s += `🛡️${Math.round(u.shield)} `;
-  for (const st of u.statuses) s += `${STATUS_EMOJI[st.type] || "•"}${st.turns} `;
-  return s.trim();
-}
-function unitPanel(u, isPlayer) {
-  const p = el("div", "cbt-unit" + (isPlayer ? " you" : ""));
-  const elemIcon = isPlayer ? "🧘" : C.elementIcon(u.element);
-  let html = `<div class="cu-top"><span class="cu-name">${elemIcon} ${escapeHtml(u.name)}</span><span class="cu-status">${statusChips(u)}</span></div>`;
-  html += `<div class="hpbar"><div class="hpfill${isPlayer ? " you" : ""}" style="width:${clampPct(u.hp, u.maxHp)}%"></div><span>${Math.max(0, Math.round(u.hp))}/${Math.round(u.maxHp)}</span></div>`;
-  if (isPlayer) html += `<div class="qibar"><div class="qifill" style="width:${clampPct(u.qi, u.maxQi)}%"></div><span>Qi ${Math.round(u.qi)}/${Math.round(u.maxQi)}</span></div>`;
-  if (isPlayer) {
-    const c = u.ref, side = [];
-    if (c.beast && c.beast.alive) side.push(`🐾 ${escapeHtml(c.beast.name)}`);
-    if (u.ally) side.push(`⚔ ${escapeHtml(u.ally.name)}`);
-    if (side.length) html += `<div class="cu-status" style="margin-top:4px">at your side: ${side.join(" · ")}</div>`;
-  }
-  p.innerHTML = html;
-  return p;
-}
 // Every fight is now a tactical grid battle. This shim wraps an enemy stat-block
 // (or a pre-built group via opts.enemies) into a grid spec with a map themed to
 // the encounter, so all the old call sites flow onto the field unchanged.
@@ -2756,7 +2734,7 @@ function realmStage() {
 function realmAfterBattle(outcome) {
   const c = state.c, R = state.realmRun;
   if (!c.alive) { state.realmRun = null; renderProfile(); checkDeath(); return; }
-  if (outcome !== "win") { logMessages(["You withdraw from the realm with the spoils you have."]); realmEnd(false); return; }
+  if (outcome !== "win") { logMessages(["You withdraw from the realm with the spoils you have."]); realmEnd(); return; }
   // A brief breather between stages, but wounds still carry forward.
   R.hpFrac = Math.min(1, Math.max(0.12, c.hp / c.maxHp) + 0.25);
   R.idx++;
@@ -2823,7 +2801,7 @@ function realmPrompt() {
     deeper.onclick = () => { closeOverlay(); realmStage(); };
     body.appendChild(deeper);
     const out = el("button", "mbtn full"); out.innerHTML = "Withdraw with Your Spoils<small>end the delve safely</small>";
-    out.onclick = () => { closeOverlay(); logMessages(["You retrace your steps and leave the realm, spoils in hand."]); realmEnd(false); };
+    out.onclick = () => { closeOverlay(); logMessages(["You retrace your steps and leave the realm, spoils in hand."]); realmEnd(); };
     body.appendChild(out);
   }, false);
 }
@@ -2845,7 +2823,7 @@ function realmComplete() {
   // in your sea of consciousness — arming a years-long Sealed Will arc.
   if (c.realm >= 3 && E.armArc(c, "sealedwill", state.rng, 0.22)) lines.push("  ✦ Something in the inner sanctum looked back at you. A cold, watchful something has followed you out...");
   logMessages(lines);
-  realmEnd(true);
+  realmEnd();
 }
 function realmEnd() { state.realmRun = null; endActivityYear(); }
 function doTournament() {
@@ -2885,7 +2863,7 @@ function tourneyEnd(placement, won) {
   const lines = [`The tournament ends — you place in the top ${Math.max(1, placement)}.`,
     `Rewards: +${contribution} contribution, +${rep} reputation, +${stones} spirit stones.`];
   if (placement === 1) {
-    c.pills += 3; lines.push("As Champion you are awarded a Foundation Pill and 3 pills!");
+    c.pills += 3; c.breakthroughPills += 1; lines.push("As Champion you are awarded a Foundation Breakthrough Pill and 3 Qi-Gathering Pills!");
     // Crowned champion, you taste how sweet victory is — and how much sweeter
     // forbidden power would be. Arms the Demon-Path arc (the lure of the shortcut).
     if (c.realm >= 3 && E.armArc(c, "demonpath", rng, 0.18))
@@ -2906,35 +2884,6 @@ function tourneyEnd(placement, won) {
   state.tourney = null;
   endActivityYear();
 }
-function renderBattleScreen(B, onDone) {
-  openOverlay(B.opts.title || "Battle", body => {
-    body.appendChild(unitPanel(B.enemy, false));
-    body.appendChild(el("div", "cbt-vs", `— turn ${B.turn} —`));
-    const feed = el("div", "cbt-feed");
-    (B.feed || []).slice(-9).forEach(l => feed.appendChild(el("div", "line " + classify(l), escapeHtml(l))));
-    body.appendChild(feed);
-    body.appendChild(unitPanel(B.player, true));
-    if (B.over) {
-      const cont = el("button", "mbtn full primary");
-      cont.innerHTML = `Continue<small>${B.outcome === "win" ? "victory!" : B.outcome === "lose" ? "defeat..." : B.outcome === "yield" ? "you yield" : "you flee"}</small>`;
-      cont.onclick = () => { const sum = B.finish(); closeOverlay(); logMessages(sum); if (B.outcome === "win") award("first_blood"); if (onDone) onDone(B.outcome); };
-      body.appendChild(cont);
-    } else {
-      const grid = el("div", "cbt-actions");
-      for (const a of B.actions()) {
-        const b = el("button", "cbt-skill" + (a.disabled ? " off" : "") + (a.id === "flee" ? " flee" : ""));
-        b.innerHTML = `<span class="cs-name">${a.element ? C.elementIcon(a.element) + " " : ""}${escapeHtml(a.name)}</span>`
-          + (a.desc ? `<span class="cs-desc">${escapeHtml(a.desc)}</span>` : "")
-          + `<span class="cs-cost">${a.qi ? "⊙" + a.qi + " qi" : "free"}</span>`;
-        if (!a.disabled) b.onclick = () => { const r = B.act(a.id); (B.feed = B.feed || []).push(...r.lines); renderBattleScreen(B, onDone); };
-        grid.appendChild(b);
-      }
-      body.appendChild(grid);
-    }
-    feed.scrollTop = feed.scrollHeight;
-  }, false);
-}
-
 /* ----------------------- tactical grid combat (战阵) --------------------- */
 const GRID_INTRO = {
   ring: n => `The ring is drawn. ${n > 1 ? `${n} opponents face you` : "Your opponent faces you"} across the dueling ground — no terrain, no allies, only skill.`,

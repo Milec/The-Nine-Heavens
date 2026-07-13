@@ -1127,6 +1127,77 @@ function testGridCombat() {
   assert(resolved === 60, `every grid battle resolves — no infinite fights (got ${resolved}/60)`);
 }
 
+/* Regression: bugs found in review must stay fixed. */
+function testReviewRegressions() {
+  // (1) Kin lookups are case-insensitive — event code writes kinAdjust("father")
+  //     while kin labels are stored capitalized ("Father"). The Awakening (which
+  //     always fires at age 6 and adjusts the parents for any talented root)
+  //     exercises the real api inside life.ageUp.
+  {
+    let checked = 0;
+    for (let seed = 0; seed < 12; seed++) {
+      const rng = new E.RNG(1000 + seed);
+      const c = L.bornCharacter(rng, "Kin Test " + seed, null, { rootKey: "heavenly", backgroundKey: "peasant" });
+      const father = c.relationships.find(n => n.kin === "Father" && n.alive);
+      if (!father) continue;
+      c.age = D.AWAKENING_AGE - 1;
+      const before = father.affinity;
+      L.ageUp(c, rng);                       // the Awakening fires at age 6
+      assert(c.awakened, "the Awakening must fire at the awakening age");
+      assert(father.affinity >= before + 6,
+        "kinAdjust('father') must reach the capitalized 'Father' kin");
+      checked++;
+      if (checked >= 3) break;
+    }
+    assert(checked >= 1, "at least one seed produced a father to test against");
+  }
+  // (2) Duplicate treasures are never held: a second find converts to stones.
+  {
+    const rng = new E.RNG(11);
+    const c = L.bornCharacter(rng, "Trove Test", null);
+    E.acquireArtifact(c, "azure_sword");
+    const stones = c.spiritStones;
+    const msgs = E.acquireArtifact(c, "azure_sword");
+    assert(c.artifacts.filter(k => k === "azure_sword").length === 1,
+      "a treasure is owned at most once");
+    assert(c.spiritStones > stones, "a duplicate find is traded for stones");
+    assert(msgs.length && /trade|stones/i.test(msgs.join(" ")), "the trade is narrated");
+  }
+  // (3) The tournament champion actually receives the promised breakthrough pill.
+  // (Resolved via engine.tournament — the legacy auto path shares the reward code.)
+  {
+    const rng = new E.RNG(3);
+    const c = L.bornCharacter(rng, "Champ Test", null);
+    c.awakened = true; c.age = 20; c.sectKey = "cloudmist"; c.sectRank = 0;
+    c.realm = 6; c.stage = 5; E.recomputeMaxHp(c); c.hp = c.maxHp;
+    let won = false;
+    for (let i = 0; i < 40 && !won; i++) {
+      const before = c.breakthroughPills;
+      const msgs = E.tournament(c, rng).join(" ");
+      if (/Champion you are awarded/.test(msgs)) {
+        won = true;
+        assert(c.breakthroughPills === before + 1,
+          "the champion's Foundation Breakthrough Pill must actually be granted");
+      }
+      c.hp = c.maxHp; c.age = 20;
+    }
+    assert(won, "a Spirit-Severing cultivator wins at least one sect tournament in 40 tries");
+  }
+  // (4) A ruin's jade-slip find never dead-ends when every art is known.
+  {
+    const rng = new E.RNG(5);
+    const c = L.bornCharacter(rng, "Ruin Test", null);
+    c.techniques = Object.keys(D.TECHNIQUES);      // knows everything
+    c.awakened = true; c.realm = 8; c.stage = 8; E.recomputeMaxHp(c);
+    for (let i = 0; i < 300 && c.alive; i++) {
+      c.hp = c.maxHp; c.age = 20;
+      const msgs = E.adventure(c, rng);
+      assert(msgs.length >= 1 && msgs.every(m => typeof m === "string"),
+        "every adventure narrates something");
+    }
+  }
+}
+
 /* ------------------------------- runner ---------------------------------- */
 console.log("The Nine Heavens — web build tests\n");
 try {
@@ -1154,6 +1225,7 @@ try {
   test("tactical grid combat: terrain, movement, ranged & blast arts, allies, no stalemates", testGridCombat);
   test("the lesser stats (Soul/Luck/Charm) are trainable and carry mechanical weight", testStatsEarnTheirKeep);
   test("birth starts low on the eight-tier ladder; the climb is earned", testBirthStartsLowOnTheLadder);
+  test("review regressions stay fixed: kin lookups, duplicate treasures, champion's pill, ruins", testReviewRegressions);
   console.log(`\nAll ${passed} web tests passed.`);
 } catch (err) {
   console.error("\n✗ " + err.message);
