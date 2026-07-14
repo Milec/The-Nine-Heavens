@@ -276,7 +276,7 @@ function renderProfile() {
   { const hl = W.currentLoc(c); if (hl) add(icon(W.typeOf(hl).icon, { size: 13, cls: "chip-ic" }), escapeHtml(hl.name), "", "region"); }
   if (c.era) add("☷", D.eraAt(c.era)[2], D.eraAt(c.era)[5] > 1.2 ? "bad" : D.eraAt(c.era)[4] > 1.1 ? "good" : "", "era");
   if (c.reputation <= -25 || c.karma <= -60) add("⚠ Wanted", "bounties", "bad", "wanted");
-  if (c.ascended) add("✸", "Ascended Immortal", "good", "realm");
+  if (c.ascended) { add("✸", "Ascended Immortal", "good"); chips.lastChild.classList.add("tappable"); chips.lastChild.onclick = () => openHeavenlyGate(); }
   if (c.awakened && E.canBreakthrough(c)) add("⚑ Breakthrough", `${Math.floor(E.breakthroughChance(c) * 100)}%`, "warn", "breakthrough");
 
   const ageTab = $("tabbar").querySelector(".tab-age");
@@ -509,6 +509,13 @@ function openCultivate() {
   const c = state.c;
   openOverlay("Cultivation", body => {
     if (!c.awakened) { body.appendChild(el("p", "note", `Your spiritual root has not yet awakened. The Awakening Ceremony comes at age ${D.AWAKENING_AGE} — keep aging up.`)); return; }
+    if (c.ascended) {
+      body.appendChild(el("p", "note", "You are an Ascended Immortal, lingering yet in the mortal world. The Heavenly Gate stands open to you whenever you wish to conclude your saga in glory."));
+      const gate = el("button", "mbtn full primary");
+      gate.innerHTML = "Return to the Heavenly Gate<small>飞升 · ascend in glory — conclude this saga</small>";
+      gate.onclick = () => openHeavenlyGate();
+      body.appendChild(gate);
+    }
     const hasRoot = c.root.key !== "none";
     const addBtn = (grid, l, s, h, opt = {}) => { const b = el("button", "mbtn" + (opt.full ? " full" : "") + (opt.primary ? " primary" : "")); b.innerHTML = `${l}<small>${opt.deed ? deedTag(opt.deed) + " · " : ""}${s}</small>`; if (opt.disabled) b.disabled = true; else b.onclick = h; grid.appendChild(b); };
     deedMeter(body, ["cult"]);
@@ -2555,6 +2562,13 @@ function ascensionFinale() {
     "A great gate of golden light tears open the sky. Immortal music swells; the heavens themselves bow to acknowledge a new immortal.",
     "Few in ten thousand years walk this road to its end. You are one of them.",
   ]);
+  openHeavenlyGate(true);
+}
+// The Heavenly Gate: offered at the moment of Ascension, and — for an immortal
+// who chose to linger in the mortal world — reopenable any time from the
+// Cultivate tab or the ✸ chip, so the saga can always be concluded in glory.
+function openHeavenlyGate(first = false) {
+  const c = state.c;
   openOverlay("Ascension 飞升", body => {
     body.appendChild(sceneCard("ascend"));
     body.appendChild(el("div", "title-zh", "飞升"));
@@ -2566,9 +2580,9 @@ function ascensionFinale() {
     body.appendChild(go);
     const stay = el("button", "mbtn full");
     stay.innerHTML = "Linger in the mortal world<small>walk among mortals as an immortal a while longer</small>";
-    stay.onclick = () => { closeOverlay(); logMessages(["You turn from the gate, unwilling yet to leave the mortal world and those within it. The immortal heavens can wait."]); renderProfile(); };
+    stay.onclick = () => { closeOverlay(); logMessages(["You turn from the gate, unwilling yet to leave the mortal world and those within it. The immortal heavens can wait — the Gate now stands open to you in the Cultivate tab, whenever you are ready."]); renderProfile(); };
     body.appendChild(stay);
-  }, false);
+  }, !first);
 }
 // A triumphant close — the immortal departs; the saga continues through legacy.
 function concludeAscension() {
